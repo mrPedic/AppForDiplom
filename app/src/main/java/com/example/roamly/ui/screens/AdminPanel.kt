@@ -1,4 +1,4 @@
-package com.example.roamly.screens
+package com.example.roamly.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -11,17 +11,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 
 @Composable
-fun HomeScreen() {
+fun AdminPanelScreen(
+    navController: NavController
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Magenta),
+            .background(Color.Gray),
         contentAlignment = Alignment.Center
     ){
         Text(
-            text = "HOME",
+            text = "ADMIN PANEL",
             fontSize = MaterialTheme.typography.titleLarge.fontSize,
             fontWeight = FontWeight.Bold,
             color = Color.White
@@ -31,6 +35,6 @@ fun HomeScreen() {
 
 @Composable
 @Preview(showBackground = true)
-fun HomeScreenPreview(){
-    HomeScreen()
+fun AdminPanelScreenPreview () {
+    AdminPanelScreen(navController = rememberNavController())
 }

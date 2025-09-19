@@ -1,15 +1,15 @@
 package com.example.roamly.factory
 
-import com.example.roamly.PingService
+import com.example.roamly.ApiService
 import retrofit2.Retrofit
-import retrofit2.converter.scalars.ScalarsConverterFactory
+import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitFactory {
-    fun create(baseUrl: String): PingService {
+    fun create(baseUrl: String): ApiService {
         return Retrofit.Builder()
             .baseUrl(baseUrl)
-            .addConverterFactory(ScalarsConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(PingService::class.java)
+            .create(ApiService::class.java)
     }
 }
