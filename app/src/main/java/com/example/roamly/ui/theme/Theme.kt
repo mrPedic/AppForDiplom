@@ -9,7 +9,12 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+
+// ⚠️ ПРИМЕЧАНИЕ: Предполагается, что Purple80, PurpleGrey80, Pink80, Purple40, PurpleGrey40, Pink40
+// определены в другом файле (например, Colors.kt)
+
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
@@ -33,6 +38,7 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+
 @Composable
 fun RoamlyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -45,14 +51,13 @@ fun RoamlyTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = Typography, // Предполагается, что Typography определен
         content = content
     )
 }

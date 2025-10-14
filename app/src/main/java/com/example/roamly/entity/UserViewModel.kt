@@ -7,7 +7,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.roamly.factory.RetrofitFactory
-import com.example.roamly.fetcher.GistFetcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -20,21 +19,20 @@ class UserViewModel @Inject constructor() : ViewModel() {
     var user by mutableStateOf(User())
         private set
 
+    private val apiService = RetrofitFactory.create()
+
     fun registerUser(name: String, login: String, password: String, onResult: (User?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val baseUrl = GistFetcher.fetchBaseUrl() ?: run {
-                    withContext(Dispatchers.Main) { onResult(null) }
-                    return@launch
-                }
-                val service = RetrofitFactory.create(baseUrl)
                 val newUser = User(name = name, login = login, password = password)
-                val createdUser = service.createUser(newUser)
+                val newId: Long = apiService.createUser(newUser)
+                val registeredUser = newUser.copy(id = newId, role = Role.Registered)
 
                 withContext(Dispatchers.Main) {
-                    user = createdUser
-                    onResult(createdUser)
+                    user = registeredUser
+                    onResult(registeredUser)
                 }
+                Log.e("UserViewModelCorrect", getAllData())
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Log.e("UserViewModel", "Ошибка регистрации: ${e.message}")
@@ -47,13 +45,8 @@ class UserViewModel @Inject constructor() : ViewModel() {
     fun loginUser(login: String, password: String, onResult: (User?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val baseUrl = GistFetcher.fetchBaseUrl() ?: run {
-                    withContext(Dispatchers.Main) { onResult(null) }
-                    return@launch
-                }
-                val service = RetrofitFactory.create(baseUrl)
+                val response = apiService.loginUser(User(login = login, password = password))
 
-                val response = service.loginUser(User(login = login, password = password))
                 withContext(Dispatchers.Main) {
                     if (response != null) {
                         user = response
@@ -64,19 +57,14 @@ class UserViewModel @Inject constructor() : ViewModel() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Log.e("UserViewModel", "Ошибка авторизации: ${e.message}")
+                    Log.d("UserViewModel", "Ошибка авторизации: ${e.message}")
                     onResult(null)
                 }
             }
         }
     }
 
-
-    fun userIsExists(
-        email: String,
-    ){
-
-    }
+    fun userIsExists(email: String){}
 
     fun logout() {
         user = User()

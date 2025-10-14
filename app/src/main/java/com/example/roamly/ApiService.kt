@@ -7,8 +7,8 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 
 interface ApiService {
-    @POST("/api/accounts")
-    suspend fun createUser(@Body user: User): User
+    @POST("/auth/register")
+    suspend fun createUser(@Body user: User): Long
 
     @POST("/api/accounts/login")
     suspend fun loginUser(@Body user: User): User?

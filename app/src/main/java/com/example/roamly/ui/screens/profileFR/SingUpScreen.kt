@@ -31,7 +31,7 @@ import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 @Composable
 fun SingUpScreen(
     navController: NavController,
-    userViewModel: UserViewModel = hiltViewModel()
+    userViewModel: UserViewModel
 ) {
     var username by remember { mutableStateOf("") }
     var login by remember { mutableStateOf("") }
@@ -96,7 +96,7 @@ fun SingUpScreen(
 @Composable
 @Preview(showBackground = true)
 fun SingUpScreenPreview() {
-    SingUpScreen(navController = rememberNavController())
+    SingUpScreen(navController = rememberNavController(), hiltViewModel())
 }
 
 

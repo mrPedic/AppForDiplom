@@ -20,14 +20,8 @@ sealed class ButtonBarScreens (
         icon = Icons.Default.Home
     )
 
-    object RegisteredProfile: ButtonBarScreens(
-        route = "profile_registered",
-        title = "Profile",
-        icon = Icons.Default.Person
-    )
-
-    object UnRegisteredProfile: ButtonBarScreens(
-        route = "profile_un_registered",
+    object Profile: ButtonBarScreens(
+        route = "profile",
         title = "Profile",
         icon = Icons.Default.Person
     )

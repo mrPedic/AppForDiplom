@@ -10,23 +10,24 @@ import com.example.roamly.ui.screens.BookingScreen
 import com.example.roamly.ui.screens.HomeScreen
 import com.example.roamly.ui.screens.SearchScreen
 import com.example.roamly.ui.screens.profileFR.SingUpScreen
-import com.example.roamly.ui.screens.profileFR.ProfileScreenRegistered
-import com.example.roamly.ui.screens.profileFR.ProfileScreenUnRegistered
 import com.example.roamly.ui.screens.profileFR.LoginScreen
 import com.example.roamly.ui.screens.sealed.ButtonBarScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.entity.UserViewModel
+import com.example.roamly.ui.screens.profileFR.ProfileScreen
 
 @Composable
 fun BottomNavGraph(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    userViewModel: UserViewModel
 ) {
     NavHost(
         navController = navController,
         startDestination = ButtonBarScreens.Home.route,
         modifier = modifier
     ) {
-        // Основные вкладки
+        // --- Основные вкладки ---
         composable(ButtonBarScreens.Home.route) {
             HomeScreen(navController)
         }
@@ -37,23 +38,22 @@ fun BottomNavGraph(
             SearchScreen(navController)
         }
 
-        // Экраны профиля
-        composable(ButtonBarScreens.RegisteredProfile.route) {
-            ProfileScreenRegistered(navController)
-        }
-        composable(ButtonBarScreens.UnRegisteredProfile.route) {
-            ProfileScreenUnRegistered(navController)
+        // --- ЕДИНЫЙ ЭКРАН ПРОФИЛЯ ---
+        // Предполагаем, что этот роут используется в BottomBar
+        composable(ButtonBarScreens.Profile.route) {
+            ProfileScreen(navController,userViewModel)
         }
 
-        // Экраны авторизации
-        composable(LogSinUpScreens.Login.route) {
-            SingUpScreen(navController)
+        // --- Экраны авторизации ---
+        // ИСПРАВЛЕНО: Теперь SingUp (регистрация) и Login (вход) правильно связаны с роутами
+        composable(LogSinUpScreens.SingUp.route) { // SingUp = Регистрация
+            SingUpScreen(navController,userViewModel)
         }
-        composable(LogSinUpScreens.SingUp.route) {
-            LoginScreen(navController)
+        composable(LogSinUpScreens.Login.route) { // Login = Вход
+            LoginScreen(navController,userViewModel)
         }
 
-        // Админ панель
+        // --- Админ панель ---
         composable(ButtonBarScreens.AdminPanel.route) {
             AdminPanelScreen(navController)
         }
