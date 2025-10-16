@@ -1,5 +1,6 @@
 package com.example.roamly.ui.screens.profileFR
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,7 +33,7 @@ fun LoginScreen(
     navController: NavController,
     userViewModel: UserViewModel
 ) {
-    var email by remember { mutableStateOf("") }
+    var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     Column (
@@ -43,9 +44,9 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text(text = "Введите почту") }
+            value = login,
+            onValueChange = { login = it },
+            label = { Text(text = "Введите логин") }
         )
 
         OutlinedTextField(
@@ -57,8 +58,13 @@ fun LoginScreen(
         Button(
             modifier = Modifier.fillMaxWidth(0.7f),
             onClick = {
-                if (email.length > 3 && password.length > 3){
-
+                if (login.length > 3 && password.length > 3){
+                    userViewModel.loginUser(login = login, password = password, { createdUser ->
+                        if (createdUser != null) {
+                            Log.i("LoginScreen", "Пользователь вошел с id: ${createdUser.id}")
+                            navController.popBackStack()
+                        }
+                    })
                 }
             }
         ) {
@@ -68,7 +74,7 @@ fun LoginScreen(
         Text(
             modifier = Modifier.clickable {
                 navController.popBackStack()
-                navController.navigate(route = LogSinUpScreens.Login.route)
+                navController.navigate(route = LogSinUpScreens.SingUp.route)
             },
             text = "Созать новый аккаунт",
             color = Color.Magenta,

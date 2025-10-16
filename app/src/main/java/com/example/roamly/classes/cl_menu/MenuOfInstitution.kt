@@ -1,4 +1,4 @@
-package com.example.roamly.cl_menu
+package com.example.roamly.classes.cl_menu
 
 class MenuOfInstitution{
     private var foodMenu = mutableListOf<FoodGroup>()

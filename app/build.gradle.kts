@@ -70,4 +70,9 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    implementation("androidx.collection:collection:1.2.0")
+
+    // MAPS
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 }

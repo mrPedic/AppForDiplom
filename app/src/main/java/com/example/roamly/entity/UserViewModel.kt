@@ -1,5 +1,6 @@
 package com.example.roamly.entity
 
+import android.app.Application
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,14 +13,72 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import android.content.SharedPreferences;
 
 @HiltViewModel
-class UserViewModel @Inject constructor() : ViewModel() {
+class UserViewModel @Inject constructor(
+    private val application: Application
+) : ViewModel() {
 
-    var user by mutableStateOf(User())
-        private set
+    private var _user = mutableStateOf(User())
+    var user: User
+        get() = _user.value
+        private set(value) { _user.value = value }
 
+    private val PREFS_NAME = "user_prefs"
+    // Используем Application для получения SharedPreferences
+    private val prefs: SharedPreferences = application.getSharedPreferences(PREFS_NAME, Application.MODE_PRIVATE)
+    private val KEY_ID = "user_id"
+    private val KEY_NAME = "user_name"
+    private val KEY_LOGIN = "user_login"
+    private val KEY_ROLE = "user_role"
+
+    private fun saveUser(user: User) {
+        prefs.edit().apply {
+            putLong(KEY_ID, user.id ?: -1L)
+            putString(KEY_NAME, user.name)
+            putString(KEY_LOGIN, user.login)
+            putString(KEY_ROLE, user.role.name)
+            apply()
+        }
+    }
+    init{
+        loadUser()
+    }
+    private fun loadUser() {
+        val id = prefs.getLong(KEY_ID, -1L)
+
+        // Проверяем, есть ли сохраненный пользователь (например, по ID)
+        if (id != -1L) {
+            val name = prefs.getString(KEY_NAME, "") ?: ""
+            val login = prefs.getString(KEY_LOGIN, "") ?: ""
+            // Пароль обычно не сохраняется в SharedPreferences!
+            val password = ""
+
+            // Получаем роль и конвертируем из строки в Enum (Role)
+            val roleString = prefs.getString(KEY_ROLE, Role.UnRegistered.name) ?: Role.UnRegistered.name
+            val role = try {
+                Role.valueOf(roleString)
+            } catch (e: IllegalArgumentException) {
+                Role.UnRegistered
+            }
+
+            _user.value = User(
+                id = id,
+                name = name,
+                login = login,
+                password = password, // Пароль пуст, но это безопасно
+                role = role
+            )
+        }
+        else{
+            _user.value = User()
+        }
+    }
+
+    // Предполагаем, что RetrofitFactory.create() доступен и создает ApiService
     private val apiService = RetrofitFactory.create()
+
 
     fun registerUser(name: String, login: String, password: String, onResult: (User?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -30,6 +89,7 @@ class UserViewModel @Inject constructor() : ViewModel() {
 
                 withContext(Dispatchers.Main) {
                     user = registeredUser
+                    saveUser(registeredUser)
                     onResult(registeredUser)
                 }
                 Log.e("UserViewModelCorrect", getAllData())
@@ -50,6 +110,7 @@ class UserViewModel @Inject constructor() : ViewModel() {
                 withContext(Dispatchers.Main) {
                     if (response != null) {
                         user = response
+                        saveUser(response)
                         onResult(response)
                     } else {
                         onResult(null)
@@ -66,12 +127,13 @@ class UserViewModel @Inject constructor() : ViewModel() {
 
     fun userIsExists(email: String){}
 
-    fun logout() {
-        user = User()
+    fun getId(): Long?{
+        return user.id.takeIf { it != null && it != -1L }
     }
 
-    fun login(name: String, login: String, password: String, role: Role = Role.Registered) {
-        user = User(name = name, login = login, password = password, role = role)
+    fun logout() {
+        user = User()
+        prefs.edit().clear().apply()
     }
 
     fun updateRole(newRole: Role) {

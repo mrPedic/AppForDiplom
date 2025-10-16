@@ -6,9 +6,10 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitFactory {
     //IP при подключении через мобильную точку доступа
-    //private const val BASE_URL = "http://10.52.115.228:8080"
+    private const val BASE_URL = "http://10.52.115.228:8080"
+
     //IP при подключении через wifi
-    private const val BASE_URL = "http://192.168.100.5:8080"
+    //private const val BASE_URL = "http://192.168.100.5:8080"
 
     // ГЛОБАЛЬНЫЙ ВАРИАНТ (для справки):
     // Если бы вы использовали глобальный адрес, он выглядел бы так:

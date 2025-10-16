@@ -1,5 +1,7 @@
 package com.example.roamly.navigation
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -11,36 +13,39 @@ import com.example.roamly.ui.screens.HomeScreen
 import com.example.roamly.ui.screens.SearchScreen
 import com.example.roamly.ui.screens.profileFR.SingUpScreen
 import com.example.roamly.ui.screens.profileFR.LoginScreen
-import com.example.roamly.ui.screens.sealed.ButtonBarScreens
+import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.entity.UserViewModel
+import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
+import com.example.roamly.ui.screens.establishment.MapPickerScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun BottomNavGraph(
+fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel
 ) {
     NavHost(
         navController = navController,
-        startDestination = ButtonBarScreens.Home.route,
+        startDestination = SealedButtonBar.Home.route,
         modifier = modifier
     ) {
         // --- Основные вкладки ---
-        composable(ButtonBarScreens.Home.route) {
+        composable(SealedButtonBar.Home.route) {
             HomeScreen(navController)
         }
-        composable(ButtonBarScreens.Booking.route) {
+        composable(SealedButtonBar.Booking.route) {
             BookingScreen(navController)
         }
-        composable(ButtonBarScreens.Searching.route) {
+        composable(SealedButtonBar.Searching.route) {
             SearchScreen(navController)
         }
 
         // --- ЕДИНЫЙ ЭКРАН ПРОФИЛЯ ---
         // Предполагаем, что этот роут используется в BottomBar
-        composable(ButtonBarScreens.Profile.route) {
+        composable(SealedButtonBar.Profile.route) {
             ProfileScreen(navController,userViewModel)
         }
 
@@ -54,8 +59,17 @@ fun BottomNavGraph(
         }
 
         // --- Админ панель ---
-        composable(ButtonBarScreens.AdminPanel.route) {
+        composable(SealedButtonBar.AdminPanel.route) {
             AdminPanelScreen(navController)
         }
+
+        // --- Создание заведения ---
+        composable(LogSinUpScreens.CreateEstablishment.route){
+            CreateEstablishmentScreen(navController,userViewModel)
+        }
+        composable(LogSinUpScreens.MapPicker.route){
+            MapPickerScreen(navController)
+        }
+
     }
 }

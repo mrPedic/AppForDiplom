@@ -26,7 +26,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.UserViewModel
+import com.example.roamly.ui.screens.SearchScreen
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
 @Composable
 fun SingUpScreen(
@@ -68,10 +70,10 @@ fun SingUpScreen(
                 if (username.length > 3 && login.length > 3 && password.length > 3) {
                     userViewModel.registerUser(username, login, password) { createdUser ->
                         if (createdUser != null) {
-                            Log.i("LoginScreen", "✅ Пользователь создан с id: ${createdUser.id}")
+                            Log.i("SingUpScreen", "✅ Пользователь создан с id: ${createdUser.id}")
                             navController.popBackStack()
                         } else {
-                            Log.e("LoginScreen", "Ошибка при регистрации")
+                            Log.e("SingUpScreen", "Ошибка при регистрации")
                         }
                     }
                 }
@@ -83,7 +85,7 @@ fun SingUpScreen(
         Text(
             modifier = Modifier.clickable {
                 navController.popBackStack()
-                navController.navigate(route = LogSinUpScreens.SingUp.route)
+                navController.navigate(route = LogSinUpScreens.Login.route)
             },
             text = "Войти в существующий аккаунт",
             color = Color.Magenta,

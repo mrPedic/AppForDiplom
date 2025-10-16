@@ -18,12 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.remember
+import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
 @Composable
 fun ProfileScreen(
@@ -31,9 +30,6 @@ fun ProfileScreen(
     userViewModel: UserViewModel
 ) {
     val isLoggedIn =  userViewModel.isLoggedIn()
-
-    Log.d("ProfileScreen", userViewModel.isLoggedIn().toString())
-
     if (isLoggedIn) {
         RegisteredProfileContent(navController, userViewModel)
     } else {
@@ -87,11 +83,19 @@ private fun RegisteredProfileContent(
             Button(
                 onClick = {
                     userViewModel.logout()
-                    // При вызове logout() userViewModel.user меняется,
-                    // что вызывает перекомпоновку ProfileScreen
                 }
             ) {
                 Text(text = "Выйти из аккаунта")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = {
+                    navController.navigate(LogSinUpScreens.CreateEstablishment.route)
+                }
+            ){
+                Text(text = "Создать свое заведение")
             }
         }
     }
