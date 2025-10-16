@@ -10,9 +10,9 @@ data class EstablishmentEntity(
     val address: String,
     val description: String,
     val rating: Double = 0.0,
-    val dateOfCreation: LocalDate,
+    val dateOfCreation: String,
     val menuId: Long = -1,
-    val createUserId: Long,
+    val createdUserId: Long,
     // ⭐ Добавим поле для статуса заведения
     val status: EstablishmentStatus
 ) {
@@ -22,10 +22,9 @@ data class EstablishmentEntity(
 enum class EstablishmentStatus {
     // На рассмотрении администрации
     PENDING_APPROVAL,
-    // Активно, одобрено
-    ACTIVE,
     // Отклонено
     REJECTED,
     // Временно неактивно
-    DISABLED
+    DISABLED,
+    APPROVED
 }

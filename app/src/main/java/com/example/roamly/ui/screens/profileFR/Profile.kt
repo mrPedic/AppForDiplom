@@ -80,6 +80,26 @@ private fun RegisteredProfileContent(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // ⭐ НОВАЯ КНОПКА: Просмотр моих заведений
+            Button(
+                onClick = {
+                    // Предполагаем, что этот маршрут существует
+                    navController.navigate(LogSinUpScreens.UserEstablishments.route)
+                },
+                modifier = Modifier.padding(bottom = 12.dp)
+            ){
+                Text(text = "Мои Заведения")
+            }
+
+            Button(
+                onClick = {
+                    navController.navigate(LogSinUpScreens.CreateEstablishment.route)
+                },
+                modifier = Modifier.padding(bottom = 12.dp) // Добавлен отступ для лучшего разделения кнопок
+            ){
+                Text(text = "Создать свое заведение")
+            }
+
             Button(
                 onClick = {
                     userViewModel.logout()
@@ -90,13 +110,6 @@ private fun RegisteredProfileContent(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
-                onClick = {
-                    navController.navigate(LogSinUpScreens.CreateEstablishment.route)
-                }
-            ){
-                Text(text = "Создать свое заведение")
-            }
         }
     }
 }

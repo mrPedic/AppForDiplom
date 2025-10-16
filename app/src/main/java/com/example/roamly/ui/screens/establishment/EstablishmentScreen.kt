@@ -4,11 +4,14 @@ package com.example.roamly.ui.screens.establishment
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import android.view.ViewGroup
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,11 +20,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -32,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable // ⭐ ДОБАВЛЕН ИМПОРТ
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,13 +60,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 
-// Константы для получения координат из MapPickerScreen
-// Эти константы должны быть объявлены в MapPickerScreen.kt или другом общем месте
-// Дублируем их здесь для самодостаточности, если они не импортируются напрямую:
-// const val LATITUDE_KEY = "latitude"
-// const val LONGITUDE_KEY = "longitude"
-
-
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CreateEstablishmentScreen(
@@ -66,14 +67,14 @@ fun CreateEstablishmentScreen(
     userViewModel: UserViewModel,
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
-    // Состояние полей ввода
-    var name by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
+    // ⭐ ИСПОЛЬЗУЕМ rememberSaveable ДЛЯ СОХРАНЕНИЯ СОСТОЯНИЯ ПРИ НАВИГАЦИИ
+    var name by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var address by rememberSaveable { mutableStateOf("") }
 
-    // ⭐ НОВОЕ СОСТОЯНИЕ ДЛЯ КООРДИНАТ
-    var latitude by remember { mutableStateOf<Double?>(null) }
-    var longitude by remember { mutableStateOf<Double?>(null) }
+    // Состояние для координат
+    var latitude by rememberSaveable { mutableStateOf<Double?>(null) }
+    var longitude by rememberSaveable { mutableStateOf<Double?>(null) }
 
     // Состояние статуса (на старте всегда PENDING_APPROVAL)
     val status = EstablishmentStatus.PENDING_APPROVAL
@@ -82,13 +83,15 @@ fun CreateEstablishmentScreen(
 
     // ⭐ ОБРАБОТКА РЕЗУЛЬТАТА ИЗ MAP PICKER
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-    LaunchedEffect(savedStateHandle?.get<Double>(LATITUDE_KEY), savedStateHandle?.get<Double>(LONGITUDE_KEY)) {
+    LaunchedEffect(Unit) { // Запускаем только один раз
+        // Проверяем наличие ключей
         val newLat = savedStateHandle?.get<Double>(LATITUDE_KEY)
         val newLon = savedStateHandle?.get<Double>(LONGITUDE_KEY)
+
         if (newLat != null && newLon != null) {
             latitude = newLat
             longitude = newLon
-            // Очищаем savedStateHandle, чтобы не получить те же данные при следующей композиции
+            // Очищаем savedStateHandle
             savedStateHandle.remove<Double>(LATITUDE_KEY)
             savedStateHandle.remove<Double>(LONGITUDE_KEY)
         }
@@ -140,8 +143,11 @@ fun CreateEstablishmentScreen(
                 latitude = latitude,
                 longitude = longitude,
                 onClick = {
-                    // Предполагаем, что маршрут для MapPickerScreen - "map_picker_route"
                     navController.navigate(LogSinUpScreens.MapPicker.route)
+                },
+                onClearClick = { // ⭐ ОБРАБОТЧИК ДЛЯ СБРОСА
+                    latitude = null
+                    longitude = null
                 }
             )
 
@@ -184,6 +190,8 @@ fun CreateEstablishmentScreen(
                         errorMessage = "Ошибка: Пожалуйста, укажите местоположение на карте."
                         return@Button
                     }
+
+                    Log.e("CreateEstablishment", "userId = ${userViewModel.getId()}")
 
                     // Передаем ID пользователя и координаты в ViewModel
                     viewModel.createEstablishment(
@@ -237,23 +245,56 @@ fun CreateEstablishmentScreen(
 fun LocationPickerCard(
     latitude: Double?,
     longitude: Double?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onClearClick: () -> Unit // ⭐ ДОБАВЛЕН КОЛБЭК ДЛЯ СБРОСА
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (latitude == null) 100.dp else 200.dp)
-            .padding(bottom = 16.dp)
-            .clickable(onClick = onClick),
+            .height(if (latitude == null) 100.dp else 250.dp) // Увеличим высоту карты, если выбрана
+            .padding(bottom = 16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (latitude == null) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
         )
     ) {
         if (latitude != null && longitude != null) {
-            MiniMapView(latitude, longitude)
+            Box(Modifier.fillMaxSize()) {
+                // 1. Мини-карта
+                MiniMapView(latitude, longitude)
+
+                // 2. Кнопка сброса (отображается поверх карты)
+                Row(
+                    modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Координаты установлены (${String.format("%.4f", latitude)}, ${String.format("%.4f", longitude)})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = onClearClick,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Clear,
+                            contentDescription = "Сбросить местоположение",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                // 3. Слой для перехода (чтобы нажать можно было в любом месте, кроме кнопки сброса)
+                Spacer(
+                    modifier = Modifier.matchParentSize().clickable(onClick = onClick)
+                )
+            }
         } else {
+            // Если координаты не выбраны
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().clickable(onClick = onClick),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -300,7 +341,7 @@ fun MiniMapView(latitude: Double, longitude: Double) {
             }
         },
         update = { view ->
-            // Обновление центра карты и маркера при изменении координат (хотя в мини-карте это редко нужно)
+            // Обновление центра карты и маркера при изменении координат
             view.controller.setCenter(point)
             view.overlays.removeAll { it is Marker }
             val marker = Marker(view).apply {

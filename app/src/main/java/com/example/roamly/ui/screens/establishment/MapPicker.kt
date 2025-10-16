@@ -24,7 +24,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
-import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 
 // Константы для передачи данных через NavController
 const val LOCATION_RESULT_KEY = "location_result"

@@ -18,6 +18,7 @@ import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.MapPickerScreen
+import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -69,6 +70,9 @@ fun NavGraph(
         }
         composable(LogSinUpScreens.MapPicker.route){
             MapPickerScreen(navController)
+        }
+        composable(LogSinUpScreens.UserEstablishments.route){
+            UserEstablishmentsScreen(navController, userViewModel)
         }
 
     }

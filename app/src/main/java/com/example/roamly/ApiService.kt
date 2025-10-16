@@ -1,5 +1,6 @@
 package com.example.roamly
 
+import com.example.roamly.entity.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.User
 import retrofit2.http.Body
@@ -19,4 +20,7 @@ interface ApiService {
 
     @POST("/establishments/create")
     suspend fun createEstablishment(@Body establishment: EstablishmentEntity): EstablishmentEntity?
+
+    @GET("establishments/user/{userId}") // Пример конечной точки
+    suspend fun getEstablishmentsByUserId(@Path("userId") userId: Long): List<EstablishmentDisplayDto>
 }
