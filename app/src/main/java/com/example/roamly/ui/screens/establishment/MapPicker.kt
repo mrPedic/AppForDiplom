@@ -63,7 +63,7 @@ fun MapPickerScreen(navController: NavController) {
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
                         // Добавляем оверлей для вращения (опционально)
-                        overlays.add(RotationGestureOverlay(this))
+//                        overlays.add(RotationGestureOverlay(this))
                     }
 
                     // Оверлей для обработки нажатий
