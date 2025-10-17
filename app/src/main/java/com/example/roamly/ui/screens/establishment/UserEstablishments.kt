@@ -20,17 +20,7 @@ import com.example.roamly.entity.EstablishmentStatus // Предполагает
 import com.example.roamly.entity.EstablishmentViewModel
 import com.example.roamly.entity.UserViewModel
 
-// Временный DTO для отображения, соответствующий данным сущности.
-// Этот класс должен быть синхронизирован с DTO, который возвращает сервер.
-data class EstablishmentDisplayDto(
-    val id: Long,
-    val name: String,
-    val description: String,
-    val address: String,
-    val status: EstablishmentStatus,
-    val rating: Double,
-    val dateOfCreation: String
-)
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,10 +31,6 @@ fun UserEstablishmentsScreen(
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
     // ВАЖНО: Предполагается, что EstablishmentViewModel имеет поля:
-    // val userEstablishments: StateFlow<List<EstablishmentDisplayDto>>
-    // val isLoading: StateFlow<Boolean>
-    // val errorMessage: StateFlow<String?>
-    // fun fetchEstablishmentsByUserId(userId: Long)
     val establishments by viewModel.userEstablishments.collectAsState(initial = emptyList())
     val isLoading by viewModel.isLoading.collectAsState(initial = false)
     val errorMessage by viewModel.errorMessage.collectAsState(initial = null)

@@ -21,6 +21,12 @@ interface ApiService {
     @POST("/establishments/create")
     suspend fun createEstablishment(@Body establishment: EstablishmentEntity): EstablishmentEntity?
 
-    @GET("establishments/user/{userId}") // Пример конечной точки
+    @GET("/establishments/user/{userId}") // Пример конечной точки
     suspend fun getEstablishmentsByUserId(@Path("userId") userId: Long): List<EstablishmentDisplayDto>
+
+    @GET("/establishments/getAll")
+    suspend fun getAllEstablishments(): List<EstablishmentDisplayDto>
+
+    @GET("/test/ping")
+    suspend fun pingServer(): String
 }

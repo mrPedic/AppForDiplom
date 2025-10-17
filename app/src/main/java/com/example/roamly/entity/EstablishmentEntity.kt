@@ -13,7 +13,6 @@ data class EstablishmentEntity(
     val dateOfCreation: String,
     val menuId: Long = -1,
     val createdUserId: Long,
-    // ⭐ Добавим поле для статуса заведения
     val status: EstablishmentStatus
 ) {
 

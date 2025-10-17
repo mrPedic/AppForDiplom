@@ -2,19 +2,21 @@ package com.example.roamly.ui.screens
 
 import android.content.Context
 import android.view.ViewGroup
-import androidx.compose.foundation.layout.add
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import android.graphics.Color
-import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
+import com.example.roamly.PointBuilder
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Polygon // ⬅️ Импорт для круга
-import kotlin.to
 
 
 @Composable
@@ -24,58 +26,46 @@ fun HomeScreen(navController: NavController) {
 
 @Composable
 fun OsmMapAndroidView(modifier: Modifier = Modifier) {
-    // IMPORTANT: конфиг осмдроид — нужно установить контекст (например в Application.onCreate лучше).
-    // Здесь делаем локально: (если ты уже вызывал Configuration.getInstance().load(context, prefs), можно опустить)
+    // MapView должен быть доступен для BuildAllMarkers
+    var mapState by remember { mutableStateOf<MapView?>(null) } // <-- Сохраняем ссылку на MapView
+
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            // Настройка osmdroid
             Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
-            val mapView = MapView(ctx)
-            mapView.setTileSource(TileSourceFactory.MAPNIK)
-            mapView.setMultiTouchControls(true)
-            mapView.layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
+            val mapView = MapView(ctx).apply {
+                setTileSource(TileSourceFactory.MAPNIK)
+                setMultiTouchControls(true)
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
 
-            val minskPoint = GeoPoint(53.9006, 27.5590)
+                val minskPoint = GeoPoint(53.9006, 27.5590)
+                controller.setZoom(14.0)
+                controller.setCenter(minskPoint)
 
-            // установка центра и зума
-            val mapController = mapView.controller
-            mapController.setZoom(14.0)
-            mapController.setCenter(minskPoint)
+                // Добавление круга (если нужно)
+                val circlePolygon = Polygon(this)
+                circlePolygon.points = Polygon.pointsAsCircle(minskPoint, 5000.0) // 5000м радиус
+                circlePolygon.fillColor = 0x20FF0000 // Полупрозрачный красный
+                circlePolygon.strokeColor = Color.RED
+                circlePolygon.strokeWidth = 2f
+                overlays.add(circlePolygon)
 
-
-            val circlePolygon = Polygon(mapView)
-
-            val circlePoints = Polygon.pointsAsCircle(minskPoint, 5.0)
-            circlePolygon.points = circlePoints
-
-            // Customize the appearance of the circle (optional)
-            circlePolygon.fillColor = 0xFFFF0000.toInt()
-            circlePolygon.strokeColor = Color.BLACK
-            circlePolygon.strokeWidth = 2f
-
-            // Add the polygon to the map's overlays
-            mapView.overlays.add(circlePolygon)
-
-            // Refresh the map to display the new overlay
-            mapView.invalidate()
-
-
-//
-//            // Пример маркера
-//            val marker = Marker(mapView)
-//            marker.position = GeoPoint(-6.2088, 106.8456)
-//            marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-//            marker.title = "Тут я"
-//            mapView.overlays.add(marker)
-
+                invalidate()
+            }
+            mapState = mapView // <-- Сохраняем MapView в состоянии Compose
             mapView
         },
         update = { view ->
-            // если нужно — обновлять состояние карты из compose state
+            // Обновления
         }
     )
+
+    // Вызываем Composable для построения маркеров, когда MapView готов
+    mapState?.let { mapView ->
+        val pointBuilder = remember(mapView) { PointBuilder(mapView) }
+        pointBuilder.BuildAllMarkers()
+    }
 }

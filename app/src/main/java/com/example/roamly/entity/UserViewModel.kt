@@ -25,6 +25,21 @@ class UserViewModel @Inject constructor(
         get() = _user.value
         private set(value) { _user.value = value }
 
+    var isServerConnected by mutableStateOf(false)
+        private set
+
+    suspend fun checkServerConnection() {
+        isServerConnected = try {
+            // Вызываем метод ping, который должен вернуть "pong"
+            // Предполагаем, что apiService.pingServer() был добавлен, как в предыдущем ответе
+            val response = apiService.pingServer()
+            response.trim().equals("pong", ignoreCase = true)
+        } catch (e: Exception) {
+            Log.e("ConnectionCheck", "Ошибка подключения к серверу: ${e.message}")
+            false
+        }
+    }
+
     private val PREFS_NAME = "user_prefs"
     // Используем Application для получения SharedPreferences
     private val prefs: SharedPreferences = application.getSharedPreferences(PREFS_NAME, Application.MODE_PRIVATE)

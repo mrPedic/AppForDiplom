@@ -1,68 +1,98 @@
 package com.example.roamly
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.roamly.entity.EstablishmentDisplayDto
+import com.example.roamly.entity.EstablishmentViewModel
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import android.util.Log // Добавлен Log для отладки
+import com.example.roamly.factory.RetrofitFactory
+
+/**
+ * Класс для управления созданием маркеров на карте osmdroid.
+ * Принимает MapView в конструкторе.
+ */
 class PointBuilder(
-    val latitude: Double,
-    val longitude: Double,
-    val typeOfEstablishment : TypeOfEstablishment,
-    val idEstablishment: Long
+    val mapView: MapView
 ) {
+    /**
+     * Создает и добавляет все маркеры заведений, полученные из ViewModel, на карту.
+     */
+    @Composable
+    fun BuildAllMarkers(
+        viewModel: EstablishmentViewModel = hiltViewModel()
+    ) {
+        // Получаем состояние списка заведений из ViewModel
+        val establishments by viewModel.userEstablishments.collectAsState(initial = emptyList())
+        val isLoading by viewModel.isLoading.collectAsState(initial = false)
+        val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
-}
+        // Запускаем загрузку данных при первом входе на экран/при первой композиции
+        LaunchedEffect(Unit) {
+            // Вызываем функцию ViewModel для загрузки ВСЕХ заведений
+            viewModel.fetchAllEstablishments()
+        }
 
+        // Если данные загружены и ошибок нет, строим маркеры
+        if (!isLoading && errorMessage == null) {
+            // Используем LaunchedEffect с ключом 'establishments'
+            // чтобы пересоздать/обновить маркеры только при изменении списка
+            LaunchedEffect(establishments) {
+                // Очистка старых маркеров перед добавлением новых,
+                // чтобы избежать дублирования, если список обновляется
+                mapView.overlays.removeAll { it is Marker }
 
-val convertTypeToColor = mutableMapOf<TypeOfEstablishment, Any>(
-    TypeOfEstablishment.Restaurant      to 0x80800000.toInt(),
-    TypeOfEstablishment.Cafe            to 0x808B4513.toInt(),
-    TypeOfEstablishment.CoffeeShop      to 0x808B4513.toInt(),
-    TypeOfEstablishment.Bistro          to 0x80FF4500.toInt(),
-    TypeOfEstablishment.Bar             to 0x80191970.toInt(),
-    TypeOfEstablishment.Canteen         to 0x8090EE90.toInt(),
-    TypeOfEstablishment.Bakery          to 0x80F5DEB3.toInt(),
-    TypeOfEstablishment.Confectionery   to 0x80FFC0CB.toInt(),
-    TypeOfEstablishment.FastFood        to 0x80FF0000.toInt(),
-    TypeOfEstablishment.Pizzeria        to 0x80008000.toInt(),
-    TypeOfEstablishment.BurgerJoint     to 0x80000000.toInt(),
-    TypeOfEstablishment.SushiBar        to 0x80FFFFFF.toInt(),
-    TypeOfEstablishment.FoodCourt       to 0x80FF0000.toInt(),
-    TypeOfEstablishment.Gastrobar       to 0x80696969.toInt(),
-    TypeOfEstablishment.HookahLounge    to 0x808A2BE2.toInt(),
-)
+                if (establishments.isNotEmpty()) {
+                    Log.d("PointBuilder", "Найдено ${establishments.size} заведений для отображения.")
+                    Log.i("PointBuilder", "Используемый адрес сервера: ${RetrofitFactory.BASE_URL}")
+                    establishments.forEach { establishment ->
+                        // Вызываем функцию для создания одного маркера
+                        // NOTE: Вложенный Composable внутри LaunchedEffect/forEach не является
+                        // стандартным подходом, но для osmdroid оверлеев это приемлемо,
+                        // если создание маркера не зависит от Compose State
+                        createEstablishmentMarker(establishment)
+                    }
+                    // Важно: обновить карту после добавления всех оверлеев
+                    mapView.invalidate()
+                } else {
+                    Log.d("PointBuilder", "Список заведений пуст.")
+                    Log.i("PointBuilder", "Используемый адрес сервера: ${RetrofitFactory.BASE_URL}")
+                }
+            }
+        }
 
-enum class TypeOfEstablishment{
-    Restaurant,
-    Cafe,
-    CoffeeShop,
-    Bistro,
-    Bar,
-    Canteen,
-    Bakery,
-    Confectionery,
-    FastFood,
-    Pizzeria,
-    BurgerJoint,
-    SushiBar,
-    FoodCourt,
-    Gastrobar,
-    HookahLounge
-}
+        // TODO: Возможно, добавить отображение индикатора загрузки или ошибки здесь,
+        // но это может конфликтовать с AndroidView, поэтому чаще это делают
+        // в родительском Composable (например, в HomeScreen)
+    }
 
-private fun ConvertFromEnToRuEstablishment(englishName : String): String {
-    when(englishName){
-        "Restaurant" -> return "Ресторан"
-        "Cafe" -> return "Кафе"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        "Restaurant" -> return "Ресторан"
-        else -> return ""
+    /**
+     * Не-Composable функция для создания одного маркера osmdroid.
+     * Должна вызываться только внутри LaunchedEffect или не-Composable блока.
+     */
+    private fun createEstablishmentMarker(establishment: EstablishmentDisplayDto) {
+        val geoPoint = GeoPoint(establishment.latitude, establishment.longitude)
+        val marker = Marker(mapView).apply {
+            position = geoPoint
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = establishment.name
+            subDescription = "Рейтинг: ${String.format("%.1f", establishment.rating)}\n" +
+                    "Статус: ${establishment.status}\n" +
+                    "Адрес: ${establishment.address}"
+            // TODO: Установка иконки/цвета в зависимости от TypeOfEstablishment
+            // marker.icon = getMarkerIcon(establishment.typeOfEstablishment)
+            // marker.color = getMarkerColor(establishment.typeOfEstablishment)
+            setOnMarkerClickListener { m, _ ->
+                // TODO: Логика при клике на маркер (например, показать BottomSheet или перейти)
+                Log.d("MarkerClick", "Клик по заведению: ${m.title}")
+                true // true означает, что событие обработано
+            }
+        }
+        mapView.overlays.add(marker)
     }
 }

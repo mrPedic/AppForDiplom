@@ -15,21 +15,6 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import javax.inject.Inject
 
-// --- ОПРЕДЕЛЕНИЯ, НЕОБХОДИМЫЕ ДЛЯ СОСТОЯНИЯ VIEWMODEL ---
-
-// DTO для отображения списка заведений (должен соответствовать ответу сервера)
-data class EstablishmentDisplayDto(
-    val id: Long,
-    val name: String,
-    val description: String,
-    val address: String,
-    val status: EstablishmentStatus,
-    val rating: Double,
-    val dateOfCreation: String // Сервер возвращает дату как строку ISO
-)
-
-// --------------------------------------------------------
-
 @HiltViewModel
 class EstablishmentViewModel @Inject constructor(
     private val apiService: ApiService,
@@ -75,6 +60,38 @@ class EstablishmentViewModel @Inject constructor(
                     val msg = "Ошибка загрузки заведений пользователя $userId: ${e.message}"
                     Log.e("EstViewModel", msg)
                     _errorMessage.value = "Не удалось загрузить ваши заведения."
+                    _userEstablishments.value = emptyList() // Очищаем старый список при ошибке
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                }
+            }
+        }
+    }
+
+    fun fetchAllEstablishments() {
+        // Если уже идет загрузка, игнорируем запрос
+        if (_isLoading.value) return
+
+        _isLoading.value = true
+        _errorMessage.value = null
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // ⭐ НОВЫЙ ВЫЗОВ API: Предполагаем, что apiService имеет метод для получения списка
+                // Метод apiService.getEstablishmentsByUserId должен быть реализован в ApiService
+                val list = apiService.getAllEstablishments()
+
+                withContext(Dispatchers.Main) {
+                    _userEstablishments.value = list
+                    Log.i("EstViewModel", "Загружено заведений: ${list.size}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val msg = "Ошибка загрузки заведений : ${e.message}"
+                    Log.e("EstViewModel", msg)
+                    _errorMessage.value = "Не удалось загрузить заведения."
                     _userEstablishments.value = emptyList() // Очищаем старый список при ошибке
                 }
             } finally {

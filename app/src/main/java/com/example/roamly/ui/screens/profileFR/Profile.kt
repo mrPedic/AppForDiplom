@@ -22,6 +22,11 @@ import androidx.navigation.NavController
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
 @Composable
@@ -122,6 +127,18 @@ private fun UnRegisteredProfileContent(
     navController: NavController,
     userViewModel: UserViewModel
 ) {
+    // Состояние для индикации загрузки/проверки
+    var isCheckingConnection by remember { mutableStateOf(true) }
+
+    // Запускаем проверку подключения при первой композиции
+    LaunchedEffect(Unit) {
+        userViewModel.checkServerConnection()
+        isCheckingConnection = false
+    }
+
+    // Читаем реактивное состояние из ViewModel
+    val isConnected = userViewModel.isServerConnected
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -143,14 +160,36 @@ private fun UnRegisteredProfileContent(
             // Сообщение, если пользователь не авторизован
             Text(text = "Пользователь не авторизован", color = Color.LightGray)
 
+            // ✅ БЛОК ОТОБРАЖЕНИЯ СТАТУСА СЕРВЕРА
+            if (isCheckingConnection) {
+                Text(
+                    text = "Проверка подключения...",
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            } else {
+                val statusText = if (isConnected) "Сервер доступен ✅" else "Сервер недоступен ❌"
+                val statusColor = if (isConnected) Color.Green else Color.Red
+
+                Text(
+                    text = statusText,
+                    color = statusColor,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+            // ----------------------------------------
+
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Button(
                     modifier = Modifier
                         .fillMaxWidth(0.7f)
                         .padding(bottom = 16.dp),
                     onClick = {
-                        navController.navigate(route = LogSinUpScreens.SingUp.route) // Создать аккаунт -> Регистрация
+                        navController.navigate(route = LogSinUpScreens.SingUp.route)
                     },
+                    // Кнопка доступна только при наличии подключения
+//                    enabled = isConnected
                 ) {
                     Text(text = "Создать аккаунт")
                 }
@@ -159,10 +198,11 @@ private fun UnRegisteredProfileContent(
                     modifier = Modifier
                         .fillMaxWidth(0.7f),
                     onClick = {
-                        navController.navigate(route = LogSinUpScreens.Login.route) // Перейти на авторизацию -> Вход
+                        navController.navigate(route = LogSinUpScreens.Login.route)
                     },
-
-                    ) {
+                    // Кнопка доступна только при наличии подключения
+//                    enabled = isConnected
+                ) {
                     Text(text = "Войти в аккаунт")
                 }
             }

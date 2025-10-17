@@ -2,6 +2,8 @@
 
 package com.example.roamly.ui.screens
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
@@ -30,6 +32,7 @@ import com.example.roamly.navigation.NavGraph
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MainScreen(
     navController: NavHostController = rememberNavController(),
@@ -49,6 +52,7 @@ fun MainScreen(
         SealedButtonBar.Booking.route,
         SealedButtonBar.Searching.route,
         SealedButtonBar.Home.route,
+        SealedButtonBar.AdminPanel.route
     )
 
     val showBottomBar = currentRoute !in hideBottomBarRoutes
