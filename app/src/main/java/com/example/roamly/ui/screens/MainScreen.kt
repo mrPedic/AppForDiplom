@@ -55,13 +55,14 @@ fun MainScreen(
         SealedButtonBar.AdminPanel.route
     )
 
+
     val showBottomBar = currentRoute !in hideBottomBarRoutes
     val showBackIcon = currentRoute !in hideBackIcon
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Roamly") },
+                title = {Text(text = getCurrentTopAppBarTitle(currentRoute = currentRoute))},
                 navigationIcon = {
                     if(showBackIcon){
                         IconButton(
@@ -91,6 +92,22 @@ fun MainScreen(
             modifier = Modifier.padding(innerPadding),
             userViewModel = userViewModel
         )
+    }
+}
+
+fun getCurrentTopAppBarTitle(currentRoute: String?): String {
+    return when (currentRoute) {
+
+        // Экраны входа/регистрации (используем русский заголовок)
+        LogSinUpScreens.SingUp.route -> "Регистрация"
+        LogSinUpScreens.Login.route -> "Вход в аккаунт"
+
+        LogSinUpScreens.UserEstablishments.route -> "Мои заведения"
+        LogSinUpScreens.CreateEstablishment.route -> "Создание заведения"
+        LogSinUpScreens.MapPicker.route -> "Выбор места заведения"
+        SealedButtonBar.AdminPanel.route -> "¯\\(°_o)/¯"
+        // Если маршрут не определен или null
+        else -> "Roamly"
     }
 }
 

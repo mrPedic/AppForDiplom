@@ -39,84 +39,79 @@ fun MapPickerScreen(navController: NavController) {
     var selectedPoint by remember { mutableStateOf<GeoPoint?>(null) }
     val defaultCenter = GeoPoint(53.9006, 27.5590) // Минск
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Выберите Местоположение") }) }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Компонент карты
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                    Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
-                    val mapView = MapView(ctx).apply {
-                        setTileSource(TileSourceFactory.MAPNIK)
-                        setMultiTouchControls(true)
-                        controller.setZoom(14.0)
-                        controller.setCenter(defaultCenter)
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        // Добавляем оверлей для вращения (опционально)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        // Компонент карты
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
+                val mapView = MapView(ctx).apply {
+                    setTileSource(TileSourceFactory.MAPNIK)
+                    setMultiTouchControls(true)
+                    controller.setZoom(14.0)
+                    controller.setCenter(defaultCenter)
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    // Добавляем оверлей для вращения (опционально)
 //                        overlays.add(RotationGestureOverlay(this))
-                    }
-
-                    // Оверлей для обработки нажатий
-                    val clickOverlay = object : Overlay(ctx) {
-                        override fun onSingleTapConfirmed(e: MotionEvent, mapView: MapView): Boolean {
-                            val projection = mapView.projection
-                            val geoPoint = projection.fromPixels(e.x.toInt(), e.y.toInt())
-                            selectedPoint = geoPoint as GeoPoint?
-                            return true
-                        }
-                    }
-                    mapView.overlays.add(clickOverlay)
-
-                    mapView
-                },
-                update = { mapView ->
-                    // Обновление маркера при смене selectedPoint
-                    mapView.overlays.removeAll { it is Marker }
-                    selectedPoint?.let { point ->
-                        val marker = Marker(mapView).apply {
-                            position = point
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            title = "Выбранное место"
-                        }
-                        mapView.overlays.add(marker)
-                        mapView.controller.animateTo(point)
-                    }
-                    mapView.invalidate()
                 }
-            )
 
-            // Кнопка подтверждения
-            Button(
-                onClick = {
-                    selectedPoint?.let {
-                        // Передаем координаты обратно в предыдущий экран
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(LATITUDE_KEY, it.latitude)
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set(LONGITUDE_KEY, it.longitude)
-
-                        navController.popBackStack()
+                // Оверлей для обработки нажатий
+                val clickOverlay = object : Overlay(ctx) {
+                    override fun onSingleTapConfirmed(e: MotionEvent, mapView: MapView): Boolean {
+                        val projection = mapView.projection
+                        val geoPoint = projection.fromPixels(e.x.toInt(), e.y.toInt())
+                        selectedPoint = geoPoint as GeoPoint?
+                        return true
                     }
-                },
-                enabled = selectedPoint != null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-            ) {
-                Text(if (selectedPoint != null) "Подтвердить Место (${String.format("%.4f", selectedPoint!!.latitude)}, ${String.format("%.4f", selectedPoint!!.longitude)})" else "Нажмите на карту, чтобы выбрать место")
+                }
+                mapView.overlays.add(clickOverlay)
+
+                mapView
+            },
+            update = { mapView ->
+                // Обновление маркера при смене selectedPoint
+                mapView.overlays.removeAll { it is Marker }
+                selectedPoint?.let { point ->
+                    val marker = Marker(mapView).apply {
+                        position = point
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        title = "Выбранное место"
+                    }
+                    mapView.overlays.add(marker)
+                    mapView.controller.animateTo(point)
+                }
+                mapView.invalidate()
             }
+        )
+
+        // Кнопка подтверждения
+        Button(
+            onClick = {
+                selectedPoint?.let {
+                    // Передаем координаты обратно в предыдущий экран
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(LATITUDE_KEY, it.latitude)
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(LONGITUDE_KEY, it.longitude)
+
+                    navController.popBackStack()
+                }
+            },
+            enabled = selectedPoint != null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        ) {
+            Text(if (selectedPoint != null) "Подтвердить Место (${String.format("%.4f", selectedPoint!!.latitude)}, ${String.format("%.4f", selectedPoint!!.longitude)})" else "Нажмите на карту, чтобы выбрать место")
         }
     }
 }

@@ -15,31 +15,31 @@ sealed class SealedButtonBar (
 ){
     object Home: SealedButtonBar(
         route = "home",
-        title = "Home",
+        title = "Карта",
         icon = Icons.Default.Home
     )
 
     object Profile: SealedButtonBar(
         route = "profile",
-        title = "Profile",
+        title = "Профиль",
         icon = Icons.Default.Person
     )
 
     object Searching: SealedButtonBar(
         route = "search",
-        title = "Search",
+        title = "Поиск",
         icon = Icons.Default.Search
     )
 
     object Booking: SealedButtonBar(
         route = "booking",
-        title = "Booking",
+        title = "Бронь",
         icon = Icons.Default.Menu
     )
 
     object AdminPanel: SealedButtonBar(
         route = "admin_panel",
-        title = "AdminPanel",
+        title = "Админ-панель",
         icon = Icons.Default.AccountCircle
     )
 }

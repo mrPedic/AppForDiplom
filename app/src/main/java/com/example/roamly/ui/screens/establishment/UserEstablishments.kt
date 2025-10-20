@@ -44,23 +44,9 @@ fun UserEstablishmentsScreen(
             viewModel.fetchEstablishmentsByUserId(it)
         }
     }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Мои Заведения") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
         ) {
             when {
                 isLoading -> {
@@ -108,7 +94,6 @@ fun UserEstablishmentsScreen(
             }
         }
     }
-}
 
 @Composable
 fun EstablishmentItem(establishment: EstablishmentDisplayDto) {
