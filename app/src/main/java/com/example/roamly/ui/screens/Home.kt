@@ -24,8 +24,7 @@ fun HomeScreen(navController: NavController) {
 
 @Composable
 fun OsmMapAndroidView(modifier: Modifier = Modifier) {
-    // MapView должен быть доступен для BuildAllMarkers
-    var mapState by remember { mutableStateOf<MapView?>(null) } // <-- Сохраняем ссылку на MapView
+    var mapState by remember { mutableStateOf<MapView?>(null) }
 
     AndroidView(
         modifier = modifier,
@@ -39,13 +38,17 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier) {
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
 
+                // 1. Установите минимальный уровень зума для ограничения отдаления
+                // Значение 5.0 или 6.0 предотвратит чрезмерное отдаление.
+                this.minZoomLevel = 6.0 // <-- НОВОЕ ИЗМЕНЕНИЕ
+
                 val minskPoint = GeoPoint(53.9006, 27.5590)
                 controller.setZoom(14.0)
                 controller.setCenter(minskPoint)
 
                 invalidate()
             }
-            mapState = mapView // <-- Сохраняем MapView в состоянии Compose
+            mapState = mapView
             mapView
         },
         update = { view ->
@@ -53,7 +56,6 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier) {
         }
     )
 
-    // Вызываем Composable для построения точек, когда MapView готов
     mapState?.let { mapView ->
         val pointBuilder = remember(mapView) { PointBuilder(mapView) }
         pointBuilder.BuildAllMarkers()
