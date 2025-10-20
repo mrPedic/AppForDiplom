@@ -21,25 +21,27 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable // ⭐ ДОБАВЛЕН ИМПОРТ
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +54,9 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.EstablishmentViewModel
+import com.example.roamly.entity.TypeOfEstablishment // Предполагаем, что этот импорт теперь доступен
 import com.example.roamly.entity.UserViewModel
+import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -67,7 +71,9 @@ fun CreateEstablishmentScreen(
     userViewModel: UserViewModel,
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
-    // ⭐ ИСПОЛЬЗУЕМ rememberSaveable ДЛЯ СОХРАНЕНИЯ СОСТОЯНИЯ ПРИ НАВИГАЦИИ
+    // ⭐ НОВОЕ СОСТОЯНИЕ ДЛЯ ТИПА ЗАВЕДЕНИЯ
+    var selectedType by rememberSaveable { mutableStateOf<TypeOfEstablishment?>(null) }
+
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     var address by rememberSaveable { mutableStateOf("") }
@@ -97,145 +103,205 @@ fun CreateEstablishmentScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Создать Новое Заведение") })
-        }
-    ) { paddingValues ->
-        Column(
+
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()), // Добавим скроллинг
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
+        // 1. Поле для Названия
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Название заведения") },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
+
+        // 2. Поле для Адреса
+        OutlinedTextField(
+            value = address,
+            onValueChange = { address = it },
+            label = { Text("Адрес (Улица, дом и т.д.)") },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
+
+        // ⭐ 3. Выбор типа заведения
+        EstablishmentTypeDropdown(
+            selectedType = selectedType,
+            onTypeSelected = { selectedType = it },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
+
+        // 4. Поле для Описания
+        OutlinedTextField(
+            value = description,
+            onValueChange = { description = it },
+            label = { Text("Описание") },
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()), // Добавим скроллинг
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .height(120.dp)
+                .padding(bottom = 16.dp)
+        )
+
+        // ⭐ 5. Компонент выбора местоположения / Мини-карта
+        LocationPickerCard(
+            latitude = latitude,
+            longitude = longitude,
+            onClick = {
+                // Предполагаем, что MapPicker.route ждет ключи
+                navController.navigate(LogSinUpScreens.MapPicker.route)
+            },
+            onClearClick = { // ⭐ ОБРАБОТЧИК ДЛЯ СБРОСА
+                latitude = null
+                longitude = null
+            }
+        )
+
+        // 6. Отображение статуса
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
         ) {
-
-            // 1. Поле для Названия
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Название заведения") },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            )
-
-            // 2. Поле для Адреса
-            OutlinedTextField(
-                value = address,
-                onValueChange = { address = it },
-                label = { Text("Адрес (Улица, дом и т.д.)") },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            )
-
-            // 3. Поле для Описания
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                label = { Text("Описание") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .padding(bottom = 16.dp)
-            )
-
-            // ⭐ 4. Компонент выбора местоположения / Мини-карта
-            LocationPickerCard(
-                latitude = latitude,
-                longitude = longitude,
-                onClick = {
-                    navController.navigate(LogSinUpScreens.MapPicker.route)
-                },
-                onClearClick = { // ⭐ ОБРАБОТЧИК ДЛЯ СБРОСА
-                    latitude = null
-                    longitude = null
-                }
-            )
-
-            // 5. Отображение статуса
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Статус Заведения:",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        // Отображаем статус, который будет PENDING_APPROVAL
-                        text = "На рассмотрении администрации (Текущий статус: ${status.name})",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-
-            // 6. Кнопка создания
-            Button(
-                onClick = {
-                    isLoading = true
-                    errorMessage = null
-
-                    val currentUserId = userViewModel.getId()
-
-                    if (currentUserId == null) {
-                        isLoading = false
-                        errorMessage = "Ошибка: Пользователь не авторизован или ID не доступен."
-                        return@Button
-                    }
-                    if (latitude == null || longitude == null) {
-                        isLoading = false
-                        errorMessage = "Ошибка: Пожалуйста, укажите местоположение на карте."
-                        return@Button
-                    }
-
-                    Log.e("CreateEstablishment", "userId = ${userViewModel.getId()}")
-
-                    // Передаем ID пользователя и координаты в ViewModel
-                    viewModel.createEstablishment(
-                        name = name,
-                        description = description,
-                        address = address,
-                        latitude = latitude!!,
-                        longitude = longitude!!,
-                        createUserId = currentUserId
-                    ) { isSuccess ->
-                        isLoading = false
-                        if (isSuccess) {
-                            // Успех: навигация назад
-                            navController.popBackStack()
-                        } else {
-                            // Ошибка: отображаем сообщение
-                            errorMessage = "Не удалось создать заведение. Повторите попытку."
-                        }
-                    }
-                },
-                enabled = name.isNotBlank() && address.isNotBlank() && latitude != null && longitude != null && !isLoading,
-                modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                } else {
-                    Text("Отправить на рассмотрение")
-                }
-            }
-
-            // 7. Отображение сообщения об ошибке
-            if (errorMessage != null) {
+            Column(Modifier.padding(16.dp)) {
                 Text(
-                    text = errorMessage!!,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 16.dp)
+                    text = "Статус Заведения:",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    // Отображаем статус, который будет PENDING_APPROVAL
+                    text = "На рассмотрении администрации (Текущий статус: ${status.name})",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+
+        // 7. Кнопка создания
+        Button(
+            onClick = {
+                isLoading = true
+                errorMessage = null
+
+                val currentUserId = userViewModel.getId()
+
+                if (currentUserId == null) {
+                    isLoading = false
+                    errorMessage = "Ошибка: Пользователь не авторизован или ID не доступен."
+                    return@Button
+                }
+                if (latitude == null || longitude == null) {
+                    isLoading = false
+                    errorMessage = "Ошибка: Пожалуйста, укажите местоположение на карте."
+                    return@Button
+                }
+
+                // ⭐ ПРОВЕРКА ВЫБРАННОГО ТИПА
+                if (selectedType == null) {
+                    isLoading = false
+                    errorMessage = "Ошибка: Пожалуйста, выберите тип заведения."
+                    return@Button
+                }
+
+                Log.e("CreateEstablishment", "userId = ${userViewModel.getId()}")
+
+                // Передаем ID пользователя, координаты И ТИП в ViewModel
+                viewModel.createEstablishment(
+                    name = name,
+                    description = description,
+                    address = address,
+                    latitude = latitude!!,
+                    longitude = longitude!!,
+                    createUserId = currentUserId,
+                    type = selectedType!! // ⭐ ПЕРЕДАЕМ ВЫБРАННЫЙ ТИП
+                ) { isSuccess ->
+                    isLoading = false
+                    if (isSuccess) {
+                        // Успех: навигация назад
+                        navController.popBackStack()
+                    } else {
+                        // Ошибка: отображаем сообщение
+                        errorMessage = "Не удалось создать заведение. Повторите попытку."
+                    }
+                }
+            },
+            enabled = name.isNotBlank() && address.isNotBlank() && latitude != null && longitude != null && selectedType != null && !isLoading,
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Text("Отправить на рассмотрение")
+            }
+        }
+
+        // 8. Отображение сообщения об ошибке
+        if (errorMessage != null) {
+            Text(
+                text = errorMessage!!,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
+    }
+}
+
+// --------------------------------------------------------------------------
+// НОВЫЙ КОМПОНЕНТ: ВЫПАДАЮЩИЙ СПИСОК ТИПОВ
+// --------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EstablishmentTypeDropdown(
+    selectedType: TypeOfEstablishment?,
+    onTypeSelected: (TypeOfEstablishment) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val options = remember { TypeOfEstablishment.entries.toList() }
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            // ⭐ Отображаем название на русском, используя convertTypeToWord
+            value = selectedType?.let { convertTypeToWord(it) } ?: "Выберите тип заведения",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Тип заведения") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { selectionOption ->
+                DropdownMenuItem(
+                    // ⭐ Отображаем название на русском
+                    text = { Text(convertTypeToWord(selectionOption)) },
+                    onClick = {
+                        onTypeSelected(selectionOption)
+                        expanded = false
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                 )
             }
         }
     }
 }
+
 
 /**
  * Вспомогательный компонент для выбора местоположения на карте.
@@ -323,6 +389,9 @@ fun MiniMapView(latitude: Double, longitude: Double) {
             Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
 
             MapView(ctx).apply {
+
+                this.minZoomLevel = 5.0
+
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(false) // Отключаем мультитач для мини-карты
                 controller.setZoom(14.0)
@@ -351,15 +420,5 @@ fun MiniMapView(latitude: Double, longitude: Double) {
             view.overlays.add(marker)
             view.invalidate()
         }
-    )
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-@Preview(showBackground = true)
-fun CreateEstablishmentScreenPreview(){
-    CreateEstablishmentScreen(
-        navController = rememberNavController(),
-        userViewModel = hiltViewModel(),
     )
 }

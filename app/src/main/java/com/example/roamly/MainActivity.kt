@@ -10,7 +10,8 @@ import com.example.roamly.ui.theme.RoamlyTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class
+MainActivity : ComponentActivity() {
 
     lateinit var navController: NavHostController
 

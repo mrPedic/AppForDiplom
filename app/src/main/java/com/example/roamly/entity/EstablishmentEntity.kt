@@ -1,6 +1,6 @@
 package com.example.roamly.entity
 
-import java.time.LocalDate
+import android.graphics.Color
 
 data class EstablishmentEntity(
     val id: Long,
@@ -13,7 +13,8 @@ data class EstablishmentEntity(
     val dateOfCreation: String,
     val menuId: Long = -1,
     val createdUserId: Long,
-    val status: EstablishmentStatus
+    val status: EstablishmentStatus,
+    val type: TypeOfEstablishment
 ) {
 
 }
@@ -26,4 +27,76 @@ enum class EstablishmentStatus {
     // Временно неактивно
     DISABLED,
     APPROVED
+}
+
+
+enum class TypeOfEstablishment{
+    Restaurant,
+    Cafe,
+    Pub,
+    Canteen,
+    FastFood,
+    CoffeeHouse,
+    Pizzeria,
+    Bakery,
+    SushiBar,
+    GrillBar,
+    Confectionery,
+    Diner,
+    TeaHouse,
+    PancakeHouse,
+    IceCreamParlor,
+    FoodTruck,
+    Gastropub
+}
+
+/**
+ * Логика определения цвета для PointBuilder
+ * @param typeOfEstablishment тип заведения
+ */
+
+fun convertTypeToColor(typeOfEstablishment: TypeOfEstablishment): Int {
+    return when(typeOfEstablishment){
+        TypeOfEstablishment.Restaurant -> Color.parseColor("#8B0000")
+        TypeOfEstablishment.Cafe -> Color.parseColor("#A0522D")
+        TypeOfEstablishment.Pub -> Color.parseColor("#000080")
+        TypeOfEstablishment.Canteen -> Color.parseColor("#6B8E23")
+        TypeOfEstablishment.FastFood -> Color.parseColor("#FF4500")
+        TypeOfEstablishment.CoffeeHouse -> Color.parseColor("#D2B48C")
+        TypeOfEstablishment.Pizzeria -> Color.parseColor("#FF8C00")
+        TypeOfEstablishment.Bakery -> Color.parseColor("#FFD700")
+        TypeOfEstablishment.SushiBar -> Color.parseColor("#F0F8FF")
+        TypeOfEstablishment.GrillBar -> Color.parseColor("#36454F")
+        TypeOfEstablishment.Confectionery -> Color.parseColor("#FF69B4")
+        TypeOfEstablishment.Diner -> Color.parseColor("#40E0D0")
+        TypeOfEstablishment.TeaHouse -> Color.parseColor("#00A86B")
+        TypeOfEstablishment.PancakeHouse -> Color.parseColor("#FFCC99")
+        TypeOfEstablishment.IceCreamParlor -> Color.parseColor("#B57EDC")
+        TypeOfEstablishment.FoodTruck -> Color.parseColor("#CCFF00")
+        TypeOfEstablishment.Gastropub -> Color.parseColor("#6B8E23")
+        else -> Color.parseColor("#6B8E23")
+    }
+}
+
+fun convertTypeToWord(typeOfEstablishment: TypeOfEstablishment): String{
+    return when(typeOfEstablishment){
+        TypeOfEstablishment.Restaurant -> "Ресторан"
+        TypeOfEstablishment.Cafe -> "Кафе"
+        TypeOfEstablishment.Pub -> "Бар" // Или "Паб"
+        TypeOfEstablishment.Canteen -> "Столовая"
+        TypeOfEstablishment.FastFood -> "Фастфуд"
+        TypeOfEstablishment.CoffeeHouse -> "Кофейня"
+        TypeOfEstablishment.Pizzeria -> "Пиццерия"
+        TypeOfEstablishment.Bakery -> "Пекарня / Булочная"
+        TypeOfEstablishment.SushiBar -> "Суши-бар"
+        TypeOfEstablishment.GrillBar -> "Гриль-бар / Стейкхаус"
+        TypeOfEstablishment.Confectionery -> "Кондитерская"
+        TypeOfEstablishment.Diner -> "Закусочная / Бистро"
+        TypeOfEstablishment.TeaHouse -> "Чайная"
+        TypeOfEstablishment.PancakeHouse -> "Блинная"
+        TypeOfEstablishment.IceCreamParlor -> "Кафе-мороженое"
+        TypeOfEstablishment.FoodTruck -> "Фудтрак / Киоск"
+        TypeOfEstablishment.Gastropub -> "Гастропаб"
+        else -> "Неизвестный тип заведения"
+    }
 }

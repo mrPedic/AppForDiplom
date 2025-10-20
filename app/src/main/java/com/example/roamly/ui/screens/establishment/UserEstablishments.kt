@@ -21,7 +21,6 @@ import com.example.roamly.entity.EstablishmentViewModel
 import com.example.roamly.entity.UserViewModel
 
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserEstablishmentsScreen(

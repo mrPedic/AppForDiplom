@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import android.graphics.Color
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,7 +15,6 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Polygon // ⬅️ Импорт для круга
 
 
 @Composable
@@ -45,14 +43,6 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier) {
                 controller.setZoom(14.0)
                 controller.setCenter(minskPoint)
 
-                // Добавление круга (если нужно)
-                val circlePolygon = Polygon(this)
-                circlePolygon.points = Polygon.pointsAsCircle(minskPoint, 5000.0) // 5000м радиус
-                circlePolygon.fillColor = 0x20FF0000 // Полупрозрачный красный
-                circlePolygon.strokeColor = Color.RED
-                circlePolygon.strokeWidth = 2f
-                overlays.add(circlePolygon)
-
                 invalidate()
             }
             mapState = mapView // <-- Сохраняем MapView в состоянии Compose
@@ -63,7 +53,7 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier) {
         }
     )
 
-    // Вызываем Composable для построения маркеров, когда MapView готов
+    // Вызываем Composable для построения точек, когда MapView готов
     mapState?.let { mapView ->
         val pointBuilder = remember(mapView) { PointBuilder(mapView) }
         pointBuilder.BuildAllMarkers()

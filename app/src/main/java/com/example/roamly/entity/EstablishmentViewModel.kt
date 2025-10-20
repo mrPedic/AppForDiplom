@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
@@ -35,7 +34,6 @@ class EstablishmentViewModel @Inject constructor(
 
     /**
      * Загружает список заведений, созданных указанным пользователем.
-     *
      * @param userId ID пользователя, чьи заведения нужно загрузить.
      */
     fun fetchEstablishmentsByUserId(userId: Long) {
@@ -122,6 +120,7 @@ class EstablishmentViewModel @Inject constructor(
         latitude: Double,
         longitude: Double,
         createUserId: Long,
+        type: TypeOfEstablishment,
         onResult: (Boolean) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -138,7 +137,8 @@ class EstablishmentViewModel @Inject constructor(
                 status = EstablishmentStatus.PENDING_APPROVAL,
                 menuId = -1,
                 createdUserId = createUserId,
-                dateOfCreation = "dsa"
+                dateOfCreation = "dsa",
+                type = type
             )
 
             try {

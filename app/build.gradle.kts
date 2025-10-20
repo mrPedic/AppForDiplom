@@ -64,8 +64,8 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.6")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.2")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -75,4 +75,6 @@ dependencies {
 
     // MAPS
     implementation("org.osmdroid:osmdroid-android:6.1.20")
-}
+    implementation("com.github.MKergall:osmbonuspack:6.9.0")  // Было org.osmdroid:bonuspack:7.1.0
+ }
+
