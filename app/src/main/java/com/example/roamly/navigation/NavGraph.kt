@@ -16,10 +16,12 @@ import com.example.roamly.ui.screens.profileFR.LoginScreen
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.entity.UserViewModel
+import com.example.roamly.ui.screens.admin.PendingListScreen
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.MapPickerScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
+import com.example.roamly.ui.screens.sealed.AdminScreens
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -73,6 +75,14 @@ fun NavGraph(
         }
         composable(LogSinUpScreens.UserEstablishments.route){
             UserEstablishmentsScreen(navController, userViewModel)
+        }
+
+
+        /**
+         *  Админские фишки
+         */
+        composable(AdminScreens.PendingList.route){
+            PendingListScreen()
         }
 
     }

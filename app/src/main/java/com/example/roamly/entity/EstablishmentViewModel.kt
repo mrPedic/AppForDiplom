@@ -100,6 +100,142 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
+    // =========================================================================
+    // ⭐ НОВЫЙ МЕТОД: ПОИСК ЗАВЕДЕНИЙ
+    // =========================================================================
+
+    /**
+     * Выполняет поиск заведений по названию или адресу.
+     *
+     * @param query Строка поиска (название или адрес).
+     */
+    fun searchEstablishments(query: String) {
+        // Мы НЕ используем _isLoading.value здесь, чтобы позволить пользователю
+        // искать, пока другие фоновые операции могут выполняться.
+        // Но мы устанавливаем _isLoading для этой конкретной операции.
+
+        if (query.isBlank()) {
+            // Если запрос пустой, очищаем список, чтобы не показывать старые результаты
+            _userEstablishments.value = emptyList()
+            return
+        }
+
+        _isLoading.value = true
+        _errorMessage.value = null
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val results = apiService.searchEstablishments(query)
+
+                withContext(Dispatchers.Main) {
+                    _userEstablishments.value = results // Обновляем список
+                    Log.i("EstViewModel", "Найдено заведений по запросу '$query': ${results.size}")
+                    _errorMessage.value = null
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val msg = "Ошибка поиска заведений: ${e.message}"
+                    Log.e("EstViewModel", msg)
+                    _errorMessage.value = "Ошибка при поиске заведений. Проверьте соединение."
+                    _userEstablishments.value = emptyList()
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                }
+            }
+        }
+    }
+
+    private val _pendingEstablishments = MutableStateFlow<List<EstablishmentDisplayDto>>(emptyList())
+    val pendingEstablishments: StateFlow<List<EstablishmentDisplayDto>> = _pendingEstablishments
+
+    fun fetchPendingEstablishments() {
+        if (_isLoading.value) return
+
+        _isLoading.value = true
+        _errorMessage.value = null
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = apiService.getPendingEstablishments()
+
+                withContext(Dispatchers.Main) {
+                    _pendingEstablishments.value = list
+                    Log.i("AdminVM", "Загружено неодобренных заявок: ${list.size}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("AdminVM", "Ошибка загрузки неодобренных заявок: ${e.message}")
+                    _errorMessage.value = "Не удалось загрузить заявки на одобрение."
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * Изменяет статус заведения (например, одобряет или отклоняет).
+     */
+    fun updateEstablishmentStatus(id: Long, newStatus: EstablishmentStatus) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Вызываем API для изменения статуса
+                val updated = apiService.updateEstablishmentStatus(id, newStatus.name) // Проверить сигнатуру apiService
+
+                withContext(Dispatchers.Main) {
+                    Log.i("AdminVM", "Статус заведения ${updated.name} изменен на ${updated.status}")
+
+                    // Обновляем список, удаляя или изменяя элемент
+                    _pendingEstablishments.value = _pendingEstablishments.value.filter { it.id != id }
+
+                    // Если статус APPROVED, можно также обновить список для карты (опционально)
+                    // if (newStatus == EstablishmentStatus.APPROVED) fetchAllEstablishments()
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("AdminVM", "Ошибка изменения статуса: ${e.message}")
+                    _errorMessage.value = "Не удалось изменить статус заведения."
+                }
+            }
+        }
+    }
+
+    /**
+     * Отправляет заведение на повторное рассмотрение, устанавливая статус PENDING_APPROVAL.
+     * @param id ID заведения.
+     */
+    fun resubmitEstablishmentForReview(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Используем существующий метод API, передавая статус PENDING_APPROVAL
+                val updated = apiService.updateEstablishmentStatus(id, EstablishmentStatus.PENDING_APPROVAL.name)
+
+                withContext(Dispatchers.Main) {
+                    Log.i("EstViewModel", "Заведение ${updated.name} отправлено на повторное рассмотрение.")
+
+                    // Обновляем список, чтобы UI отразил новый статус (опционально, зависит от вашего общего UI/Admin flow)
+                    // Если экран пользователя отображает только его заведения, лучше обновить только этот список
+                    val currentList = _userEstablishments.value.map {
+                        if (it.id == id) it.copy(status = EstablishmentStatus.PENDING_APPROVAL) else it
+                    }
+                    _userEstablishments.value = currentList
+                    _errorMessage.value = null
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("EstViewModel", "Ошибка повторной отправки заведения $id: ${e.message}")
+                    _errorMessage.value = "Не удалось отправить заведение на повторное рассмотрение."
+                }
+            }
+        }
+    }
+
 
     /**
      * Отправляет запрос на сервер для создания нового заведения.

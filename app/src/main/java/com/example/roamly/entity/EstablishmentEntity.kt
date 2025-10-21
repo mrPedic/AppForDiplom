@@ -26,7 +26,7 @@ enum class EstablishmentStatus {
     REJECTED,
     // Временно неактивно
     DISABLED,
-    APPROVED
+    ACTIVE
 }
 
 

@@ -4,8 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,7 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.EstablishmentDisplayDto
-import com.example.roamly.entity.EstablishmentStatus // Предполагается, что EstablishmentStatus импортируется
+import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.EstablishmentViewModel
 import com.example.roamly.entity.UserViewModel
 
@@ -27,8 +25,8 @@ fun UserEstablishmentsScreen(
     navController: NavController,
     userViewModel: UserViewModel,
     // Предполагается, что EstablishmentViewModel поддерживает StateFlow для списка
-    viewModel: EstablishmentViewModel = hiltViewModel()
-) {
+    viewModel: EstablishmentViewModel = hiltViewModel() // <--- ViewModel
+    ) {
     // ВАЖНО: Предполагается, что EstablishmentViewModel имеет поля:
     val establishments by viewModel.userEstablishments.collectAsState(initial = emptyList())
     val isLoading by viewModel.isLoading.collectAsState(initial = false)
@@ -87,7 +85,8 @@ fun UserEstablishmentsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(establishments) { establishment ->
-                            EstablishmentItem(establishment)
+                            // ⭐ ПЕРЕДАЕМ ССЫЛКУ НА VM В EstablishmentItem
+                            EstablishmentItem(establishment, viewModel)
                         }
                     }
                 }
@@ -96,11 +95,18 @@ fun UserEstablishmentsScreen(
     }
 
 @Composable
-fun EstablishmentItem(establishment: EstablishmentDisplayDto) {
+fun EstablishmentItem(
+    establishment: EstablishmentDisplayDto,
+    viewModel: EstablishmentViewModel // <-- Добавили ViewModel
+) {
+    val showResubmitButton = establishment.status == EstablishmentStatus.REJECTED
+
     Card(
-        modifier = Modifier.fillMaxWidth().clickable {
-            // TODO: Навигация к экрану редактирования/деталей
-        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                // TODO: Навигация к экрану редактирования/деталей
+            },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
@@ -119,30 +125,51 @@ fun EstablishmentItem(establishment: EstablishmentDisplayDto) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Статус: ${formatStatus(establishment.status)}",
-                    color = getStatusColor(establishment.status),
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium
-                )
+                Column {
+                    Text(
+                        text = "Статус: ${formatStatus(establishment.status)}",
+                        color = getStatusColor(establishment.status),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Создано: ${establishment.dateOfCreation}",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
                 Text(
                     text = "Рейтинг: ${String.format("%.1f", establishment.rating)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            Text(
-                text = "Создано: ${establishment.dateOfCreation}",
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+
+            // ⭐ НОВЫЙ БЛОК: Кнопка повторной отправки
+            if (showResubmitButton) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        // Здесь мы вызываем повторную отправку
+                        viewModel.resubmitEstablishmentForReview(establishment.id)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Отправить на повторное рассмотрение")
+                }
+            }
         }
     }
 }
-
 /**
  * Вспомогательная функция для форматирования статуса (для UI).
  */
@@ -150,7 +177,7 @@ fun EstablishmentItem(establishment: EstablishmentDisplayDto) {
 private fun formatStatus(status: EstablishmentStatus): String {
     return when (status) {
         EstablishmentStatus.PENDING_APPROVAL -> "Ожидает одобрения"
-        EstablishmentStatus.APPROVED -> "Одобрено"
+        EstablishmentStatus.ACTIVE -> "Одобрено"
         EstablishmentStatus.REJECTED -> "Отклонено"
         else -> ""
     }
@@ -163,7 +190,7 @@ private fun formatStatus(status: EstablishmentStatus): String {
 private fun getStatusColor(status: EstablishmentStatus): Color {
     return when (status) {
         EstablishmentStatus.PENDING_APPROVAL -> MaterialTheme.colorScheme.tertiary
-        EstablishmentStatus.APPROVED -> MaterialTheme.colorScheme.primary
+        EstablishmentStatus.ACTIVE -> MaterialTheme.colorScheme.primary
         EstablishmentStatus.REJECTED -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.error
     }

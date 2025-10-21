@@ -10,5 +10,6 @@ data class EstablishmentDisplayDto(
     val status: EstablishmentStatus,
     val rating: Double,
     val dateOfCreation: String,
-    val type: TypeOfEstablishment
+    val type: TypeOfEstablishment,
+    val createdId : Long
 )
