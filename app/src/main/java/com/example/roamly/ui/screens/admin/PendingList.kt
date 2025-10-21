@@ -29,12 +29,6 @@ fun PendingListScreen(
         modifier = Modifier.fillMaxSize()
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(16.dp)) {
-            Text(
-                text = "Заявки на одобрение",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
             if (isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             } else if (pendingList.isEmpty()) {

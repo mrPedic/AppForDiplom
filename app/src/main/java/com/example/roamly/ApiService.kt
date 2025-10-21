@@ -12,15 +12,19 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ApiService {
+
+      // ======================================= //
+     // ===== Все точки для пользователей ===== //
+    // ======================================= //
     @POST("/auth/register")
     suspend fun createUser(@Body user: User): Long
 
     @POST("/auth/login")
     suspend fun loginUser(@Body user: User): User?
 
-    @GET("/api/accounts/{id}")
-    suspend fun getUser(@Path("id") id: Long): User
-
+      // =================================== //
+     // ===== Все точки для заведений ===== //
+    // =================================== //
     @POST("/establishments/create")
     suspend fun createEstablishment(@Body establishment: EstablishmentEntity): EstablishmentEntity?
 
@@ -42,7 +46,19 @@ interface ApiService {
         @Query("status") status: String
     ): EstablishmentDisplayDto
 
+    @GET("/establishments/{id}")
+    suspend fun getEstablishmentById(@Path("id") id: Long): EstablishmentDisplayDto
 
+    @PUT("/establishments/{id}")
+    suspend fun updateEstablishment(
+        @Path("id") id: Long,
+        @Body establishment: EstablishmentEntity
+    ): EstablishmentDisplayDto
+
+
+      // ================================ //
+     // ===== Все точки для тестов ===== //
+    // ================================ //
     @GET("/test/ping")
     suspend fun pingServer(): String
 }

@@ -57,6 +57,7 @@ import com.example.roamly.entity.EstablishmentViewModel
 import com.example.roamly.entity.TypeOfEstablishment // Предполагаем, что этот импорт теперь доступен
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.entity.convertTypeToWord
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -153,7 +154,7 @@ fun CreateEstablishmentScreen(
             longitude = longitude,
             onClick = {
                 // Предполагаем, что MapPicker.route ждет ключи
-                navController.navigate(LogSinUpScreens.MapPicker.route)
+                navController.navigate(EstablishmentScreens.MapPicker.route)
             },
             onClearClick = { // ⭐ ОБРАБОТЧИК ДЛЯ СБРОСА
                 latitude = null

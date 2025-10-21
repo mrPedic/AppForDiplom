@@ -17,6 +17,7 @@ import com.example.roamly.entity.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.EstablishmentViewModel
 import com.example.roamly.entity.UserViewModel
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,7 +87,11 @@ fun UserEstablishmentsScreen(
                     ) {
                         items(establishments) { establishment ->
                             // ⭐ ПЕРЕДАЕМ ССЫЛКУ НА VM В EstablishmentItem
-                            EstablishmentItem(establishment, viewModel)
+                            EstablishmentItem(
+                                establishment = establishment,
+                                viewModel = viewModel,
+                                navController = navController
+                            )
                         }
                     }
                 }
@@ -97,7 +102,8 @@ fun UserEstablishmentsScreen(
 @Composable
 fun EstablishmentItem(
     establishment: EstablishmentDisplayDto,
-    viewModel: EstablishmentViewModel // <-- Добавили ViewModel
+    viewModel: EstablishmentViewModel,
+    navController: NavController
 ) {
     val showResubmitButton = establishment.status == EstablishmentStatus.REJECTED
 
@@ -105,7 +111,9 @@ fun EstablishmentItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                // TODO: Навигация к экрану редактирования/деталей
+                navController.navigate(
+                    EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id)
+                )
             },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant

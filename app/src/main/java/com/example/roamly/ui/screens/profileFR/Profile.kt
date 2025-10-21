@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
 @Composable
@@ -89,7 +90,7 @@ private fun RegisteredProfileContent(
             Button(
                 onClick = {
                     // Предполагаем, что этот маршрут существует
-                    navController.navigate(LogSinUpScreens.UserEstablishments.route)
+                    navController.navigate(EstablishmentScreens.UserEstablishments.route)
                 },
                 modifier = Modifier.padding(bottom = 12.dp)
             ){
@@ -98,7 +99,7 @@ private fun RegisteredProfileContent(
 
             Button(
                 onClick = {
-                    navController.navigate(LogSinUpScreens.CreateEstablishment.route)
+                    navController.navigate(EstablishmentScreens.CreateEstablishment.route)
                 },
                 modifier = Modifier.padding(bottom = 12.dp) // Добавлен отступ для лучшего разделения кнопок
             ){

@@ -14,7 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.roamly.entity.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentViewModel // Импорт вашего ViewModel
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 
 @Composable
 fun SearchScreen(
@@ -65,14 +67,8 @@ fun SearchScreen(
             LazyColumn {
                 items(searchResults) { establishment ->
                     EstablishmentResultItem(
-                        name = establishment.name,
-                        address = establishment.address,
-                        onClick = {
-                            // TODO: Здесь можно добавить навигацию на экран деталей заведения
-                            // или вернуться на карту и центрироваться на этой точке.
-                            // navController.navigate("details/${establishment.id}")
-                            Toast.makeText(navController.context, "Выбрано: ${establishment.name}", Toast.LENGTH_SHORT).show()
-                        }
+                        establishment = establishment,
+                        navController = navController
                     )
                     Divider()
                 }
@@ -82,25 +78,39 @@ fun SearchScreen(
 }
 
 @Composable
-fun EstablishmentResultItem(name: String, address: String, onClick: () -> Unit) {
+fun EstablishmentResultItem(
+    establishment: EstablishmentDisplayDto,
+    navController: NavController
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = {
+                // ⭐ НАВИГАЦИЯ НА ЭКРАН ДЕТАЛЕЙ
+                navController.navigate(
+                    EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id)
+                )
+            })
             .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
             Text(
-                text = name,
+                text = establishment.name,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = address,
+                text = establishment.address,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        // Опционально: можно показать статус или рейтинг
+        Text(
+            text = "Рейтинг: ${String.format("%.1f", establishment.rating)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.secondary
+        )
     }
 }

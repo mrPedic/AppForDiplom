@@ -29,6 +29,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.navigation.NavGraph
+import com.example.roamly.ui.screens.sealed.AdminScreens
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
@@ -54,7 +56,6 @@ fun MainScreen(
         SealedButtonBar.Home.route,
         SealedButtonBar.AdminPanel.route
     )
-
 
     val showBottomBar = currentRoute !in hideBottomBarRoutes
     val showBackIcon = currentRoute !in hideBackIcon
@@ -102,10 +103,11 @@ fun getCurrentTopAppBarTitle(currentRoute: String?): String {
         LogSinUpScreens.SingUp.route -> "Регистрация"
         LogSinUpScreens.Login.route -> "Вход в аккаунт"
 
-        LogSinUpScreens.UserEstablishments.route -> "Мои заведения"
-        LogSinUpScreens.CreateEstablishment.route -> "Создание заведения"
-        LogSinUpScreens.MapPicker.route -> "Выбор места заведения"
+        EstablishmentScreens.UserEstablishments.route -> "Мои заведения"
+        EstablishmentScreens.CreateEstablishment.route -> "Создание заведения"
+        EstablishmentScreens.MapPicker.route -> "Выбор места заведения"
         SealedButtonBar.AdminPanel.route -> "¯\\(°_o)/¯"
+        AdminScreens.PendingList.route -> "Заявки на одобрение"
         // Если маршрут не определен или null
         else -> "Roamly"
     }
@@ -129,7 +131,6 @@ fun ButtonBar(
     if (user.role == Role.AdminOfApp) {
         screens.add(SealedButtonBar.AdminPanel)
     }
-
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -168,4 +169,3 @@ fun ButtonBar(
         }
     }
 }
-

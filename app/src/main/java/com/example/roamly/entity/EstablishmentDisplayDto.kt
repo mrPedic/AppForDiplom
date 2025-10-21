@@ -11,5 +11,7 @@ data class EstablishmentDisplayDto(
     val rating: Double,
     val dateOfCreation: String,
     val type: TypeOfEstablishment,
+    val menuId: Long,
+    val createdUserId: Long,
     val createdId : Long
 )

@@ -5,8 +5,10 @@ import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.example.roamly.ui.screens.AdminPanelScreen
 import com.example.roamly.ui.screens.BookingScreen
 import com.example.roamly.ui.screens.HomeScreen
@@ -18,10 +20,13 @@ import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.ui.screens.admin.PendingListScreen
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
+import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen
+import com.example.roamly.ui.screens.establishment.EstablishmentEditScreen
 import com.example.roamly.ui.screens.establishment.MapPickerScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 import com.example.roamly.ui.screens.sealed.AdminScreens
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -67,23 +72,37 @@ fun NavGraph(
         }
 
         // --- Создание заведения ---
-        composable(LogSinUpScreens.CreateEstablishment.route){
+        composable(EstablishmentScreens.CreateEstablishment.route){
             CreateEstablishmentScreen(navController,userViewModel)
         }
-        composable(LogSinUpScreens.MapPicker.route){
+        composable(EstablishmentScreens.MapPicker.route){
             MapPickerScreen(navController)
         }
-        composable(LogSinUpScreens.UserEstablishments.route){
+        composable(EstablishmentScreens.UserEstablishments.route){
             UserEstablishmentsScreen(navController, userViewModel)
         }
 
+        // Просмотре и редактирование заведения
 
-        /**
-         *  Админские фишки
-         */
+        composable(
+            route = EstablishmentScreens.EstablishmentDetail.route,
+            arguments = listOf(navArgument("id") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getLong("id") ?: return@composable
+            EstablishmentDetailScreen(navController, id)
+        }
+
+        composable(
+            route = EstablishmentScreens.EstablishmentEdit.route,
+            arguments = listOf(navArgument("id") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getLong("id") ?: return@composable
+            EstablishmentEditScreen(navController, id)
+        }
+
+        // Админские фишки
         composable(AdminScreens.PendingList.route){
             PendingListScreen()
         }
-
     }
 }

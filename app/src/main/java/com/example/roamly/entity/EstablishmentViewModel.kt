@@ -31,6 +31,10 @@ class EstablishmentViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
+    // --- StateFlow для выбранного/редактируемого заведения ---
+    private val _currentEstablishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
+    val currentEstablishment: StateFlow<EstablishmentDisplayDto?> = _currentEstablishment
+
 
     /**
      * Загружает список заведений, созданных указанным пользователем.
@@ -99,10 +103,6 @@ class EstablishmentViewModel @Inject constructor(
             }
         }
     }
-
-    // =========================================================================
-    // ⭐ НОВЫЙ МЕТОД: ПОИСК ЗАВЕДЕНИЙ
-    // =========================================================================
 
     /**
      * Выполняет поиск заведений по названию или адресу.
@@ -231,6 +231,103 @@ class EstablishmentViewModel @Inject constructor(
                 withContext(Dispatchers.Main) {
                     Log.e("EstViewModel", "Ошибка повторной отправки заведения $id: ${e.message}")
                     _errorMessage.value = "Не удалось отправить заведение на повторное рассмотрение."
+                }
+            }
+        }
+    }
+
+    /**
+     * Загружает данные заведения по его ID.
+     * @param id ID заведения.
+     */
+    fun fetchEstablishmentById(id: Long) {
+        // Мы НЕ устанавливаем _isLoading, чтобы не блокировать другие экраны,
+        // но можем использовать отдельный StateFlow для UI загрузки этого экрана.
+        // Для простоты будем использовать общий _isLoading.
+        _isLoading.value = true
+        _errorMessage.value = null
+        _currentEstablishment.value = null // Очищаем предыдущее
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val entity = apiService.getEstablishmentById(id)
+
+                withContext(Dispatchers.Main) {
+                    _currentEstablishment.value = entity
+                    Log.i("EstViewModel", "Загружено заведение: ${entity.name}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val msg = "Ошибка загрузки заведения $id: ${e.message}"
+                    Log.e("EstViewModel", msg)
+                    _errorMessage.value = "Не удалось загрузить данные заведения."
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * Отправляет запрос на сервер для обновления существующего заведения.
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun updateEstablishment(
+        establishmentId: Long,
+        name: String,
+        description: String,
+        address: String,
+        latitude: Double,
+        longitude: Double,
+        type: TypeOfEstablishment,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+
+            // Используем текущий объект EstablishmentDisplayDto для заполнения всех полей,
+            // которые не меняются на экране редактирования (rating, menuId, createdUserId, status, dateOfCreation)
+            val existing = _currentEstablishment.value
+            if (existing == null) {
+                withContext(Dispatchers.Main) {
+                    _errorMessage.value = "Ошибка: Нет данных для обновления."
+                    onResult(false)
+                }
+                return@launch
+            }
+
+            // Создаем сущность для отправки (EstablishmentEntity)
+            val updatedEntity = EstablishmentEntity(
+                id = establishmentId,
+                name = name,
+                latitude = latitude,
+                longitude = longitude,
+                address = address,
+                description = description,
+                rating = existing.rating,
+                status = existing.status, // Оставляем текущий статус
+                menuId = existing.menuId,
+                createdUserId = existing.createdUserId,
+                dateOfCreation = existing.dateOfCreation,
+                type = type
+            )
+
+            try {
+                // Вызываем новый метод API для PUT-запроса
+                val updatedEstablishment = apiService.updateEstablishment(establishmentId, updatedEntity)
+
+                withContext(Dispatchers.Main) {
+                    Log.i("EstUpdateVM", "Заведение ${updatedEstablishment.name} успешно обновлено.")
+                    _currentEstablishment.value = updatedEstablishment // Обновляем локальное состояние
+                    _errorMessage.value = null
+                    onResult(true)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("EstUpdateVM", "Ошибка обновления заведения: ${e.message}")
+                    _errorMessage.value = "Не удалось обновить заведение. ${e.message}"
+                    onResult(false)
                 }
             }
         }

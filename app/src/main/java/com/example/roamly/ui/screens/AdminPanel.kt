@@ -27,14 +27,6 @@ fun AdminPanelScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp)
     ) {
-        item {
-            Text(
-                text = "Панель администратора",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-
         items(adminActions) { (title, route) ->
             Card(
                 modifier = Modifier
