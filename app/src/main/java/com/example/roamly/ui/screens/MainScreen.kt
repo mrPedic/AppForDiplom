@@ -7,6 +7,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Refresh // ⭐ Импорт иконки обновления
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -19,7 +20,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState // ⭐ Импорт для сбора StateFlow
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -43,10 +48,14 @@ fun MainScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val safeRoute = currentRoute ?: ""
+
+    // ⭐ ВОССТАНОВЛЕНО: Состояние для принудительного обновления карты
+    var mapRefreshKey by remember { mutableStateOf(false) }
+
     val hideBottomBarRoutes = listOf(
         LogSinUpScreens.SingUp.route,
         LogSinUpScreens.Login.route
-        // Добавьте другие полноэкранные маршруты, если они есть
     )
 
     val hideBackIcon = listOf(
@@ -57,8 +66,9 @@ fun MainScreen(
         SealedButtonBar.AdminPanel.route
     )
 
-    val showBottomBar = currentRoute !in hideBottomBarRoutes
-    val showBackIcon = currentRoute !in hideBackIcon
+    val isHomeScreen = safeRoute == SealedButtonBar.Home.route // ⭐ Проверка на главный экран
+    val showBottomBar = safeRoute !in hideBottomBarRoutes
+    val showBackIcon = safeRoute !in hideBackIcon
 
     Scaffold(
         topBar = {
@@ -74,6 +84,17 @@ fun MainScreen(
                         )
                     }
                 },
+                actions = { // ⭐ ВОССТАНОВЛЕНО: Блок для иконки Обновить
+                    if(isHomeScreen) {
+                        IconButton(
+                            onClick = {
+                                // Тогглим ключ для принудительного обновления AndroidView
+                                mapRefreshKey = !mapRefreshKey
+                            },
+                            content = { Icon(Icons.Filled.Refresh, "Обновить карту") }
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     titleContentColor = MaterialTheme.colorScheme.primary,
@@ -83,31 +104,43 @@ fun MainScreen(
         },
         bottomBar = {
             if(showBottomBar){
-                ButtonBar(navController = navController)
-
+                ButtonBar(navController = navController, userViewModel = userViewModel) // ⭐ ПЕРЕДАН userViewModel
             }
         }
     ) { innerPadding ->
         NavGraph(
             navController = navController,
             modifier = Modifier.padding(innerPadding),
-            userViewModel = userViewModel
+            userViewModel = userViewModel,
+            mapRefreshKey = mapRefreshKey // ⭐ ПЕРЕДАЧА КЛЮЧА
         )
     }
 }
 
 fun getCurrentTopAppBarTitle(currentRoute: String?): String {
-    return when (currentRoute) {
+    // ⭐ Шаблон для маршрутов с ID
+    val detailRoutePattern = EstablishmentScreens.EstablishmentDetail.route.substringBefore("/{")
+    val editRoutePattern = EstablishmentScreens.EstablishmentEdit.route.substringBefore("/{")
 
-        // Экраны входа/регистрации (используем русский заголовок)
-        LogSinUpScreens.SingUp.route -> "Регистрация"
-        LogSinUpScreens.Login.route -> "Вход в аккаунт"
+    return when {
+        // --- Анализ маршрутов с аргументами ---
+        currentRoute?.startsWith(detailRoutePattern) == true -> {
+            // Внимание: Здесь мы не можем легко получить название заведения без ViewModel.
+            // Вместо этого покажем общий заголовок.
+            "Детали заведения"
+        }
+        currentRoute?.startsWith(editRoutePattern) == true -> "Редактирование заведения"
 
-        EstablishmentScreens.UserEstablishments.route -> "Мои заведения"
-        EstablishmentScreens.CreateEstablishment.route -> "Создание заведения"
-        EstablishmentScreens.MapPicker.route -> "Выбор места заведения"
-        SealedButtonBar.AdminPanel.route -> "¯\\(°_o)/¯"
-        AdminScreens.PendingList.route -> "Заявки на одобрение"
+
+        // --- Маршруты без аргументов ---
+        currentRoute ==  LogSinUpScreens.SingUp.route -> "Регистрация"
+        currentRoute == LogSinUpScreens.Login.route -> "Вход в аккаунт"
+        currentRoute == EstablishmentScreens.UserEstablishments.route -> "Мои заведения"
+        currentRoute == EstablishmentScreens.CreateEstablishment.route -> "Создание заведения"
+        currentRoute == EstablishmentScreens.MapPicker.route -> "Выбор места заведения"
+        currentRoute == SealedButtonBar.AdminPanel.route -> "Админ-панель" // ⭐ ИСПРАВЛЕНО
+        currentRoute == AdminScreens.PendingList.route -> "Заявки на одобрение"
+
         // Если маршрут не определен или null
         else -> "Roamly"
     }
@@ -124,7 +157,8 @@ fun ButtonBar(
         SealedButtonBar.Booking,
     )
 
-    val user = userViewModel.user
+    // ⭐ ИСПРАВЛЕНО: Сборка StateFlow из ViewModel в Compose State
+    val user by userViewModel.user.collectAsState()
 
     screens.add(SealedButtonBar.Profile)
 

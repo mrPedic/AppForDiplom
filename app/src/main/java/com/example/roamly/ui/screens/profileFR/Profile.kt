@@ -27,6 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState // ⭐ ДОБАВЛЕНО: Для сбора StateFlow
+import com.example.roamly.entity.Role // ⭐ ДОБАВЛЕНО: Для проверки роли
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
@@ -35,7 +37,10 @@ fun ProfileScreen(
     navController: NavController,
     userViewModel: UserViewModel
 ) {
-    val isLoggedIn =  userViewModel.isLoggedIn()
+    // ⭐ ИСПРАВЛЕНО: Собираем StateFlow<User> для реактивного определения статуса авторизации
+    val user by userViewModel.user.collectAsState()
+    val isLoggedIn = user.role != Role.UnRegistered
+
     if (isLoggedIn) {
         RegisteredProfileContent(navController, userViewModel)
     } else {
@@ -51,8 +56,8 @@ private fun RegisteredProfileContent(
     navController: NavController,
     userViewModel: UserViewModel
 ) {
-    // Читаем реактивное состояние. Это тоже вызовет перекомпоновку при изменении.
-    val currentUser = userViewModel.user
+    // ⭐ ИСПРАВЛЕНО: Собираем StateFlow<User> в currentUser
+    val currentUser by userViewModel.user.collectAsState()
 
     val userDataDisplay = "ID: ${currentUser.id ?: "Нет ID"}\n" +
             "Login: ${currentUser.login}\n" +
@@ -131,14 +136,14 @@ private fun UnRegisteredProfileContent(
     // Состояние для индикации загрузки/проверки
     var isCheckingConnection by remember { mutableStateOf(true) }
 
+    // ⭐ ИСПРАВЛЕНО: Читаем реактивное состояние подключения из StateFlow
+    val isConnected by userViewModel.isServerConnected.collectAsState(initial = false)
+
     // Запускаем проверку подключения при первой композиции
     LaunchedEffect(Unit) {
         userViewModel.checkServerConnection()
         isCheckingConnection = false
     }
-
-    // Читаем реактивное состояние из ViewModel
-    val isConnected = userViewModel.isServerConnected
 
     Box(
         modifier = Modifier

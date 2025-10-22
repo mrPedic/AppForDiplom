@@ -16,25 +16,29 @@ import androidx.navigation.NavController
 import com.example.roamly.entity.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.EstablishmentViewModel
+import com.example.roamly.entity.User
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
-
+import kotlinx.coroutines.flow.StateFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserEstablishmentsScreen(
     navController: NavController,
-    userViewModel: UserViewModel,
+    userViewModel: UserViewModel = hiltViewModel(), // Используем hiltViewModel по умолчанию, если не передан
     // Предполагается, что EstablishmentViewModel поддерживает StateFlow для списка
-    viewModel: EstablishmentViewModel = hiltViewModel() // <--- ViewModel
-    ) {
+    viewModel: EstablishmentViewModel = hiltViewModel()
+) {
+    // ⭐ ИСПРАВЛЕНО: Собираем StateFlow<User> в Compose-состояние
+    val user by userViewModel.user.collectAsState()
+
     // ВАЖНО: Предполагается, что EstablishmentViewModel имеет поля:
     val establishments by viewModel.userEstablishments.collectAsState(initial = emptyList())
     val isLoading by viewModel.isLoading.collectAsState(initial = false)
     val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
-    // Получаем ID пользователя, который должен быть Long
-    val userId = userViewModel.user.id
+    // ⭐ ИСПРАВЛЕНО: Получаем ID пользователя из собранного состояния
+    val userId = user.id
 
     // Запуск загрузки данных при входе на экран
     LaunchedEffect(userId) {
@@ -43,61 +47,61 @@ fun UserEstablishmentsScreen(
             viewModel.fetchEstablishmentsByUserId(it)
         }
     }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
-            when {
-                isLoading -> {
-                    // Индикатор загрузки
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        when {
+            isLoading -> {
+                // Индикатор загрузки
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            errorMessage != null -> {
+                // Сообщение об ошибке
+                Text(
+                    text = "Ошибка загрузки: $errorMessage",
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(16.dp)
+                )
+                // Кнопка для повторной попытки
+                Button(
+                    onClick = { userId?.let { viewModel.fetchEstablishmentsByUserId(it) } },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp)
+                ) {
+                    Text("Повторить")
                 }
-                errorMessage != null -> {
-                    // Сообщение об ошибке
-                    Text(
-                        text = "Ошибка загрузки: $errorMessage",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp)
-                    )
-                    // Кнопка для повторной попытки
-                    Button(
-                        onClick = { userId?.let { viewModel.fetchEstablishmentsByUserId(it) } },
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp)
-                    ) {
-                        Text("Повторить")
-                    }
-                }
-                establishments.isEmpty() -> {
-                    // Пустой список
-                    Text(
-                        text = "У вас пока нет созданных заведений.",
-                        modifier = Modifier.align(Alignment.Center),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-                else -> {
-                    // Отображение списка
-                    LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(establishments) { establishment ->
-                            // ⭐ ПЕРЕДАЕМ ССЫЛКУ НА VM В EstablishmentItem
-                            EstablishmentItem(
-                                establishment = establishment,
-                                viewModel = viewModel,
-                                navController = navController
-                            )
-                        }
+            }
+            establishments.isEmpty() && !isLoading -> { // Добавлена проверка !isLoading для избежания мерцания
+                // Пустой список
+                Text(
+                    text = "У вас пока нет созданных заведений.",
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            else -> {
+                // Отображение списка
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(establishments) { establishment ->
+                        // ⭐ ПЕРЕДАЕМ ССЫЛКУ НА VM В EstablishmentItem
+                        EstablishmentItem(
+                            establishment = establishment,
+                            viewModel = viewModel,
+                            navController = navController
+                        )
                     }
                 }
             }
         }
     }
+}
 
 @Composable
 fun EstablishmentItem(
@@ -187,7 +191,7 @@ private fun formatStatus(status: EstablishmentStatus): String {
         EstablishmentStatus.PENDING_APPROVAL -> "Ожидает одобрения"
         EstablishmentStatus.ACTIVE -> "Одобрено"
         EstablishmentStatus.REJECTED -> "Отклонено"
-        else -> ""
+        else -> "Неизвестный"
     }
 }
 

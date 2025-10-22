@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-
 package com.example.roamly.ui.screens.establishment
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -19,6 +17,7 @@ import androidx.navigation.NavController
 import com.example.roamly.entity.*
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun EstablishmentDetailScreen(
     navController: NavController,
@@ -50,7 +49,9 @@ fun EstablishmentDetailScreen(
 
     Scaffold(
         topBar = {
-            // ⭐ ИСПОЛЬЗУЕМ COLUMN ДЛЯ ГРУППИРОВКИ TOPAPPBAR И TABROW
+            // TopAppBar и TabRow сгруппированы в Column, чтобы TabRow "прилип" к TopAppBar,
+            // но оставался частью слота TopBar Scaffold, гарантируя, что основной контент
+            // начнется под ним.
             Column(modifier = Modifier.fillMaxWidth()) {
                 TopAppBar(
                     title = { Text(establishment?.name ?: "Заведение") },
@@ -58,16 +59,12 @@ fun EstablishmentDetailScreen(
                         establishment?.let {
                             // Кнопка редактирования
                             IconButton(onClick = {
-                                navController.navigate("${EstablishmentScreens.EstablishmentEdit.route}/${it.id}")
+                                navController.navigate(EstablishmentScreens.EstablishmentEdit.createRoute(it.id))
                             }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "Редактировать")
                             }
                         }
                     },
-                    // Убираем параметр 'bottom'
-                    // bottom = { ... } <-- ЭТО УБИРАЕМ!
-
-                    // Рекомендуется: добавить цвета для TopAppBar, как вы делали раньше.
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         titleContentColor = MaterialTheme.colorScheme.onPrimary,
@@ -75,10 +72,8 @@ fun EstablishmentDetailScreen(
                     )
                 )
 
-                // ⭐ TabRow теперь находится отдельно, внутри Column, но ДО СЛОТА CONTENT
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    // Дополнительные стили для TabRow, если нужно
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.primary
                 ) {
@@ -119,20 +114,30 @@ fun EstablishmentDetailScreen(
 
 @Composable
 fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto) {
-    // Временно, для демонстрации
-    Column(modifier = Modifier.padding(16.dp)) {
+    // Используем LazyColumn/Column в зависимости от содержимого, но для карты нужно fillMaxSize()
+    Column(modifier = Modifier.fillMaxSize()) {
         when (page) {
             0 -> {
-                Text("Описание:", fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text(establishment.description)
-                Spacer(Modifier.height(8.dp))
-                Text("Адрес: ${establishment.address}")
-                Text("Тип: ${convertTypeToWord(establishment.type)}")
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Описание:", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(establishment.description)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Адрес: ${establishment.address}")
+                    Text("Тип: ${convertTypeToWord(establishment.type)}")
+                }
             }
-            1 -> Text("Здесь будет отображаться Меню", style = MaterialTheme.typography.titleMedium)
-            2 -> Text("Здесь будет отображаться Карта (Lat: ${establishment.latitude})", style = MaterialTheme.typography.titleMedium)
-            3 -> Text("Здесь будут отображаться Отзывы", style = MaterialTheme.typography.titleMedium)
+            1 -> Text("Здесь будет отображаться Меню", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
+            2 -> {
+                // ⭐ ИСПОЛЬЗУЕМ РЕАЛИЗАЦИЮ КАРТЫ
+                EstablishmentMapTab(
+                    name = establishment.name,
+                    latitude = establishment.latitude,
+                    longitude = establishment.longitude
+                )
+            }
+            3 -> Text("Здесь будут отображаться Отзывы", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
         }
     }
 }
+

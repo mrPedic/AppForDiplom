@@ -26,7 +26,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.UserViewModel
-import com.example.roamly.ui.screens.SearchScreen
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 
@@ -37,19 +36,35 @@ fun SingUpScreen(
 ) {
     var username by remember { mutableStateOf("") }
     var login by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") } // ⭐ ДОБАВЛЕНО: Состояние для email
     var password by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 200.dp, bottom = 200.dp),
+            .padding(top = 100.dp, bottom = 100.dp), // Увеличен отступ для размещения всех полей
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // ⭐ ДОБАВЛЕНО: Заголовок
+        Text(
+            text = "Регистрация",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
             label = { Text(text = "Введите имя пользователя") }
+        )
+
+        // ⭐ ДОБАВЛЕНО: Поле для Email
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text(text = "Введите Email") }
         )
 
         OutlinedTextField(
@@ -67,8 +82,10 @@ fun SingUpScreen(
         Button(
             modifier = Modifier.fillMaxWidth(0.7f),
             onClick = {
-                if (username.length > 3 && login.length > 3 && password.length > 3) {
-                    userViewModel.registerUser(username, login, password) { createdUser ->
+                // ⭐ ОБНОВЛЕНО: Добавлена проверка email
+                if (username.length > 3 && login.length > 3 && password.length > 3 && email.length > 5) {
+                    // ⭐ ОБНОВЛЕНО: Передаем email в registerUser
+                    userViewModel.registerUser(username, login, password, email) { createdUser ->
                         if (createdUser != null) {
                             Log.i("SingUpScreen", "✅ Пользователь создан с id: ${createdUser.id}")
                             navController.popBackStack()
@@ -76,6 +93,9 @@ fun SingUpScreen(
                             Log.e("SingUpScreen", "Ошибка при регистрации")
                         }
                     }
+                } else {
+                    Log.w("SingUpScreen", "Ошибка: Все поля должны быть заполнены и иметь достаточную длину.")
+                    // В реальном приложении здесь было бы Toast или Snackbar
                 }
             }
         ) {
@@ -88,7 +108,7 @@ fun SingUpScreen(
                 navController.navigate(route = LogSinUpScreens.Login.route)
             },
             text = "Войти в существующий аккаунт",
-            color = Color.Magenta,
+            color = MaterialTheme.colorScheme.primary, // Используем основную тему вместо Magenta
             fontSize = MaterialTheme.typography.bodySmall.fontSize,
             fontWeight = FontWeight.Bold
         )
@@ -98,7 +118,7 @@ fun SingUpScreen(
 @Composable
 @Preview(showBackground = true)
 fun SingUpScreenPreview() {
-    SingUpScreen(navController = rememberNavController(), hiltViewModel())
+    SingUpScreen(navController = rememberNavController(), userViewModel = hiltViewModel())
 }
 
 

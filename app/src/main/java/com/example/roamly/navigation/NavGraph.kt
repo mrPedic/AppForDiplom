@@ -33,7 +33,9 @@ import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    userViewModel: UserViewModel
+    userViewModel: UserViewModel,
+    mapRefreshKey: Boolean // ⭐ ДОБАВЛЕНО: Ключ для принудительного обновления карты
+
 ) {
     NavHost(
         navController = navController,
@@ -42,7 +44,7 @@ fun NavGraph(
     ) {
         // --- Основные вкладки ---
         composable(SealedButtonBar.Home.route) {
-            HomeScreen(navController)
+            HomeScreen(navController,mapRefreshKey )
         }
         composable(SealedButtonBar.Booking.route) {
             BookingScreen(navController)
