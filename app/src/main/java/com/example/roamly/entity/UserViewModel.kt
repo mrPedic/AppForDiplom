@@ -1,34 +1,55 @@
 package com.example.roamly.entity
 
 import android.app.Application
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.factory.RetrofitFactory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow // ⭐ ИМПОРТ: Для реактивного состояния
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update // ⭐ ИМПОРТ: Для безопасного обновления StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow // ✅ ИМПОРТ: Лучшая практика для сокрытия MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
-import android.content.SharedPreferences
 
 @HiltViewModel
 class UserViewModel @Inject constructor(
     private val application: Application
 ) : ViewModel() {
 
-    // ⭐ ИСПРАВЛЕНИЕ: Используем StateFlow для асинхронного наблюдения за состоянием.
+    // --- State ---
+
+    // ✅ УЛУЧШЕНИЕ: Приватный MutableStateFlow, публичный StateFlow через asStateFlow()
     private val _user = MutableStateFlow(User())
-    val user: StateFlow<User> = _user // Публичное неизменяемое представление
+    val user = _user.asStateFlow() // Публичное, только для чтения, представление
 
-    private val apiService = RetrofitFactory.create()
-
-    // StateFlow для статуса подключения к серверу
     private val _isServerConnected = MutableStateFlow(false)
-    val isServerConnected: StateFlow<Boolean> = _isServerConnected
+    val isServerConnected = _isServerConnected.asStateFlow()
+
+    // --- SharedPreferences ---
+    private val prefs: SharedPreferences by lazy {
+        application.getSharedPreferences("user_prefs", Application.MODE_PRIVATE)
+    }
+    // ✅ УЛУЧШЕНИЕ: Использование object для хранения констант — лучшая организация
+    private object PrefKeys {
+        const val ID = "user_id"
+        const val NAME = "user_name"
+        const val LOGIN = "user_login"
+        const val ROLE = "user_role"
+        const val EMAIL = "user_email"
+    }
+
+    // --- Initialization ---
+
+    init {
+        checkServerConnection()
+        loadUser()
+    }
+
+    // --- Public API ---
 
     fun checkServerConnection() = viewModelScope.launch(Dispatchers.IO) {
         val isConnected = try {
@@ -41,144 +62,116 @@ class UserViewModel @Inject constructor(
         _isServerConnected.value = isConnected
     }
 
-    // --- SharedPreferences Logic ---
-    private val PREFS_NAME = "user_prefs"
-    private val prefs: SharedPreferences = application.getSharedPreferences(PREFS_NAME, Application.MODE_PRIVATE)
-    private val KEY_ID = "user_id"
-    private val KEY_NAME = "user_name"
-    private val KEY_LOGIN = "user_login"
-    private val KEY_ROLE = "user_role"
-    private val KEY_EMAIL = "user_email" // ⭐ НОВЫЙ КЛЮЧ
-
-    private fun saveUser(user: User) {
-        prefs.edit().apply {
-            putLong(KEY_ID, user.id ?: -1L)
-            putString(KEY_NAME, user.name)
-            putString(KEY_LOGIN, user.login)
-            putString(KEY_ROLE, user.role.name)
-            putString(KEY_EMAIL, user.email) // ⭐ СОХРАНЕНИЕ EMAIL
-            apply()
-        }
-    }
-
-    init{
-        loadUser()
-    }
-
-    private fun loadUser() {
-        val id = prefs.getLong(KEY_ID, -1L)
-
-        if (id != -1L) {
-            val name = prefs.getString(KEY_NAME, "") ?: ""
-            val login = prefs.getString(KEY_LOGIN, "") ?: ""
-            val email = prefs.getString(KEY_EMAIL, "") ?: "" // ⭐ ЗАГРУЗКА EMAIL
-            val password = ""
-
-            val roleString = prefs.getString(KEY_ROLE, Role.UnRegistered.name) ?: Role.UnRegistered.name
-            val role = try {
-                Role.valueOf(roleString)
-            } catch (e: IllegalArgumentException) {
-                Role.UnRegistered
-            }
-
-            _user.value = User(
-                id = id,
-                name = name,
-                login = login,
-                password = password,
-                role = role,
-                email = email // ⭐ УСТАНОВКА EMAIL
-            )
-        }
-        else{
-            _user.value = User()
-        }
-    }
-
-
     fun registerUser(name: String, login: String, password: String, email: String, onResult: (User?) -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch { // ✅ УЛУЧШЕНИЕ: withContext для переключения диспатчеров
             try {
-                // Создаем объект с email и паролем для API
                 val newUser = User(name = name, login = login, password = password, email = email)
-                val newId: Long = apiService.createUser(newUser)
-
-                val registeredUser = newUser.copy(
-                    id = newId,
-                    role = Role.Registered,
-                    password = "" // Очищаем пароль для StateFlow
-                )
-
-                withContext(Dispatchers.Main) {
-                    _user.value = registeredUser // Обновляем StateFlow
-                    saveUser(registeredUser)
-                    onResult(registeredUser)
+                // Сетевой вызов в IO потоке
+                val newId = withContext(Dispatchers.IO) {
+                    apiService.createUser(newUser)
                 }
-                Log.e("UserViewModelCorrect", getAllData())
+
+                val registeredUser = newUser.copy(id = newId, role = Role.Registered, password = "")
+
+                _user.value = registeredUser
+                saveUserToPrefs(registeredUser)
+                onResult(registeredUser)
+                Log.d("UserViewModel", "Регистрация успешна: ${getAllData()}")
+
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Log.e("UserViewModel", "Ошибка регистрации: ${e.message}")
-                    onResult(null)
-                }
+                Log.e("UserViewModel", "Ошибка регистрации: ${e.message}")
+                onResult(null)
             }
         }
     }
 
     fun loginUser(login: String, password: String, onResult: (User?) -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
                 val loginData = User(login = login, password = password)
-                val response = apiService.loginUser(loginData)
-
-                withContext(Dispatchers.Main) {
-                    if (response != null) {
-                        // Очищаем пароль в объекте, который идет в StateFlow и SharedPreferences
-                        val loggedInUser = response.copy(password = "")
-                        _user.value = loggedInUser // Обновляем StateFlow
-                        saveUser(loggedInUser)
-                        onResult(loggedInUser)
-                    } else {
-                        onResult(null)
-                    }
+                // Сетевой вызов в IO потоке
+                val response = withContext(Dispatchers.IO) {
+                    apiService.loginUser(loginData)
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Log.d("UserViewModel", "Ошибка авторизации: ${e.message}")
+
+                if (response != null) {
+                    val loggedInUser = response.copy(password = "")
+                    _user.value = loggedInUser
+                    saveUserToPrefs(loggedInUser)
+                    onResult(loggedInUser)
+                    Log.d("UserViewModel", "Авторизация успешна: ${getAllData()}")
+                } else {
                     onResult(null)
                 }
+            } catch (e: Exception) {
+                Log.e("UserViewModel", "Ошибка авторизации: ${e.message}")
+                onResult(null)
             }
         }
     }
 
-    // Функция должна принимать email как параметр, если она нужна для проверки
-    fun userIsExists(email: String){}
-
-    // ⭐ ОБНОВЛЕНО: Получение данных из StateFlow
-    fun getId(): Long?{
-        return user.value.id.takeIf { it != null && it != -1L }
-    }
-
     fun logout() {
-        _user.value = User() // Обновляем StateFlow
+        _user.value = User() // Сброс состояния
         prefs.edit().clear().apply()
     }
 
     fun updateRole(newRole: Role) {
-        // Безопасно обновляем StateFlow
-        _user.update { current ->
-            current.copy(role = newRole)
+        _user.update { currentUser ->
+            currentUser.copy(role = newRole).also { updatedUser ->
+                saveUserToPrefs(updatedUser) // ✅ ИСПРАВЛЕНИЕ: Сохраняем обновленного пользователя
+            }
         }
-        // ⭐ ДОБАВЛЕНО: Обновляем SharedPreferences для сохранения новой роли
-        saveUser(_user.value)
     }
 
-    // ⭐ ОБНОВЛЕНО: Получение данных из StateFlow
+    // --- State-derived getters ---
+
+    fun getId(): Long? = user.value.id.takeIf { it != -1L }
     fun isLoggedIn(): Boolean = user.value.role != Role.UnRegistered
     fun isAdmin(): Boolean = user.value.role == Role.AdminOfApp || user.value.role == Role.AdminOfInstitution
+    fun getAllData(): String = user.value.let {
+        "Name: ${it.name}, Role: ${it.role}, Login: ${it.login}, Email: ${it.email}, Password: [HIDDEN], Id: ${it.id}"
+    }
 
-    // ⭐ ОБНОВЛЕНО: Получение данных из StateFlow и включение email
-    fun getAllData(): String{
-        val currentUser = user.value
-        return "Name : ${currentUser.name}, Role : ${currentUser.role}, Login : ${currentUser.login}, Email : ${currentUser.email}, Password : ${currentUser.password}, Id : ${currentUser.id}"
+    // --- Private Helpers ---
+
+    private fun saveUserToPrefs(user: User) {
+        prefs.edit().apply {
+            putLong(PrefKeys.ID, user.id ?: -1L)
+            putString(PrefKeys.NAME, user.name)
+            putString(PrefKeys.LOGIN, user.login)
+            putString(PrefKeys.ROLE, user.role.name)
+            putString(PrefKeys.EMAIL, user.email)
+            apply()
+        }
+    }
+
+    private fun loadUser() {
+        // ✅ УЛУЧШЕНИЕ: Блок `runCatching` для безопасной загрузки
+        runCatching {
+            val id = prefs.getLong(PrefKeys.ID, -1L)
+            if (id == -1L) {
+                _user.value = User() // Пользователь не сохранен
+                return
+            }
+
+            val roleString = prefs.getString(PrefKeys.ROLE, Role.UnRegistered.name)!!
+            _user.value = User(
+                id = id,
+                name = prefs.getString(PrefKeys.NAME, "")!!,
+                login = prefs.getString(PrefKeys.LOGIN, "")!!,
+                email = prefs.getString(PrefKeys.EMAIL, "")!!,
+                password = "", // Пароль никогда не загружаем
+                role = Role.valueOf(roleString)
+            )
+        }.onFailure { e ->
+            Log.e("UserViewModel", "Ошибка загрузки пользователя из SharedPreferences: ${e.message}")
+            _user.value = User() // В случае ошибки сбрасываем до состояния по умолчанию
+            prefs.edit().clear().apply() // Очищаем некорректные данные
+        }
+    }
+
+    // ✅ УЛУЧШЕНИЕ: Ленивая инициализация apiService
+    private val apiService by lazy {
+        RetrofitFactory.create()
     }
 }

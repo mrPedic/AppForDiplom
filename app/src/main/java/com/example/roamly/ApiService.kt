@@ -3,6 +3,7 @@ package com.example.roamly
 import com.example.roamly.entity.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentStatus
+import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.User
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -61,4 +62,13 @@ interface ApiService {
     // ================================ //
     @GET("/test/ping")
     suspend fun pingServer(): String
+
+      // ================================= //
+     // ===== Все точки для отзывов ===== //
+    // ================================= //
+    @POST("/reviews/create")
+    suspend fun createReview(@Body review: ReviewEntity): ReviewEntity
+
+    @GET("/reviews/establishment/{establishmentId}") // Соответствует Spring @GetMapping("/establishment/{establishmentId}")
+    suspend fun getReviewsByEstablishmentId(@Path("establishmentId") id: Long): List<ReviewEntity>
 }

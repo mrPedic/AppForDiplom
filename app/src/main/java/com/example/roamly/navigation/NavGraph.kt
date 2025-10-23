@@ -23,6 +23,7 @@ import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentEditScreen
 import com.example.roamly.ui.screens.establishment.MapPickerScreen
+import com.example.roamly.ui.screens.establishment.ReviewCreationScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 import com.example.roamly.ui.screens.sealed.AdminScreens
@@ -87,11 +88,12 @@ fun NavGraph(
         // Просмотре и редактирование заведения
 
         composable(
-            route = EstablishmentScreens.EstablishmentDetail.route,
-            arguments = listOf(navArgument("id") { type = NavType.LongType })
+            route = EstablishmentScreens.EstablishmentDetail.route, // "establishment/detail/{establishmentId}"
+            arguments = listOf(navArgument("establishmentId") { type = NavType.LongType })
         ) { backStackEntry ->
-            val id = backStackEntry.arguments?.getLong("id") ?: return@composable
-            EstablishmentDetailScreen(navController, id)
+            // Also update the argument retrieval for clarity, though 'id' works here if you use the correct name below
+            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: return@composable
+            EstablishmentDetailScreen(navController, establishmentId) // Assuming the function expects a Long
         }
 
         composable(
@@ -100,6 +102,28 @@ fun NavGraph(
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getLong("id") ?: return@composable
             EstablishmentEditScreen(navController, id)
+        }
+
+        composable(
+            route = EstablishmentScreens.ReviewCreation.route, // "establishment/review/{establishmentId}"
+            arguments = listOf(
+                navArgument(EstablishmentScreens.ReviewCreation.ESTABLISHMENT_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong(EstablishmentScreens.ReviewCreation.ESTABLISHMENT_ID_KEY)
+
+            // Защита, если establishmentId не найден (хотя вряд ли)
+            if (establishmentId != null) {
+                ReviewCreationScreen(
+                    navController = navController,
+                    establishmentId = establishmentId
+                )
+            } else {
+                // Обработка ошибки или возврат назад
+                navController.popBackStack()
+            }
         }
 
         // Админские фишки

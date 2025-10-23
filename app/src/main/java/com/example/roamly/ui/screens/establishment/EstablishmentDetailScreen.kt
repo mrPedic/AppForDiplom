@@ -1,7 +1,10 @@
 package com.example.roamly.ui.screens.establishment
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -10,12 +13,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.*
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+// Используем заглушки для отсутствующих частей
+val convertTypeToWord: (String) -> String = { it }
+val EstablishmentMapTab: @Composable (name: String, latitude: Double, longitude: Double) -> Unit =
+    { name, lat, lon -> Text("Карта для $name ($lat, $lon)", Modifier.fillMaxSize().padding(16.dp)) }
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -45,13 +58,15 @@ fun EstablishmentDetailScreen(
 
     LaunchedEffect(pagerState.currentPage) {
         selectedTab = pagerState.currentPage
+
+        if (pagerState.currentPage == 3 && establishment != null) {
+            // Вызываем новую функцию для загрузки отзывов
+            viewModel.fetchReviewsForEstablishment(establishment!!.id)
+        }
     }
 
     Scaffold(
         topBar = {
-            // TopAppBar и TabRow сгруппированы в Column, чтобы TabRow "прилип" к TopAppBar,
-            // но оставался частью слота TopBar Scaffold, гарантируя, что основной контент
-            // начнется под ним.
             Column(modifier = Modifier.fillMaxWidth()) {
                 TopAppBar(
                     title = { Text(establishment?.name ?: "Заведение") },
@@ -59,6 +74,7 @@ fun EstablishmentDetailScreen(
                         establishment?.let {
                             // Кнопка редактирования
                             IconButton(onClick = {
+                                // Замените на реальный путь редактирования
                                 navController.navigate(EstablishmentScreens.EstablishmentEdit.createRoute(it.id))
                             }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "Редактировать")
@@ -94,7 +110,7 @@ fun EstablishmentDetailScreen(
                 .padding(paddingValues)
         ) {
             when {
-                isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                isLoading && establishment == null -> CircularProgressIndicator(Modifier.align(Alignment.Center)) // Показываем лоадер, только если нет данных
                 errorMessage != null -> Text(
                     text = "Ошибка: $errorMessage",
                     color = MaterialTheme.colorScheme.error,
@@ -103,7 +119,7 @@ fun EstablishmentDetailScreen(
                 establishment != null -> {
                     HorizontalPager(state = pagerState) { page ->
                         // Отображение контента вкладок
-                        EstablishmentTabContent(page, establishment!!)
+                        EstablishmentTabContent(page, establishment!!, navController)
                     }
                 }
                 else -> Text("Данные не найдены", Modifier.align(Alignment.Center))
@@ -112,8 +128,9 @@ fun EstablishmentDetailScreen(
     }
 }
 
+// ... EstablishmentTabContent остается без изменений ...
 @Composable
-fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto) {
+fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto, navController: NavController) {
     // Используем LazyColumn/Column в зависимости от содержимого, но для карты нужно fillMaxSize()
     Column(modifier = Modifier.fillMaxSize()) {
         when (page) {
@@ -136,8 +153,139 @@ fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto) {
                     longitude = establishment.longitude
                 )
             }
-            3 -> Text("Здесь будут отображаться Отзывы", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
+            3 -> {
+                ReviewTabContent(establishment = establishment, navController = navController)
+            }
         }
     }
 }
 
+
+@Composable
+fun ReviewTabContent(
+    establishment: EstablishmentDisplayDto,
+    navController: NavController,
+    userViewModel: UserViewModel = hiltViewModel(),
+    viewModel: EstablishmentViewModel = hiltViewModel()
+) {
+    // Получаем текущего пользователя для проверки прав и ID
+    val currentUser by userViewModel.user.collectAsState()
+    val currentUserId = currentUser.id ?: -1L
+    val isLoggedIn = userViewModel.isLoggedIn()
+
+    // Проверка, является ли пользователь владельцем заведения
+    val isOwner = establishment.createdUserId == currentUserId
+
+    // Получаем отзывы для отображения
+    val reviews by viewModel.reviews.collectAsState()
+    // Получаем состояние загрузки отзывов
+    val isReviewsLoading by viewModel.isReviewsLoading.collectAsState()
+
+    // Условие для отображения кнопки "Оставить отзыв"
+    val canReview = isLoggedIn && !isOwner
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) { // fillMaxSize для LazyColumn
+        Text("Отзывы", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(8.dp))
+
+        // --- Логика отображения кнопки/сообщения ---
+        when {
+            !isLoggedIn -> {
+                Text("Войдите в систему, чтобы оставить отзыв.", color = MaterialTheme.colorScheme.secondary)
+            }
+            isOwner -> {
+                Text("Вы являетесь владельцем этого заведения и не можете оставить отзыв.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            canReview -> {
+                // ⭐ ПЕРЕХОД НА ОТДЕЛЬНЫЙ ЭКРАН СОЗДАНИЯ ОТЗЫВА
+                Button(
+                    onClick = {
+                        navController.navigate(EstablishmentScreens.ReviewCreation.createRoute(establishment.id))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Оставить отзыв")
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // --- Отображение списка отзывов ---
+        if (isReviewsLoading) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+        } else if (reviews.isEmpty()) {
+            Text("Отзывов пока нет. Будьте первыми!", style = MaterialTheme.typography.bodySmall)
+        } else {
+            // ⭐ ИСПОЛЬЗУЕМ LAZYCOLUMN ДЛЯ СПИСКА ОТЗЫВОВ
+            Text("Список отзывов (${reviews.size}):", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+
+            LazyColumn(
+                modifier = Modifier.fillMaxHeight(), // Занимаем всё оставшееся пространство
+                contentPadding = PaddingValues(bottom = 16.dp), // Небольшой отступ внизу
+                verticalArrangement = Arrangement.spacedBy(8.dp) // Отступ между элементами
+            ) {
+                items(reviews) { review ->
+                    ReviewItem(review = review)
+                    Divider() // Разделитель между отзывами
+                }
+            }
+        }
+    }
+}
+
+// ⭐ НОВЫЙ КОМПОНЕНТ: Элемент списка отзыва
+@Composable
+fun ReviewItem(review: ReviewEntity) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Заголовок: Оценка и ID пользователя (или имя, если оно доступно)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Оценка
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Оценка: ${"%.1f".format(review.rating)}",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    // TODO: Добавить иконки звезд
+                }
+
+                // Дата создания
+                review.dateOfCreation?.let {
+                    val formatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy") }
+                    Text(
+                        text = it.format(formatter),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // Текст отзыва
+            Text(review.reviewText, style = MaterialTheme.typography.bodyMedium)
+
+            Spacer(Modifier.height(8.dp))
+
+            // Информация о пользователе (для простоты пока только ID)
+            Text(
+                text = "Пользователь ID: ${review.createdUserId}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // TODO: Отображение фото, если review.photoBase64 != null
+        }
+    }
+}
