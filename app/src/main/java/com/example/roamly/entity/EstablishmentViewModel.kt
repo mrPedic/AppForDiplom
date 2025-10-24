@@ -271,6 +271,7 @@ class EstablishmentViewModel @Inject constructor(
         latitude: Double,
         longitude: Double,
         type: TypeOfEstablishment,
+        photoBase64s: List<String> = emptyList(),
         onResult: (Boolean) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -304,6 +305,8 @@ class EstablishmentViewModel @Inject constructor(
 
                 withContext(Dispatchers.Main) {
                     Log.i("EstUpdateVM", "Заведение ${updatedEstablishment.name} успешно обновлено.")
+                    // Здесь нужно преобразовать EstablishmentEntity в EstablishmentDisplayDto,
+                    // если ваш API возвращает Entity, но StateFlow ждет DTO.
                     _currentEstablishment.value = updatedEstablishment
                     _errorMessage.value = null
                     onResult(true)
@@ -331,6 +334,7 @@ class EstablishmentViewModel @Inject constructor(
         longitude: Double,
         createUserId: Long,
         type: TypeOfEstablishment,
+        photoBase64s: List<String> = emptyList(),
         onResult: (Boolean) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -346,8 +350,9 @@ class EstablishmentViewModel @Inject constructor(
                 status = EstablishmentStatus.PENDING_APPROVAL,
                 menuId = -1,
                 createdUserId = createUserId,
-                dateOfCreation = "dsa", // NOTE: Вам следует исправить тип поля dateOfCreation в EstablishmentEntity на LocalDateTime.
-                type = type
+                dateOfCreation = "dsa",
+                type = type,
+                photoBase64s = photoBase64s
             )
 
             try {

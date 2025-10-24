@@ -3,6 +3,7 @@
 package com.example.roamly.ui.screens.establishment
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.view.ViewGroup
@@ -21,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -31,6 +31,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,19 +47,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.EstablishmentViewModel
 import com.example.roamly.entity.TypeOfEstablishment // Предполагаем, что этот импорт теперь доступен
 import com.example.roamly.entity.UserViewModel
 import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
-import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -72,8 +70,8 @@ fun CreateEstablishmentScreen(
     userViewModel: UserViewModel,
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
-    // ⭐ НОВОЕ СОСТОЯНИЕ ДЛЯ ТИПА ЗАВЕДЕНИЯ
     var selectedType by rememberSaveable { mutableStateOf<TypeOfEstablishment?>(null) }
+    var photoUris by rememberSaveable { mutableStateOf<List<Uri>>(emptyList()) }
 
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
@@ -104,13 +102,11 @@ fun CreateEstablishmentScreen(
         }
     }
 
-
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .verticalScroll(rememberScrollState()), // Добавим скроллинг
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
@@ -162,6 +158,17 @@ fun CreateEstablishmentScreen(
             }
         )
 
+        HorizontalDivider(Modifier.padding(vertical = 16.dp))
+
+        // ⭐ 6. Выбор и обрезка фотографий
+        PhotoPickerAndCropper(
+            photoUris = photoUris,
+            onUrisChange = { photoUris = it },
+            navController = navController
+        )
+
+        HorizontalDivider(Modifier.padding(vertical = 16.dp))
+
         // 6. Отображение статуса
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
@@ -212,6 +219,15 @@ fun CreateEstablishmentScreen(
                 Log.e("CreateEstablishment", "userId = ${userViewModel.getId()}")
 
                 // Передаем ID пользователя, координаты И ТИП в ViewModel
+                val base64List = try {
+                    photoUris.mapNotNull { uri -> convertUriToBase64(navController.context, uri) }
+                } catch (e: Exception) {
+                    isLoading = false
+                    errorMessage = "Ошибка обработки фото: ${e.message}"
+                    Log.e("CreateEstablishment", "Photo conversion error", e)
+                    return@Button
+                }
+
                 viewModel.createEstablishment(
                     name = name,
                     description = description,
@@ -219,14 +235,14 @@ fun CreateEstablishmentScreen(
                     latitude = latitude!!,
                     longitude = longitude!!,
                     createUserId = currentUserId,
-                    type = selectedType!! // ⭐ ПЕРЕДАЕМ ВЫБРАННЫЙ ТИП
+                    type = selectedType!!,
+                    // ⭐ ПЕРЕДАЕМ СПИСОК BASE64
+                    photoBase64s = base64List
                 ) { isSuccess ->
                     isLoading = false
                     if (isSuccess) {
-                        // Успех: навигация назад
                         navController.popBackStack()
                     } else {
-                        // Ошибка: отображаем сообщение
                         errorMessage = "Не удалось создать заведение. Повторите попытку."
                     }
                 }

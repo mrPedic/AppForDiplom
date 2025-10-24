@@ -13,5 +13,6 @@ data class EstablishmentDisplayDto(
     val type: TypeOfEstablishment,
     val menuId: Long,
     val createdUserId: Long,
-    val createdId : Long
+    val createdId : Long,
+    val photoBase64s: List<String> = emptyList()
 )

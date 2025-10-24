@@ -18,17 +18,16 @@ import org.osmdroid.views.MapView
 
 
 @Composable
-fun HomeScreen(navController: NavController, mapRefreshKey: Boolean) { // ⭐ Принимаем ключ обновления
-    OsmMapAndroidView(refreshTrigger = mapRefreshKey) // ⭐ Передаем его дальше
+fun HomeScreen(navController: NavController, mapRefreshKey: Boolean) {
+    OsmMapAndroidView(refreshTrigger = mapRefreshKey)
 }
 
 @Composable
-fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) { // ⭐ Принимаем ключ
+fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
     var mapState by remember { mutableStateOf<MapView?>(null) }
 
     AndroidView(
         modifier = modifier,
-        // ⭐ Добавляем refreshTrigger в key, чтобы при его изменении запускался update блок
         factory = { ctx ->
             Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
             val mapView = MapView(ctx).apply {
@@ -51,24 +50,14 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) { 
             mapView
         },
         update = { view ->
-            // ⭐ НОВОЕ: Этот блок будет перезапускаться при изменении refreshTrigger
-            // Мы используем его для принудительного обновления карты (перерисовки тайлов и маркеров)
             if (refreshTrigger) {
-                view.invalidate() // Принудительно обновляем вид карты
-                // Можно добавить логику, которая принудительно перецентрирует карту,
-                // если обновление подразумевает возврат к исходному виду:
-                // view.controller.animateTo(GeoPoint(53.9006, 27.5590))
+                view.invalidate()
             }
         }
     )
 
     mapState?.let { mapView ->
-        // Здесь PointBuilder будет запускаться каждый раз при изменении mapState или refreshTrigger
-        // благодаря тому, что AndroidView с mapRefreshKey в update вызывает рекомпозицию.
-        // Чтобы быть уверенным в обновлении маркеров, PointBuilder должен иметь возможность
-        // очищать и перестраивать их.
         val pointBuilder = remember(mapView) { PointBuilder(mapView) }
         pointBuilder.BuildAllMarkers()
-        // Если PointBuilder зависит от refreshTrigger, его нужно добавить в remember/LaunchedEffect
     }
 }

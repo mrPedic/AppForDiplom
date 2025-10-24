@@ -14,7 +14,8 @@ data class EstablishmentEntity(
     val menuId: Long = -1,
     val createdUserId: Long,
     val status: EstablishmentStatus,
-    val type: TypeOfEstablishment
+    val type: TypeOfEstablishment,
+    val photoBase64s: List<String> = emptyList()
 ) {
 
 }

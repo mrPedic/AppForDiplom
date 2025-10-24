@@ -29,6 +29,8 @@ import org.osmdroid.views.overlay.Overlay
 const val LOCATION_RESULT_KEY = "location_result"
 const val LATITUDE_KEY = "latitude"
 const val LONGITUDE_KEY = "longitude"
+const val CROPPED_IMAGE_URI_KEY = "cropped_uri"
+const val MAX_PHOTOS = 5 // Максимальное количество фотографий
 
 /**
  * Экран для выбора географических координат на карте.

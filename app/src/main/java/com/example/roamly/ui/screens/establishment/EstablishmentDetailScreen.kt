@@ -2,6 +2,7 @@ package com.example.roamly.ui.screens.establishment
 
 import android.os.Build
 import android.util.Base64
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -17,7 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -28,6 +31,7 @@ import com.example.roamly.entity.*
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
 
 // Используем заглушки для отсутствующих частей
 val convertTypeToWord: (String) -> String = { it }
@@ -54,7 +58,6 @@ fun EstablishmentDetailScreen(
     var selectedTab by remember { mutableIntStateOf(pagerState.currentPage) }
 
     LaunchedEffect(establishmentId) {
-        // Загружаем данные при первом входе
         viewModel.fetchEstablishmentById(establishmentId)
     }
 
@@ -66,48 +69,20 @@ fun EstablishmentDetailScreen(
         selectedTab = pagerState.currentPage
 
         if (pagerState.currentPage == 3 && establishment != null) {
-            // Вызываем новую функцию для загрузки отзывов
             viewModel.fetchReviewsForEstablishment(establishment!!.id)
         }
     }
 
     Scaffold(
         topBar = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                TopAppBar(
-                    title = { Text(establishment?.name ?: "Заведение") },
-                    actions = {
-                        establishment?.let {
-                            // Кнопка редактирования
-                            IconButton(onClick = {
-                                // Замените на реальный путь редактирования
-                                navController.navigate(EstablishmentScreens.EstablishmentEdit.createRoute(it.id))
-                            }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Редактировать")
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                )
-
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { Text(title) }
-                        )
-                    }
-                }
-            }
+            // ⭐ ИСПОЛЬЗУЕМ НОВУЮ ШАПКУ
+            EstablishmentHeader(
+                establishment = establishment,
+                selectedTab = selectedTab,
+                tabs = tabs,
+                onTabSelected = { selectedTab = it },
+                navController = navController
+            )
         }
     ) { paddingValues ->
         Box(
@@ -116,7 +91,7 @@ fun EstablishmentDetailScreen(
                 .padding(paddingValues)
         ) {
             when {
-                isLoading && establishment == null -> CircularProgressIndicator(Modifier.align(Alignment.Center)) // Показываем лоадер, только если нет данных
+                isLoading && establishment == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 errorMessage != null -> Text(
                     text = "Ошибка: $errorMessage",
                     color = MaterialTheme.colorScheme.error,
@@ -134,7 +109,152 @@ fun EstablishmentDetailScreen(
     }
 }
 
-// ... EstablishmentTabContent остается без изменений ...
+// --------------------------------------------------------------------------------------------------
+// ⭐ НОВЫЙ КОМПОНЕНТ ДЛЯ ШАПКИ
+// --------------------------------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EstablishmentHeader(
+    establishment: EstablishmentDisplayDto?,
+    selectedTab: Int,
+    tabs: List<String>,
+    onTabSelected: (Int) -> Unit,
+    navController: NavController
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+        ) {
+            val mainPhotoBase64 = establishment?.photoBase64s
+                ?.filter { it.isNotBlank() }
+                ?.firstOrNull()
+
+            // Добавим логгирование для отладки
+            LaunchedEffect(mainPhotoBase64) {
+                if (mainPhotoBase64 != null) {
+                    Log.d("EstablishmentHeader", "Найдено Base64 фото. Длина: ${mainPhotoBase64.length}")
+                    // Можно залогировать первые 50 символов для проверки
+                    Log.d("EstablishmentHeader", "Начало Base64: ${mainPhotoBase64.take(50)}...")
+                } else {
+                    Log.d("EstablishmentHeader", "Фото Base64 не найдено или пусто.")
+                }
+            }
+
+
+            if (mainPhotoBase64 != null) {
+                val imageBytes = remember(mainPhotoBase64) { base64ToByteArray(mainPhotoBase64) }
+
+                LaunchedEffect(imageBytes) {
+                    if (imageBytes != null) {
+                        Log.d("EstablishmentHeader", "Base64 успешно конвертирован в ${imageBytes.size} байт.")
+                    } else {
+                        Log.e("EstablishmentHeader", "Ошибка конвертации Base64 в байты.")
+                    }
+                }
+
+                if (imageBytes != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(model = imageBytes),
+                        contentDescription = "Основное фото заведения",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // Заглушка, если Base64 некорректен
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Gray.copy(alpha = 0.5f)) // Простой серый фон
+                    ) {
+                        Text(
+                            "Не удалось загрузить фото",
+                            color = Color.White,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                }
+            } else {
+                // Заглушка, если фото нет вообще
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Text(
+                        "Фото заведения отсутствует",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+
+            // ⭐ Сплошная заливка на фоне текста
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f)) // Сплошная заливка, более темная
+            )
+
+            // ⭐ Заголовок и кнопка Edit (прикреплены к нижней части Box)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Название заведения
+                    Text(
+                        text = establishment?.name ?: "Загрузка...",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        // Ограничиваем, чтобы название не наезжало на кнопку
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    )
+
+                    // Кнопка редактирования
+                    establishment?.let {
+                        IconButton(onClick = {
+                            navController.navigate(EstablishmentScreens.EstablishmentEdit.createRoute(it.id))
+                        }) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "Редактировать",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ⭐ 2. TabRow (всегда под шапкой)
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { onTabSelected(index) },
+                    text = { Text(title) }
+                )
+            }
+        }
+    }
+}
+
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto, navController: NavController) {
@@ -252,10 +372,11 @@ fun ReviewTabContent(
 
 fun base64ToByteArray(base64String: String): ByteArray? {
     return try {
-        // Используем Base64.DEFAULT, как и при кодировании
-        Base64.decode(base64String, Base64.DEFAULT)
+        val cleanBase64 = base64String.substringAfter(",", base64String)
+
+        Base64.decode(cleanBase64, Base64.DEFAULT)
     } catch (e: IllegalArgumentException) {
-        e.printStackTrace()
+        Log.e("Base64", "Ошибка декодирования Base64: ${e.message}. Строка начинается с: ${base64String.take(50)}")
         null
     }
 }
