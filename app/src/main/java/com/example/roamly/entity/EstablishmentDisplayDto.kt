@@ -14,5 +14,6 @@ data class EstablishmentDisplayDto(
     val menuId: Long,
     val createdUserId: Long,
     val createdId : Long,
-    val photoBase64s: List<String> = emptyList()
+    val photoBase64s: List<String> = emptyList(),
+    val operatingHoursString: String? = null
 )

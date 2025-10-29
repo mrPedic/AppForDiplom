@@ -39,8 +39,8 @@ class EstablishmentViewModel @Inject constructor(
     private val _pendingEstablishments = MutableStateFlow<List<EstablishmentDisplayDto>>(emptyList())
     val pendingEstablishments: StateFlow<List<EstablishmentDisplayDto>> = _pendingEstablishments
 
-      // ================================================ //
-     // ===== ПОЛЯ ДЛЯ РАБОТЫ С ОТЗЫВАМИ (Reviews) ===== //
+    // ================================================ //
+    // ===== ПОЛЯ ДЛЯ РАБОТЫ С ОТЗЫВАМИ (Reviews) ===== //
     // ================================================ //
 
     private val _reviews = MutableStateFlow<List<ReviewEntity>>(emptyList())
@@ -49,7 +49,7 @@ class EstablishmentViewModel @Inject constructor(
     private val _isReviewsLoading = MutableStateFlow(false)
     val isReviewsLoading: StateFlow<Boolean> = _isReviewsLoading
 
-     // =========================================== //
+    // =========================================== //
     // =========================================== //
 
 
@@ -272,6 +272,8 @@ class EstablishmentViewModel @Inject constructor(
         longitude: Double,
         type: TypeOfEstablishment,
         photoBase64s: List<String> = emptyList(),
+        // ⭐ ИЗМЕНЕНИЕ 1: Принимаем строку
+        operatingHoursString: String? = null,
         onResult: (Boolean) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -297,16 +299,21 @@ class EstablishmentViewModel @Inject constructor(
                 menuId = existing.menuId,
                 createdUserId = existing.createdUserId,
                 dateOfCreation = existing.dateOfCreation,
-                type = type
+                type = type,
+                photoBase64s = photoBase64s,
+                // ⭐ ИЗМЕНЕНИЕ 2: Используем строку
+                operatingHoursString = operatingHoursString
+                // ❌ Удален: operatingHours = operatingHours
             )
 
             try {
+                // Предполагается, что ваш EstablishmentEntity обновлен для использования operatingHoursString
                 val updatedEstablishment = apiService.updateEstablishment(establishmentId, updatedEntity)
 
                 withContext(Dispatchers.Main) {
                     Log.i("EstUpdateVM", "Заведение ${updatedEstablishment.name} успешно обновлено.")
                     // Здесь нужно преобразовать EstablishmentEntity в EstablishmentDisplayDto,
-                    // если ваш API возвращает Entity, но StateFlow ждет DTO.
+                    // если ваш API возвращает Entity, но StateFlow ждет DTO. (Предполагаем, что EstablishmentEntity - это уже DTO)
                     _currentEstablishment.value = updatedEstablishment
                     _errorMessage.value = null
                     onResult(true)
@@ -335,6 +342,7 @@ class EstablishmentViewModel @Inject constructor(
         createUserId: Long,
         type: TypeOfEstablishment,
         photoBase64s: List<String> = emptyList(),
+        operatingHoursString: String? = null,
         onResult: (Boolean) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -350,12 +358,16 @@ class EstablishmentViewModel @Inject constructor(
                 status = EstablishmentStatus.PENDING_APPROVAL,
                 menuId = -1,
                 createdUserId = createUserId,
-                dateOfCreation = "dsa",
+                dateOfCreation = "dsa", // NOTE: Дата должна заполняться на сервере
                 type = type,
-                photoBase64s = photoBase64s
+                photoBase64s = photoBase64s,
+                // ⭐ ИЗМЕНЕНИЕ 4: Используем строку
+                operatingHoursString = operatingHoursString
+                // ❌ Удален: operatingHours = operatingHours
             )
 
             try {
+                // Предполагается, что ваш EstablishmentEntity обновлен для использования operatingHoursString
                 val createdEstablishment = apiService.createEstablishment(newEstablishment)
 
                 withContext(Dispatchers.Main) {

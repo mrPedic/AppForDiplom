@@ -15,10 +15,9 @@ data class EstablishmentEntity(
     val createdUserId: Long,
     val status: EstablishmentStatus,
     val type: TypeOfEstablishment,
-    val photoBase64s: List<String> = emptyList()
-) {
-
-}
+    val photoBase64s: List<String> = emptyList(),
+    val operatingHoursString: String? = null
+)
 
 enum class EstablishmentStatus {
     // На рассмотрении администрации

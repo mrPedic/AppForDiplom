@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -62,6 +63,25 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+
+
+// ⭐ КОНСТАНТА: Дни недели для редактора
+val DAYS_OF_WEEK = listOf(
+    "Понедельник", "Вторник", "Среда", "Четверг",
+    "Пятница", "Суббота", "Воскресенье"
+)
+
+// ⭐ ВРЕМЯ ПО УМОЛЧАНИЮ для формы (для удобства)
+val DEFAULT_HOURS = mapOf(
+    "Понедельник" to "08:30 - 18:00",
+    "Вторник" to "08:30 - 18:00",
+    "Среда" to "08:30 - 18:00",
+    "Четверг" to "08:30 - 18:00",
+    "Пятница" to "08:30 - 18:00",
+    "Суббота" to "08:30 - 14:00",
+    "Воскресенье" to "Закрыто"
+)
+
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -85,6 +105,10 @@ fun CreateEstablishmentScreen(
     val status = EstablishmentStatus.PENDING_APPROVAL
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    var operatingHours by rememberSaveable {
+        mutableStateOf(DEFAULT_HOURS)
+    }
 
     // ⭐ ОБРАБОТКА РЕЗУЛЬТАТА ИЗ MAP PICKER
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
@@ -142,6 +166,11 @@ fun CreateEstablishmentScreen(
                 .fillMaxWidth()
                 .height(120.dp)
                 .padding(bottom = 16.dp)
+        )
+
+        OperatingHoursEditor(
+            operatingHours = operatingHours,
+            onHoursChange = { operatingHours = it }
         )
 
         // ⭐ 5. Компонент выбора местоположения / Мини-карта
@@ -216,6 +245,8 @@ fun CreateEstablishmentScreen(
                     return@Button
                 }
 
+                val operatingHoursString = convertHoursMapToString(operatingHours)
+
                 Log.e("CreateEstablishment", "userId = ${userViewModel.getId()}")
 
                 // Передаем ID пользователя, координаты И ТИП в ViewModel
@@ -228,6 +259,18 @@ fun CreateEstablishmentScreen(
                     return@Button
                 }
 
+                Log.d("CreateEstablishment", "--- Отправка данных заведения ---")
+                Log.d("CreateEstablishment", "Name: $name, Address: $address")
+                Log.d("CreateEstablishment", "Location: $latitude, $longitude")
+                Log.d("CreateEstablishment", "Type: ${selectedType!!.name}")
+                Log.d("CreateEstablishment", "Photo count: ${base64List.size}")
+                Log.d("CreateEstablishment", "OperatingHours size: ${operatingHours.size}")
+                operatingHours.forEach { (day, hours) ->
+                    Log.d("CreateEstablishment", "Hours $day: $hours")
+                }
+                Log.d("CreateEstablishment", "---------------------------------")
+                // КОНЕЦ НОВОГО ЛОГИРОВАНИЯ НА КЛИЕНТЕ
+
                 viewModel.createEstablishment(
                     name = name,
                     description = description,
@@ -236,8 +279,8 @@ fun CreateEstablishmentScreen(
                     longitude = longitude!!,
                     createUserId = currentUserId,
                     type = selectedType!!,
-                    // ⭐ ПЕРЕДАЕМ СПИСОК BASE64
-                    photoBase64s = base64List
+                    photoBase64s = base64List,
+                    operatingHoursString = operatingHoursString
                 ) { isSuccess ->
                     isLoading = false
                     if (isSuccess) {
@@ -438,4 +481,54 @@ fun MiniMapView(latitude: Double, longitude: Double) {
             view.invalidate()
         }
     )
+}
+
+@Composable
+fun OperatingHoursEditor(
+    operatingHours: Map<String, String>,
+    onHoursChange: (Map<String, String>) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+        Text(
+            text = "Время работы (ЧЧ:ММ - ЧЧ:ММ или Закрыто)",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(8.dp))
+
+        // Используем DAYS_OF_WEEK для фиксированного порядка
+        DAYS_OF_WEEK.forEach { day ->
+            val currentHours = operatingHours[day] ?: "Закрыто"
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Название дня
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(0.35f)
+                )
+
+                // Поле ввода времени
+                OutlinedTextField(
+                    value = currentHours,
+                    onValueChange = { newValue ->
+                        // Обновляем карту только для этого дня
+                        onHoursChange(operatingHours.toMutableMap().apply {
+                            this[day] = newValue
+                        })
+                    },
+                    placeholder = { Text("08:00 - 18:00") },
+                    modifier = Modifier.weight(0.65f),
+                    singleLine = true,
+                    // Добавим небольшую валидацию (хотя полная валидация должна быть на бэке)
+                    isError = currentHours.isNotBlank() && currentHours != "Закрыто" && !currentHours.matches(Regex("^\\d{2}:\\d{2}\\s*-\\s*\\d{2}:\\d{2}$"))
+                )
+            }
+        }
+    }
 }
