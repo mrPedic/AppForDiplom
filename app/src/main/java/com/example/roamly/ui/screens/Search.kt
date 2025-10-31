@@ -14,8 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.EstablishmentDisplayDto
-import com.example.roamly.entity.EstablishmentViewModel // Импорт вашего ViewModel
+import com.example.roamly.entity.DTO.EstablishmentDisplayDto
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel // Импорт вашего ViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 
 @Composable

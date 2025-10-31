@@ -9,9 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.roamly.entity.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentStatus // Импорт статуса
-import com.example.roamly.entity.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 
 @Composable
 fun PendingListScreen(

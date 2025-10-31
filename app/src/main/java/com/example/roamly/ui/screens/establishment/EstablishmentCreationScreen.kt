@@ -52,10 +52,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.EstablishmentStatus
-import com.example.roamly.entity.EstablishmentViewModel
+import com.example.roamly.entity.TableEditorList
+import com.example.roamly.entity.TableUIModel
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.TypeOfEstablishment // Предполагаем, что этот импорт теперь доступен
-import com.example.roamly.entity.UserViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import org.osmdroid.config.Configuration
@@ -109,6 +112,8 @@ fun CreateEstablishmentScreen(
     var operatingHours by rememberSaveable {
         mutableStateOf(DEFAULT_HOURS)
     }
+
+    var tables by rememberSaveable { mutableStateOf<List<TableUIModel>>(emptyList()) }
 
     // ⭐ ОБРАБОТКА РЕЗУЛЬТАТА ИЗ MAP PICKER
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
@@ -198,6 +203,13 @@ fun CreateEstablishmentScreen(
 
         HorizontalDivider(Modifier.padding(vertical = 16.dp))
 
+        TableEditorList(
+            tables = tables,
+            onTablesChange = { tables = it }
+        )
+
+        HorizontalDivider(Modifier.padding(vertical = 16.dp))
+
         // 6. Отображение статуса
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
@@ -259,6 +271,11 @@ fun CreateEstablishmentScreen(
                     return@Button
                 }
 
+                Log.d("CreateEstablishment", "Table count: ${tables.size}")
+                tables.forEachIndexed { index, table ->
+                    Log.d("CreateEstablishment", "Table ${index+1}: Name=${table.name}, Capacity=${table.maxCapacity}")
+                }
+
                 Log.d("CreateEstablishment", "--- Отправка данных заведения ---")
                 Log.d("CreateEstablishment", "Name: $name, Address: $address")
                 Log.d("CreateEstablishment", "Location: $latitude, $longitude")
@@ -269,7 +286,17 @@ fun CreateEstablishmentScreen(
                     Log.d("CreateEstablishment", "Hours $day: $hours")
                 }
                 Log.d("CreateEstablishment", "---------------------------------")
-                // КОНЕЦ НОВОГО ЛОГИРОВАНИЯ НА КЛИЕНТЕ
+
+                val tableDtos = tables.map { tableUIModel ->
+                    // TableCreationDto должна быть импортирована
+                    TableCreationDto(
+                        name = tableUIModel.name,
+                        maxCapacity = tableUIModel.maxCapacity,
+                        description = tableUIModel.description
+                    )
+                }
+
+
 
                 viewModel.createEstablishment(
                     name = name,
@@ -280,7 +307,8 @@ fun CreateEstablishmentScreen(
                     createUserId = currentUserId,
                     type = selectedType!!,
                     photoBase64s = base64List,
-                    operatingHoursString = operatingHoursString
+                    operatingHoursString = operatingHoursString,
+                    tables = tableDtos
                 ) { isSuccess ->
                     isLoading = false
                     if (isSuccess) {

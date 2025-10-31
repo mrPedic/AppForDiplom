@@ -17,7 +17,7 @@ import com.example.roamly.ui.screens.profileFR.SingUpScreen
 import com.example.roamly.ui.screens.profileFR.LoginScreen
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
-import com.example.roamly.entity.UserViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.admin.PendingListScreen
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen

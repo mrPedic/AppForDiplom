@@ -1,4 +1,7 @@
-package com.example.roamly.entity
+package com.example.roamly.entity.DTO
+
+import com.example.roamly.entity.EstablishmentStatus
+import com.example.roamly.entity.TypeOfEstablishment
 
 data class EstablishmentDisplayDto(
     val id: Long,

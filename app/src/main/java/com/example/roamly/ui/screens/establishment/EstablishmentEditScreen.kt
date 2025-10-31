@@ -16,7 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens

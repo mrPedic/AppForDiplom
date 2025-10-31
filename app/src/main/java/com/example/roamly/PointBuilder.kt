@@ -1,6 +1,5 @@
 package com.example.roamly
 
-import android.R.attr.radius
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
@@ -22,8 +21,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.roamly.entity.EstablishmentDisplayDto
-import com.example.roamly.entity.EstablishmentViewModel
+import com.example.roamly.entity.DTO.EstablishmentMarkerDto
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToColor
 import com.example.roamly.factory.RetrofitFactory
 import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer // Убедитесь, что это импортировано!
@@ -59,12 +58,14 @@ class PointBuilder(
                     isAntiAlias = true
                 }
 
-                val clusterIconBitmap = createClusterIconBitmap(mapView.context).copy(Bitmap.Config.ARGB_8888, true)
+                val clusterIconBitmap =
+                    createClusterIconBitmap(mapView.context).copy(Bitmap.Config.ARGB_8888, true)
                 val canvas = Canvas(clusterIconBitmap)
 
                 val text = cluster.size.toString()
                 val x = clusterIconBitmap.width / 2f
-                val y = (clusterIconBitmap.height / 2f) - ((textPaint.descent() + textPaint.ascent()) / 2f)
+                val y =
+                    (clusterIconBitmap.height / 2f) - ((textPaint.descent() + textPaint.ascent()) / 2f)
                 canvas.drawText(text, x, y, textPaint)
 
                 clusterMarker.icon = BitmapDrawable(mapView.context.resources, clusterIconBitmap)
@@ -128,36 +129,39 @@ class PointBuilder(
     fun BuildAllMarkers(
         viewModel: EstablishmentViewModel = hiltViewModel()
     ) {
-        val establishments by viewModel.userEstablishments.collectAsState(initial = emptyList())
+        // ⭐ ИЗМЕНЕНИЕ 1: Collect EstablishmentMarkerDto
+        val establishments by viewModel.establishmentMarkers.collectAsState(initial = emptyList())
         val isLoading by viewModel.isLoading.collectAsState(initial = false)
         val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
         LaunchedEffect(key1 = viewModel) {
             if (establishments.isEmpty() && !isLoading && errorMessage == null) {
-                viewModel.fetchAllEstablishments()
+                // ⭐ ИЗМЕНЕНИЕ 2: Вызов нового метода
+                viewModel.fetchEstablishmentMarkers()
             }
         }
 
         if (!isLoading && errorMessage == null) {
             LaunchedEffect(establishments) {
                 try {
-                    // Очищаем только маркеры кластеризатора
                     markerClusterer.items.clear()
 
                     if (establishments.isNotEmpty()) {
-                        Log.d("PointBuilder", "Найдено ${establishments.size} заведений для отображения.")
-                        Log.i("PointBuilder", "Используемый адрес сервера: ${RetrofitFactory.BASE_URL}")
+                        Log.d(
+                            "PointBuilder",
+                            "Найдено ${establishments.size} заведений для отображения."
+                        )
 
+                        // ⭐ ИЗМЕНЕНИЕ 3: Передача EstablishmentMarkerDto
                         establishments.forEach { establishment ->
                             val marker = createEstablishmentMarker(establishment)
                             markerClusterer.add(marker)
                         }
 
-                        // Запускаем кластеризацию
                         markerClusterer.clusterer(mapView)
                         mapView.invalidate()
                     } else {
-                        Log.d("PointBuilder", "Список заведений пуст.")
+                        Log.d("PointBuilder", "Список маркеров пуст.")
                     }
                 } catch (e: Exception) {
                     Log.e("PointBuilder", "Ошибка при обновлении маркеров: ${e.message}", e)
@@ -178,8 +182,6 @@ class PointBuilder(
             }
         }
     }
-
-    // ... (Остальные вспомогательные функции, включая getMarkerDrawableWithColor, createEstablishmentMarker, dpToPx, createBitmapFromDrawable остаются без изменений)
 
     /**
      * Преобразует XML-макет в Drawable.
@@ -228,8 +230,9 @@ class PointBuilder(
 
     /**
      * Создает один маркер osmdroid.
+     * ⭐ ИЗМЕНЕНИЕ: Принимает EstablishmentMarkerDto
      */
-    private fun createEstablishmentMarker(establishment: EstablishmentDisplayDto): Marker {
+    private fun createEstablishmentMarker(establishment: EstablishmentMarkerDto): Marker {
         val geoPoint = GeoPoint(establishment.latitude, establishment.longitude)
         val marker = Marker(mapView)
 
@@ -237,15 +240,17 @@ class PointBuilder(
             position = geoPoint
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
 
+            // Используем тип из EstablishmentMarkerDto
             val customIcon = getMarkerDrawableWithColor(convertTypeToColor(establishment.type))
             if (customIcon != null) {
                 icon = customIcon
             }
 
             title = establishment.name
+            // ⭐ ИЗМЕНЕНИЕ: Используем доступные поля (rating, address)
             subDescription = "Рейтинг: ${String.format("%.1f", establishment.rating)}\n" +
-                    "Статус: ${establishment.status}\n" +
-                    "Адрес: ${establishment.address}"
+                    "Адрес: ${establishment.address}\n" +
+                    "Часы: ${establishment.operatingHoursString ?: "Нет данных"}" // Добавили часы работы
 
             // Устанавливаем слушатель клика для одиночного маркера
             setOnMarkerClickListener { m, _ ->

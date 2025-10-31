@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.roamly.entity.UserViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.LaunchedEffect

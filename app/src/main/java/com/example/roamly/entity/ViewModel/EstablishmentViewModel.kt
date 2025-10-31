@@ -1,4 +1,4 @@
-package com.example.roamly.entity
+package com.example.roamly.entity.ViewModel
 
 import android.os.Build
 import android.util.Log
@@ -6,6 +6,14 @@ import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
+import com.example.roamly.entity.DTO.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.EstablishmentMarkerDto
+import com.example.roamly.entity.DTO.TableCreationDto
+import com.example.roamly.entity.EstablishmentEntity
+import com.example.roamly.entity.EstablishmentStatus
+import com.example.roamly.entity.ReviewEntity
+import com.example.roamly.entity.TableEntity
+import com.example.roamly.entity.TypeOfEstablishment
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +44,8 @@ class EstablishmentViewModel @Inject constructor(
     val currentEstablishment: StateFlow<EstablishmentDisplayDto?> = _currentEstablishment
 
     // --- StateFlow для неодобренных заведений (Admin) ---
-    private val _pendingEstablishments = MutableStateFlow<List<EstablishmentDisplayDto>>(emptyList())
+    private val _pendingEstablishments =
+        MutableStateFlow<List<EstablishmentDisplayDto>>(emptyList())
     val pendingEstablishments: StateFlow<List<EstablishmentDisplayDto>> = _pendingEstablishments
 
     // ================================================ //
@@ -48,6 +57,9 @@ class EstablishmentViewModel @Inject constructor(
 
     private val _isReviewsLoading = MutableStateFlow(false)
     val isReviewsLoading: StateFlow<Boolean> = _isReviewsLoading
+
+    private val _establishmentMarkers = MutableStateFlow<List<EstablishmentMarkerDto>>(emptyList())
+    val establishmentMarkers: StateFlow<List<EstablishmentMarkerDto>> = _establishmentMarkers
 
     // =========================================== //
     // =========================================== //
@@ -188,8 +200,12 @@ class EstablishmentViewModel @Inject constructor(
                 val updated = apiService.updateEstablishmentStatus(id, newStatus.name)
 
                 withContext(Dispatchers.Main) {
-                    Log.i("AdminVM", "Статус заведения ${updated.name} изменен на ${updated.status}")
-                    _pendingEstablishments.value = _pendingEstablishments.value.filter { it.id != id }
+                    Log.i(
+                        "AdminVM",
+                        "Статус заведения ${updated.name} изменен на ${updated.status}"
+                    )
+                    _pendingEstablishments.value =
+                        _pendingEstablishments.value.filter { it.id != id }
                 }
 
             } catch (e: Exception) {
@@ -211,7 +227,10 @@ class EstablishmentViewModel @Inject constructor(
                 val updated = apiService.updateEstablishmentStatus(id, EstablishmentStatus.PENDING_APPROVAL.name)
 
                 withContext(Dispatchers.Main) {
-                    Log.i("EstViewModel", "Заведение ${updated.name} отправлено на повторное рассмотрение.")
+                    Log.i(
+                        "EstViewModel",
+                        "Заведение ${updated.name} отправлено на повторное рассмотрение."
+                    )
                     val currentList = _userEstablishments.value.map {
                         if (it.id == id) it.copy(status = EstablishmentStatus.PENDING_APPROVAL) else it
                     }
@@ -222,7 +241,8 @@ class EstablishmentViewModel @Inject constructor(
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Log.e("EstViewModel", "Ошибка повторной отправки заведения $id: ${e.message}")
-                    _errorMessage.value = "Не удалось отправить заведение на повторное рассмотрение."
+                    _errorMessage.value =
+                        "Не удалось отправить заведение на повторное рассмотрение."
                 }
             }
         }
@@ -311,7 +331,10 @@ class EstablishmentViewModel @Inject constructor(
                 val updatedEstablishment = apiService.updateEstablishment(establishmentId, updatedEntity)
 
                 withContext(Dispatchers.Main) {
-                    Log.i("EstUpdateVM", "Заведение ${updatedEstablishment.name} успешно обновлено.")
+                    Log.i(
+                        "EstUpdateVM",
+                        "Заведение ${updatedEstablishment.name} успешно обновлено."
+                    )
                     // Здесь нужно преобразовать EstablishmentEntity в EstablishmentDisplayDto,
                     // если ваш API возвращает Entity, но StateFlow ждет DTO. (Предполагаем, что EstablishmentEntity - это уже DTO)
                     _currentEstablishment.value = updatedEstablishment
@@ -343,46 +366,88 @@ class EstablishmentViewModel @Inject constructor(
         type: TypeOfEstablishment,
         photoBase64s: List<String> = emptyList(),
         operatingHoursString: String? = null,
+        tables: List<TableCreationDto> = emptyList(),
         onResult: (Boolean) -> Unit
     ) {
+        // Весь код выполняется в фоновом потоке
         viewModelScope.launch(Dispatchers.IO) {
 
-            val newEstablishment = EstablishmentEntity(
-                id = 0,
-                name = name,
-                latitude = latitude,
-                longitude = longitude,
-                address = address,
-                description = description,
-                rating = 0.0,
-                status = EstablishmentStatus.PENDING_APPROVAL,
-                menuId = -1,
-                createdUserId = createUserId,
-                dateOfCreation = "dsa", // NOTE: Дата должна заполняться на сервере
-                type = type,
-                photoBase64s = photoBase64s,
-                // ⭐ ИЗМЕНЕНИЕ 4: Используем строку
-                operatingHoursString = operatingHoursString
-                // ❌ Удален: operatingHours = operatingHours
-            )
+            var creationSuccessful = false
+            var savedId: Long? = null
 
+            // --- ШАГ 1: Создание заведения ---
             try {
-                // Предполагается, что ваш EstablishmentEntity обновлен для использования operatingHoursString
+                // Создание DTO внутри try-блока для поимки ошибок сериализации
+                val newEstablishment = EstablishmentEntity(
+                    id = 0,
+                    name = name,
+                    latitude = latitude,
+                    longitude = longitude,
+                    address = address,
+                    description = description,
+                    rating = 0.0,
+                    status = EstablishmentStatus.PENDING_APPROVAL,
+                    menuId = -1,
+                    createdUserId = createUserId,
+                    dateOfCreation = "", // Исправлено: пустая строка, чтобы избежать ошибки маппинга даты
+                    type = type,
+                    photoBase64s = photoBase64s,
+                    operatingHoursString = operatingHoursString,
+                )
+
                 val createdEstablishment = apiService.createEstablishment(newEstablishment)
 
-                withContext(Dispatchers.Main) {
-                    if (createdEstablishment != null) {
-                        Log.i("EstCreationVM", "Заведение создано: ${createdEstablishment.name}")
-                        onResult(true)
-                    } else {
-                        onResult(false)
-                    }
+                if (createdEstablishment?.id != null) {
+                    savedId = createdEstablishment.id
+                    creationSuccessful = true
+                    Log.i("EstCreationVM", "Заведение создано с ID: $savedId")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Log.e("EstCreationVM", "Ошибка создания заведения: ${e.message}")
+                    Log.e("EstCreationVM", "Ошибка создания заведения (Шаг 1): ${e.message}", e)
                     onResult(false)
                 }
+                return@launch
+            }
+
+            // --- ШАГ 2: Сохранение столиков (если они есть) ---
+            if (creationSuccessful && savedId != null) {
+                if (tables.isNotEmpty()) {
+                    try {
+                        Log.d("EstCreationVM", "Попытка сохранить ${tables.size} столиков для ID: $savedId")
+                        tables.forEachIndexed { index, dto ->
+                            Log.d("EstCreationVM", "Столик ${index + 1}: ${dto.name}, Capacity: ${dto.maxCapacity}")
+                        }
+
+                        val tablesResult = saveTables(savedId, tables)
+
+                        if (tablesResult.isSuccess) {
+                            Log.i("EstCreationVM", "Столики успешно сохранены для ID: $savedId")
+                            withContext(Dispatchers.Main) { onResult(true) }
+                        } else {
+                            val errorMsg = tablesResult.exceptionOrNull()?.message
+                            // ⭐ КРИТИЧЕСКИЙ ЛОГ
+                            Log.e("EstCreationVM", "ОШИБКА ШАГА 2 (Tables): $errorMsg", tablesResult.exceptionOrNull())
+                            withContext(Dispatchers.Main) {
+                                _errorMessage.value = "Ошибка сохранения столиков: ${errorMsg ?: "Неизвестно"}"
+                                onResult(false)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // Ловим любые необработанные исключения внутри Шага 2 (например, корутины)
+                        withContext(Dispatchers.Main) {
+                            Log.e("EstCreationVM", "КРИТИЧЕСКАЯ ОШИБКА ШАГА 2: ${e.message}", e)
+                            _errorMessage.value = "Критическая ошибка при сохранении столиков."
+                            onResult(false)
+                        }
+                    }
+                } else {
+                    // Успешно создано заведение без столиков
+                    withContext(Dispatchers.Main) { onResult(true) }
+                }
+            } else {
+                // Если Шаг 1 не удался
+                withContext(Dispatchers.Main) { onResult(false) }
             }
         }
     }
@@ -431,9 +496,11 @@ class EstablishmentViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    val errorMsg = "Не удалось отправить отзыв: ${e.message ?: "Неизвестная ошибка"}"
+                    val errorMsg =
+                        "Не удалось отправить отзыв: ${e.message ?: "Неизвестная ошибка"}"
                     Log.e("ReviewVM", errorMsg)
-                    val displayMsg = e.message?.substringAfter("HTTP 400 ") ?: "Ошибка при отправке отзыва."
+                    val displayMsg =
+                        e.message?.substringAfter("HTTP 400 ") ?: "Ошибка при отправке отзыва."
                     _errorMessage.value = displayMsg
                     onResult(false, displayMsg)
                 }
@@ -475,6 +542,76 @@ class EstablishmentViewModel @Inject constructor(
             } finally {
                 withContext(Dispatchers.Main) {
                     _isReviewsLoading.value = false
+                }
+            }
+        }
+    }
+
+    suspend fun saveTables(
+        establishmentId: Long,
+        tables: List<TableCreationDto>
+    ): Result<List<TableEntity>> {
+        return try {
+            // ⭐ Шаг 1: Вызов API
+            val response = apiService.createTables(establishmentId, tables)
+
+            // ⭐ Шаг 2: Проверка успеха
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) {
+                    Log.i("TableVM", "Столики успешно получены (Count: ${body.size})")
+                    Result.success(body)
+                } else {
+                    // Сервер вернул 200 OK, но тело пустое (проблема с сериализацией на сервере?)
+                    val errorMsg = "HTTP ${response.code()}: Тело ответа успешно, но пусто."
+                    Log.e("TableVM", errorMsg)
+                    Result.failure(Exception(errorMsg))
+                }
+            } else {
+                // Сервер вернул код ошибки (4xx или 5xx)
+                val errorBody = response.errorBody()?.string() ?: "Неизвестная ошибка тела"
+                val errorMsg = "HTTP ${response.code()}: $errorBody"
+
+                // ⭐ ЭТО ВАЖНО: Выводим полный ответ сервера в лог
+                Log.e("TableVM", "Ошибка сервера при создании столиков: $errorMsg")
+
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            // ⭐ Ловим IOException, SocketTimeoutException и ошибки парсинга JSON
+            Log.e("TableVM", "Критическая ошибка корутины/сети/JSON при сохранении столиков: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Загружает облегченный список заведений для отображения на карте в качестве маркеров.
+     */
+    fun fetchEstablishmentMarkers() {
+        if (_isLoading.value) return // Используем основной индикатор загрузки
+
+        _isLoading.value = true
+        _errorMessage.value = null
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // ⭐ Предполагается, что apiService.getAllEstablishmentMarkers() реализован
+                val list = apiService.getAllEstablishmentMarkers()
+
+                withContext(Dispatchers.Main) {
+                    _establishmentMarkers.value = list
+                    Log.i("EstViewModel", "Загружено маркеров заведений: ${list.size}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val msg = "Ошибка загрузки маркеров заведений: ${e.message}"
+                    Log.e("EstViewModel", msg)
+                    _errorMessage.value = "Не удалось загрузить данные для карты."
+                    _establishmentMarkers.value = emptyList()
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isLoading.value = false
                 }
             }
         }

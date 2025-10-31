@@ -32,7 +32,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.Role
-import com.example.roamly.entity.UserViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.navigation.NavGraph
 import com.example.roamly.ui.screens.sealed.AdminScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens

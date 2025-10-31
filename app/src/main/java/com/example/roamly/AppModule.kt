@@ -11,7 +11,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class) // Говорим Hilt, что зависимости будут жить пока живо приложение
 object AppModule { // или NetworkModule
-    private const val BASE_URL = "http://10.52.115.228:8080"
+    private const val BASE_URL = "http://10.52.115.228:8080/"
 
     // Инструкция №1: Как создавать Retrofit
     @Provides

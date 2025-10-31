@@ -18,8 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import com.example.roamly.entity.EstablishmentViewModel
-import com.example.roamly.entity.UserViewModel
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
