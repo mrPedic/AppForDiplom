@@ -19,6 +19,7 @@ import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.admin.PendingListScreen
+import com.example.roamly.ui.screens.booking.CreateBooking
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentEditScreen
@@ -27,6 +28,7 @@ import com.example.roamly.ui.screens.establishment.ReviewCreationScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 import com.example.roamly.ui.screens.sealed.AdminScreens
+import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -129,6 +131,31 @@ fun NavGraph(
         // Админские фишки
         composable(AdminScreens.PendingList.route){
             PendingListScreen()
+        }
+
+        // =====================================
+        // ⭐ НОВЫЙ ЭКРАН: Создание бронирования
+        // =====================================
+        composable(
+            route = BookingScreens.CreateBooking.route,
+            arguments = listOf(
+                navArgument(BookingScreens.ESTABLISHMENT_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong(BookingScreens.ESTABLISHMENT_ID_KEY)
+
+            if (establishmentId != null) {
+                // ⭐ Вызываем композабл для создания бронирования
+                CreateBooking(
+                    navController = navController,
+                    establishmentId = establishmentId
+                )
+            } else {
+                // Обработка ошибки
+                navController.popBackStack()
+            }
         }
     }
 }

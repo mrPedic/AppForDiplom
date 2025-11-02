@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.ui.screens.sealed.BookingScreens
 import java.util.Calendar
 import java.util.Locale
 
@@ -316,6 +317,18 @@ fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto, n
                 Spacer(Modifier.height(8.dp))
                 Text("Адрес: ${establishment.address}")
                 Text("Тип: ${convertTypeToWord(establishment.type)}")
+
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        navController.navigate(
+                            BookingScreens.CreateBooking.createRoute(establishment.id)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Забронировать столик (Шаг 10 мин)")
+                }
 
                 // ⭐ НОВОЕ: Динамический статус работы
                 Spacer(Modifier.height(16.dp))

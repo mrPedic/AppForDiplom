@@ -13,7 +13,6 @@ sealed class EstablishmentScreens(val route: String) {
         fun createRoute(id: Long) = "establishment/detail/$id"
     }
 
-    // ⭐ НОВЫЙ МАРШРУТ
     object ReviewCreation : EstablishmentScreens("establishment/review/{establishmentId}") {
         const val ESTABLISHMENT_ID_KEY = "establishmentId"
         fun createRoute(establishmentId: Long): String = "establishment/review/$establishmentId"

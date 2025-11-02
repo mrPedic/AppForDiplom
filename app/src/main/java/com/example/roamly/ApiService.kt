@@ -1,5 +1,7 @@
 package com.example.roamly
 
+import com.example.roamly.entity.BookingCreationDto
+import com.example.roamly.entity.BookingEntity
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.TableCreationDto
@@ -74,6 +76,19 @@ interface ApiService {
         @Body tables: List<TableCreationDto>
     ): Response<List<TableEntity>>
 
+    @GET("tables/establishment/{establishmentId}")
+    suspend fun getTablesByEstablishmentId(@Path("establishmentId") establishmentId: Long): List<TableEntity>
+
+    @GET("bookings/{establishmentId}/available")
+    suspend fun getAvailableTables(
+        @Path("establishmentId") establishmentId: Long,
+        @Query("dateTime") dateTime: String
+    ): List<TableEntity>
+
+    @POST("bookings")
+    suspend fun createBooking(
+        @Body booking: BookingCreationDto
+    ): BookingEntity
 
       // ================================ //
      // ===== Все точки для тестов ===== //

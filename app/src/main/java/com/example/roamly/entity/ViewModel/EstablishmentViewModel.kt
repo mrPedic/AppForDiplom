@@ -6,6 +6,8 @@ import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
+import com.example.roamly.entity.BookingCreationDto
+import com.example.roamly.entity.BookingEntity
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.TableCreationDto
@@ -60,6 +62,21 @@ class EstablishmentViewModel @Inject constructor(
 
     private val _establishmentMarkers = MutableStateFlow<List<EstablishmentMarkerDto>>(emptyList())
     val establishmentMarkers: StateFlow<List<EstablishmentMarkerDto>> = _establishmentMarkers
+
+    // ===================================================== //
+    // ===== ПОЛЯ ДЛЯ РАБОТЫ С БРОНИРОВАНИЕМ (Booking) ===== //
+    // ===================================================== //
+
+    private val _tables = MutableStateFlow<List<TableEntity>>(emptyList())
+    // Список всех столов заведения
+    val tables: StateFlow<List<TableEntity>> = _tables
+
+    // Список столов, доступных для бронирования на выбранную дату/время
+    private val _availableTables = MutableStateFlow<List<TableEntity>>(emptyList())
+    val availableTables: StateFlow<List<TableEntity>> = _availableTables
+
+    private val _isBookingLoading = MutableStateFlow(false)
+    val isBookingLoading: StateFlow<Boolean> = _isBookingLoading
 
     // =========================================== //
     // =========================================== //
@@ -292,7 +309,6 @@ class EstablishmentViewModel @Inject constructor(
         longitude: Double,
         type: TypeOfEstablishment,
         photoBase64s: List<String> = emptyList(),
-        // ⭐ ИЗМЕНЕНИЕ 1: Принимаем строку
         operatingHoursString: String? = null,
         onResult: (Boolean) -> Unit
     ) {
@@ -321,9 +337,7 @@ class EstablishmentViewModel @Inject constructor(
                 dateOfCreation = existing.dateOfCreation,
                 type = type,
                 photoBase64s = photoBase64s,
-                // ⭐ ИЗМЕНЕНИЕ 2: Используем строку
                 operatingHoursString = operatingHoursString
-                // ❌ Удален: operatingHours = operatingHours
             )
 
             try {
@@ -563,7 +577,7 @@ class EstablishmentViewModel @Inject constructor(
                     Result.success(body)
                 } else {
                     // Сервер вернул 200 OK, но тело пустое (проблема с сериализацией на сервере?)
-                    val errorMsg = "HTTP ${response.code()}: Тело ответа успешно, но пусто."
+                    val errorMsg = "HTTP ${response.code()}: Тело ответа успешно, но пустое."
                     Log.e("TableVM", errorMsg)
                     Result.failure(Exception(errorMsg))
                 }
@@ -612,6 +626,138 @@ class EstablishmentViewModel @Inject constructor(
             } finally {
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * Загружает все столики для указанного заведения.
+     * @param establishmentId ID заведения.
+     */
+    fun fetchTablesByEstablishmentId(establishmentId: Long) {
+        if (_isBookingLoading.value) return
+
+        _isBookingLoading.value = true
+        _errorMessage.value = null // Используем общий errorMessage
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // ⭐ Предполагаем, что в ApiService есть этот метод
+                val list = apiService.getTablesByEstablishmentId(establishmentId)
+
+                withContext(Dispatchers.Main) {
+                    _tables.value = list
+                    Log.i("BookingVM", "Загружено столов для $establishmentId: ${list.size}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("BookingVM", "Ошибка загрузки столов: ${e.message}")
+                    _errorMessage.value = "Не удалось загрузить столики."
+                    _tables.value = emptyList()
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isBookingLoading.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * Загружает список доступных столов на указанную дату и время.
+     * На стороне сервера нужно реализовать логику фильтрации.
+     * @param establishmentId ID заведения.
+     * @param dateTime Строка в формате ISO 8601 (например, "2025-10-31T18:30:00").
+     */
+    fun fetchAvailableTables(establishmentId: Long, dateTime: String) {
+        if (_isBookingLoading.value) return
+
+        _isBookingLoading.value = true
+        _availableTables.value = emptyList()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // ⭐ Предполагаем, что в ApiService есть этот метод
+                val list = apiService.getAvailableTables(establishmentId, dateTime)
+
+                withContext(Dispatchers.Main) {
+                    _availableTables.value = list
+                    Log.i("BookingVM", "Найдено доступных столов: ${list.size}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("BookingVM", "Ошибка проверки доступности столов: ${e.message}")
+                    _errorMessage.value = "Ошибка проверки доступности столов."
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isBookingLoading.value = false
+                }
+            }
+        }
+    }
+
+    /**
+     * Отправляет запрос на создание бронирования.
+     */
+    fun submitBooking(
+        establishmentId: Long,
+        userId: Long,
+        tableId: Long,
+        dateTime: String, // ISO 8601 (Время начала)
+        durationMinutes: Long, // ⭐ ДОБАВЛЕН НОВЫЙ ПАРАМЕТР: Длительность брони
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        if (userId < 1 || tableId < 1) {
+            onResult(false, "Неверный ID пользователя или столика.")
+            return
+        }
+
+        _isBookingLoading.value = true
+        _errorMessage.value = null
+
+        // ⭐ 1. СОЗДАНИЕ DTO ДЛЯ ОТПРАВКИ
+        // Используем BookingCreationDto (или аналогичный), чтобы включить длительность.
+        val bookingDto = BookingCreationDto(
+            establishmentId = establishmentId,
+            userId = userId,
+            tableId = tableId,
+            startTime = dateTime, // Передаем время начала
+            durationMinutes = durationMinutes // Передаем выбранную длительность
+        )
+
+        // ЛОГИРОВАНИЕ ОТПРАВЛЯЕМЫХ ДАННЫХ
+        Log.d("BookingVM", "Отправка брони: Start=${bookingDto.startTime}, Duration=${bookingDto.durationMinutes}")
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // ⭐ 2. ИСПОЛЬЗУЕМ DTO ВЫЗОВ В API
+                // Предполагаем, что apiService.createBooking теперь принимает BookingCreationDto
+                apiService.createBooking(bookingDto)
+
+                withContext(Dispatchers.Main) {
+                    Log.i("BookingVM", "Бронирование успешно создано.")
+                    onResult(true, "Столик успешно забронирован.")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    // Улучшенная обработка для вывода сообщения
+                    val baseError = e.message ?: "Неизвестная ошибка"
+                    val detailedError = if (baseError.contains("HTTP 400")) {
+                        baseError.substringAfter("HTTP 400 ").trim()
+                    } else {
+                        "Ошибка при бронировании. Проверьте подключение или логи сервера."
+                    }
+
+                    Log.e("BookingVM", "Не удалось создать бронь: $baseError")
+                    _errorMessage.value = "Ошибка при бронировании."
+
+                    onResult(false, detailedError)
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isBookingLoading.value = false
                 }
             }
         }
