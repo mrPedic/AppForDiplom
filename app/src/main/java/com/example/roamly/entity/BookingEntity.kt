@@ -5,7 +5,7 @@ data class BookingEntity(
     val establishmentId: Long,
     val userId: Long,
     val tableId: Long,
-    val dateTime: String, // Время начала
+    val startTime: String, // Время начала
     val durationMinutes: Int = 60 // Длительность
 )
 

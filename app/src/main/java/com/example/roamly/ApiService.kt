@@ -90,6 +90,12 @@ interface ApiService {
         @Body booking: BookingCreationDto
     ): BookingEntity
 
+    // ⭐ НОВАЯ ТОЧКА: Получение всех бронирований пользователя
+    @GET("bookings/user/{userId}")
+    suspend fun getUserBookings(
+        @Path("userId") userId: Long
+    ): List<com.example.roamly.entity.DTO.BookingDisplayDto>
+
       // ================================ //
      // ===== Все точки для тестов ===== //
     // ================================ //

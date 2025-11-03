@@ -1,30 +1,44 @@
-package com.example.roamly // Убедитесь, что пакет правильный
+package com.example.roamly
 
+import android.os.Build
+import androidx.annotation.RequiresApi
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory // или другой конвертер
+import retrofit2.converter.gson.GsonConverterFactory
+import java.time.LocalDateTime
 import javax.inject.Singleton
 
 @Module
-@InstallIn(SingletonComponent::class) // Говорим Hilt, что зависимости будут жить пока живо приложение
-object AppModule { // или NetworkModule
+@InstallIn(SingletonComponent::class)
+object AppModule {
     private const val BASE_URL = "http://10.52.115.228:8080/"
 
-    // Инструкция №1: Как создавать Retrofit
+    @RequiresApi(Build.VERSION_CODES.O)
     @Provides
-    @Singleton // Создаем только один экземпляр на все приложение
-    fun provideRetrofit(): Retrofit {
+    @Singleton
+    fun provideGson(): Gson {
+        return GsonBuilder()
+            // Регистрируем адаптер для типа LocalDateTime
+            .registerTypeAdapter(LocalDateTime::class.java, LocalDateTimeAdapter())
+            .create()
+    }
+
+    // Инструкция №1: Как создавать Retrofit (теперь использует настроенный Gson)
+    @Provides
+    @Singleton
+    fun provideRetrofit(gson: Gson): Retrofit { // Gson теперь инжектируется
         return Retrofit.Builder()
-            .baseUrl(BASE_URL) // <-- ВАЖНО: Укажите ваш базовый URL!
-            .addConverterFactory(GsonConverterFactory.create()) // Убедитесь, что у вас есть зависимость для этого
+            .baseUrl(BASE_URL)
+            // Используем настроенный Gson
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
     }
 
-    // Инструкция №2: Как создавать ApiService
-    // Hilt видит, что этому методу нужен Retrofit. Он посмотрит выше, увидит provideRetrofit() и использует его.
     @Provides
     @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService {

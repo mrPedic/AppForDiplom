@@ -7,7 +7,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
 import com.example.roamly.entity.BookingCreationDto
-import com.example.roamly.entity.BookingEntity
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.TableCreationDto

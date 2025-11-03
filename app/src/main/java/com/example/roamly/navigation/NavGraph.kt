@@ -10,7 +10,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.roamly.ui.screens.AdminPanelScreen
-import com.example.roamly.ui.screens.BookingScreen
 import com.example.roamly.ui.screens.HomeScreen
 import com.example.roamly.ui.screens.SearchScreen
 import com.example.roamly.ui.screens.profileFR.SingUpScreen
@@ -18,6 +17,8 @@ import com.example.roamly.ui.screens.profileFR.LoginScreen
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.ui.screens.BookingDetailScreen
+import com.example.roamly.ui.screens.UserBookingsScreen
 import com.example.roamly.ui.screens.admin.PendingListScreen
 import com.example.roamly.ui.screens.booking.CreateBooking
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
@@ -49,11 +50,13 @@ fun NavGraph(
         composable(SealedButtonBar.Home.route) {
             HomeScreen(navController,mapRefreshKey )
         }
-        composable(SealedButtonBar.Booking.route) {
-            BookingScreen(navController)
-        }
         composable(SealedButtonBar.Searching.route) {
             SearchScreen(navController)
+        }
+
+        // ⭐ ЛУЧШАЯ ПРАКТИКА: Использовать маршрут из SealedButtonBar для вкладок нижней панели
+        composable(SealedButtonBar.Booking.route) {
+            UserBookingsScreen(navController = navController, userViewModel = userViewModel)
         }
 
         // --- ЕДИНЫЙ ЭКРАН ПРОФИЛЯ ---
@@ -157,5 +160,28 @@ fun NavGraph(
                 navController.popBackStack()
             }
         }
+
+        // ⭐ НОВЫЙ ЭКРАН: Детали бронирования
+        composable(
+            route = BookingScreens.BookingDetail.route, // "booking/detail/{bookingId}"
+            arguments = listOf(
+                navArgument(BookingScreens.BOOKING_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val bookingId = backStackEntry.arguments?.getLong(BookingScreens.BOOKING_ID_KEY)
+
+            if (bookingId != null) {
+                BookingDetailScreen(
+                    navController = navController,
+                    bookingId = bookingId
+                )
+            } else {
+                navController.popBackStack()
+            }
+        }
+
+
     }
 }

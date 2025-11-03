@@ -32,7 +32,7 @@ sealed class SealedButtonBar (
     )
 
     object Booking: SealedButtonBar(
-        route = "booking",
+        route = "bookings/list",
         title = "Бронь",
         icon = Icons.Default.Menu
     )

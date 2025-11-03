@@ -79,5 +79,8 @@ dependencies {
     // MAPS
     implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation("com.github.MKergall:osmbonuspack:6.9.0")  // Было org.osmdroid:bonuspack:7.1.0
- }
+
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+}
 
