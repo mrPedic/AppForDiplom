@@ -17,4 +17,3 @@ data class EstablishmentMarkerDto(
     val rating: Double,
     val operatingHoursString: String? = null
 )
-
