@@ -3,9 +3,16 @@ package com.example.roamly.entity.ViewModel
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
+import com.example.roamly.classes.cl_menu.Drink
+import com.example.roamly.classes.cl_menu.DrinkOption
+import com.example.roamly.classes.cl_menu.Food
+import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.BookingCreationDto
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
@@ -15,10 +22,12 @@ import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.TableEntity
 import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -758,6 +767,293 @@ class EstablishmentViewModel @Inject constructor(
                 withContext(Dispatchers.Main) {
                     _isBookingLoading.value = false
                 }
+            }
+        }
+    }
+
+    private val _saveStatus = MutableStateFlow<SaveStatus>(SaveStatus.Idle)
+    val saveStatus: StateFlow<SaveStatus> = _saveStatus.asStateFlow()
+
+    // 2. Функция для сброса статуса (чтобы Snackbar не висел вечно)
+    fun clearSaveStatus() {
+        _saveStatus.value = SaveStatus.Idle
+    }
+
+    private val deletedFoodGroupIds = mutableStateListOf<Long>()
+    private val deletedFoodItemIds = mutableStateListOf<Long>()
+    private val deletedDrinksGroupIds = mutableStateListOf<Long>()
+    private val deletedDrinkItemIds = mutableStateListOf<Long>()
+
+    fun processMenuChanges(menu: MenuOfEstablishment) {
+
+        _saveStatus.value = SaveStatus.Loading
+
+        // 1. Преобразуем SnapshotStateList в MutableList (Исправляет ClassCastException)
+        val safeFoodGroups = menu.foodGroups.map { foodGroup ->
+            foodGroup.copy(items = foodGroup.items.toMutableList())
+        }
+        val safeDrinksGroups = menu.drinksGroups.map { drinkGroup ->
+            drinkGroup.copy(items = drinkGroup.items.map { drink ->
+                drink.copy(options = drink.options.toMutableList())
+            }.toMutableList())
+        }
+        val safeMenu = menu.copy(
+            foodGroups = safeFoodGroups.toMutableList(),
+            drinksGroups = safeDrinksGroups.toMutableList()
+        )
+
+        viewModelScope.launch {
+            try {
+                // -----------------------------------------------------------
+                // 1. Обработка групп Еды (FoodGroup)
+                // -----------------------------------------------------------
+                safeMenu.foodGroups.forEach { group ->
+                    // Фиктивные ID (101, 102) считаются новыми
+                    val isNew = group.id == null || group.id == 101L || group.id == 102L
+
+                    var groupCopy = group.copy()
+                    val itemsToProcess: List<Food> = groupCopy.items.toList()
+                    groupCopy.items = mutableListOf()
+
+
+                    val processedGroup = if (isNew) {
+                        // --- CREATE GROUP (POST) ---
+                        groupCopy = groupCopy.copy(id = null)
+                        val groupForApi = groupCopy.copy(items = mutableListOf())
+
+                        try {
+                            println("DEBUG: Sending Food Group POST: ${groupForApi.name}")
+                            val newGroup = apiService.createFoodGroup(groupForApi)
+                            println("DEBUG: Received Food Group ID: ${newGroup.id}")
+                            group.id = newGroup.id
+                            println("Created Food Group: ${newGroup.id}")
+                            newGroup
+                        } catch (e: Exception) {
+                            println("CRITICAL ERROR IN STEP 1 (Food Group Creation): ${e.message}")
+                            throw e
+                        }
+                    } else {
+                        // --- UPDATE GROUP (PUT) ---
+                        val updatedGroup = apiService.updateFoodGroup(group.id!!, groupCopy)
+                        println("Updated Food Group: ${updatedGroup.id}")
+                        updatedGroup
+                    }
+
+                    // -----------------------------------------------------------
+                    // 2. Обработка компонентов Еды (Food)
+                    // -----------------------------------------------------------
+                    itemsToProcess.forEach { item ->
+                        var itemCopy = item.copy()
+                        itemCopy = itemCopy.copy(foodGroupId = processedGroup.id)
+
+                        // Фиктивный ID (1) считается новым
+                        val itemIsNew = item.id == null || item.id == 1L
+
+                        if (itemIsNew) {
+                            // --- CREATE ITEM (POST) ---
+                            itemCopy = itemCopy.copy(id = null)
+                            val newItem = apiService.createFood(itemCopy)
+                            item.id = newItem.id
+                            println("Created Food Item: ${newItem.id}")
+                        } else {
+                            // --- UPDATE ITEM (PUT) ---
+                            val updatedItem = apiService.updateFood(item.id!!, itemCopy)
+                            println("Updated Food Item: ${updatedItem.id}")
+                        }
+                    }
+                }
+
+                // -----------------------------------------------------------
+                // 3. Обработка групп Напитков (DrinksGroup)
+                // -----------------------------------------------------------
+                safeMenu.drinksGroups.forEach { group ->
+                    // Фиктивный ID: 201
+                    val isNew = group.id == null || group.id == 201L
+
+                    var groupCopy = group.copy()
+                    val itemsToProcess: List<Drink> = groupCopy.items.toList()
+
+                    groupCopy.items = mutableListOf()
+                    println("DEBUG: Attemting to process Drink Group: ${group.name}, isNew: $isNew")
+
+                    val processedGroup = if (isNew) {
+                        // --- CREATE DRINK GROUP (POST) ---
+                        groupCopy = groupCopy.copy(id = null)
+                        val groupForApi = groupCopy.copy(items = mutableListOf())
+
+                        try {
+                            val newGroup = apiService.createDrinksGroup(groupForApi)
+                            group.id = newGroup.id
+                            println("Created Drink Group: ${newGroup.id}")
+                            newGroup
+                        } catch (e: Exception) {
+                            println("CRITICAL ERROR IN STEP 3 (Drink Group Creation): ${e.message}")
+                            throw e
+                        }
+                    } else {
+                        // --- UPDATE DRINK GROUP (PUT) ---
+                        val updatedGroup = apiService.updateDrinksGroup(group.id!!, groupCopy)
+                        println("Updated Drink Group: ${updatedGroup.id}")
+                        updatedGroup
+                    }
+
+                    // -----------------------------------------------------------
+                    // 4. Обработка компонентов Напитков (Drink)
+                    // -----------------------------------------------------------
+                    itemsToProcess.forEach { item ->
+                        println("DEBUG: Attemting to process Drink Item: ${item.name}")
+                        var itemCopy = item.copy()
+                        itemCopy = itemCopy.copy(drinkGroupId = processedGroup.id)
+
+                        // Фиктивный ID: 2 (и опции 301, 302)
+                        val itemIsNew = item.id == null || item.id == 2L
+
+                        if (itemIsNew) {
+                            // --- CREATE DRINK ITEM (POST) ---
+                            itemCopy = itemCopy.copy(id = null)
+
+                            val newOptions = itemCopy.options.map { option ->
+                                option.copy(id = null, drinkId = null)
+                            }.toMutableList()
+
+                            itemCopy = itemCopy.copy(options = newOptions)
+
+                            val newItem = apiService.createDrink(itemCopy)
+                            item.id = newItem.id
+                            println("Created Drink Item: ${newItem.id}")
+                        } else {
+                            // --- UPDATE DRINK ITEM (PUT) ---
+                            val updatedItem = apiService.updateDrink(item.id!!, itemCopy)
+                            println("Updated Drink Item: ${updatedItem.id}")
+                        }
+                    }
+                }
+
+                // -----------------------------------------------------------
+                // 5. ⭐ ОБРАБОТКА УДАЛЕНИЙ (DELETE) ⭐
+                // -----------------------------------------------------------
+
+                // Удаляем компоненты (в первую очередь, чтобы избежать ошибок внешнего ключа)
+                deletedFoodItemIds.forEach { itemId ->
+                    println("DEBUG: Deleting Food Item: $itemId")
+                    apiService.deleteItem(itemId, isFood = true)
+                }
+                deletedDrinkItemIds.forEach { itemId ->
+                    println("DEBUG: Deleting Drink Item: $itemId")
+                    apiService.deleteItem(itemId, isFood = false)
+                }
+
+                // Удаляем группы
+                deletedFoodGroupIds.forEach { groupId ->
+                    println("DEBUG: Deleting Food Group: $groupId")
+                    apiService.deleteGroup(groupId, isFood = true)
+                }
+                deletedDrinksGroupIds.forEach { groupId ->
+                    println("DEBUG: Deleting Drink Group: $groupId")
+                    apiService.deleteGroup(groupId, isFood = false)
+                }
+
+                // Очищаем списки после успешной отправки
+                deletedFoodGroupIds.clear()
+                deletedFoodItemIds.clear()
+                deletedDrinksGroupIds.clear()
+                deletedDrinkItemIds.clear()
+
+                _saveStatus.value = SaveStatus.Success
+
+            } catch (e: Exception) {
+                println("Error saving menu: HTTP 500 - ${e.message}")
+            }
+        }
+    }
+
+    fun trackAndDeleteGroup(groupId: Long?, isFood: Boolean, menu: MenuOfEstablishment) {
+        if (groupId == null) return
+
+        // 1. Отслеживаем реальный ID для отправки на сервер
+        if (groupId > 0) { // Игнорируем временные ID (например, < 100), их не нужно удалять с сервера
+            if (isFood) {
+                deletedFoodGroupIds.add(groupId)
+            } else {
+                deletedDrinksGroupIds.add(groupId)
+            }
+        }
+
+        // 2. Удаляем из локального состояния (чтобы UI обновился)
+        if (isFood) {
+            menu.foodGroups.removeAll { it.id == groupId }
+        } else {
+            menu.drinksGroups.removeAll { it.id == groupId }
+        }
+    }
+
+    // Вы должны вызывать ЭТУ функцию из UI для удаления блюда/напитка
+    fun trackAndDeleteItem(groupId: Long?, itemId: Long?, isFood: Boolean, menu: MenuOfEstablishment) {
+        if (groupId == null || itemId == null) return
+
+        // 1. Отслеживаем реальный ID
+        if (itemId > 0) { // Игнорируем временные ID
+            if (isFood) {
+                deletedFoodItemIds.add(itemId)
+            } else {
+                deletedDrinkItemIds.add(itemId)
+            }
+        }
+
+        // 2. Удаляем из локального состояния
+        if (isFood) {
+            menu.foodGroups.find { it.id == groupId }?.items?.removeAll { it.id == itemId }
+        } else {
+            menu.drinksGroups.find { it.id == groupId }?.items?.removeAll { it.id == itemId }
+        }
+    }
+
+    fun deleteGroupById(groupId: Long, isFood: Boolean) {
+        viewModelScope.launch {
+            try {
+                apiService.deleteGroup(groupId, isFood)
+            } catch (e: Exception) { /* Обработка */ }
+        }
+    }
+
+    fun deleteItemById(itemId: Long, isFood: Boolean) {
+        viewModelScope.launch {
+            try {
+                apiService.deleteItem(itemId, isFood)
+            } catch (e: Exception) { /* Обработка */ }
+        }
+    }
+
+    private val _isMenuLoading = MutableStateFlow(false)
+    val isMenuLoading: StateFlow<Boolean> = _isMenuLoading
+
+    private val _menuOfEstablishment = MutableStateFlow<MenuOfEstablishment?>(null)
+    val menuOfEstablishment: StateFlow<MenuOfEstablishment?> = _menuOfEstablishment
+
+    private val _menuErrorMessage = MutableStateFlow<String?>(null) // Добавляем обработчик ошибок
+    val menuErrorMessage: StateFlow<String?> = _menuErrorMessage
+
+    fun fetchMenuForEstablishment(establishmentId: Long) {
+        if (_isMenuLoading.value) return
+
+        // Сбрасываем предыдущие ошибки перед началом новой загрузки
+        _menuErrorMessage.value = null
+        _isMenuLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                // ⭐ ИСПРАВЛЕНИЕ 1: Использование инжектированного члена (apiService)
+                val menu = apiService.getMenuForEstablishment(establishmentId)
+                _menuOfEstablishment.value = menu
+            } catch (e: Exception) {
+                // ⭐ ИСПРАВЛЕНИЕ 2: Обработка ошибок
+                val message = "Ошибка загрузки меню: ${e.localizedMessage ?: "Неизвестная ошибка"}"
+                Log.e("EstablishmentVM", message, e)
+
+                _menuErrorMessage.value = "Не удалось загрузить меню." // Сообщение для UI
+                _menuOfEstablishment.value = null
+            } finally {
+                _isMenuLoading.value = false
             }
         }
     }

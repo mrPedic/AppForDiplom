@@ -106,7 +106,6 @@ fun BookingItemCard(booking: BookingDisplayDto, onClick: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
-                BookingStatusBadge(status = booking.status)
             }
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -155,28 +154,5 @@ fun BookingItemCard(booking: BookingDisplayDto, onClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.primary
             )
         }
-    }
-}
-
-@Composable
-fun BookingStatusBadge(status: String) {
-    val (color, text) = when (status.uppercase(Locale.ROOT)) {
-        "CONFIRMED" -> MaterialTheme.colorScheme.primary to "Подтверждено"
-        "PENDING" -> Color(0xFFFFA500) to "В ожидании" // Orange
-        "CANCELLED" -> MaterialTheme.colorScheme.error to "Отменено"
-        else -> MaterialTheme.colorScheme.surfaceVariant to status
-    }
-
-    Surface(
-        color = color.copy(alpha = 0.2f),
-        shape = MaterialTheme.shapes.extraSmall
-    ) {
-        Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-        )
     }
 }

@@ -1,6 +1,7 @@
 package com.example.roamly.ui.screens.establishment
 
 import android.util.Base64
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,11 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -33,12 +32,15 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.roamly.classes.cl_menu.Drink
+import com.example.roamly.classes.cl_menu.Food
+import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import java.util.Calendar
-import java.util.Locale
 
 // Используем заглушки для отсутствующих частей
 val convertTypeToWord: (String) -> String = { it }
@@ -56,8 +58,11 @@ fun EstablishmentDetailScreen(
 ) {
     // Получаем состояние из ViewModel
     val establishment by viewModel.currentEstablishment.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val menuState by viewModel.menuOfEstablishment.collectAsState()
+    val isMenuLoading by viewModel.isMenuLoading.collectAsState()
+
+    val isLoading by viewModel.isLoading.collectAsState()
 
     // Вкладки
     val tabs = listOf("Описание", "Меню", "Карта", "Отзывы")
@@ -66,6 +71,13 @@ fun EstablishmentDetailScreen(
 
     LaunchedEffect(establishmentId) {
         viewModel.fetchEstablishmentById(establishmentId)
+    }
+
+    LaunchedEffect(establishment) {
+        establishment?.let {
+            // ⭐ ИСПРАВЛЕНИЕ: Загрузка меню
+            viewModel.fetchMenuForEstablishment(it.id)
+        }
     }
 
     LaunchedEffect(selectedTab) {
@@ -105,8 +117,14 @@ fun EstablishmentDetailScreen(
                 )
                 establishment != null -> {
                     HorizontalPager(state = pagerState) { page ->
-                        // Отображение контента вкладок
-                        EstablishmentTabContent(page, establishment!!, navController)
+                        // ⭐ ИСПРАВЛЕНИЕ: Передача состояния меню
+                        EstablishmentTabContent(
+                            page = page,
+                            establishment = establishment!!,
+                            navController = navController,
+                            menuState = menuState,
+                            isMenuLoading = isMenuLoading
+                        )
                     }
                 }
                 else -> Text("Данные не найдены", Modifier.align(Alignment.Center))
@@ -300,15 +318,27 @@ fun EstablishmentHeader(
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto, navController: NavController) {
+fun EstablishmentTabContent(
+    page: Int,
+    establishment: EstablishmentDisplayDto,
+    navController: NavController,
+    menuState: MenuOfEstablishment?,
+    isMenuLoading: Boolean,
+    userViewModel: UserViewModel = hiltViewModel()
+) {
+    // Получаем текущего пользователя и его ID
+    val currentUser by userViewModel.user.collectAsState()
+    val currentUserId = currentUser.id ?: -1L
+
+    // ⭐ Проверка, является ли текущий пользователь владельцем заведения
+    val isOwner = establishment.createdUserId == currentUserId
 
     when (page) {
         0 -> {
-            // ⭐ ИЗМЕНЕНИЕ ДЛЯ ИСПРАВЛЕНИЯ ПЕРЕЛИСТЫВАНИЯ: Column с verticalScroll
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()) // Главное изменение!
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
                 Text("Описание:", fontWeight = FontWeight.Bold)
@@ -330,11 +360,9 @@ fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto, n
                     Text("Забронировать столик (Шаг 10 мин)")
                 }
 
-                // ⭐ НОВОЕ: Динамический статус работы
                 Spacer(Modifier.height(16.dp))
                 OperatingStatusDisplay(establishment.operatingHoursString)
 
-                // ⭐ Отображение полного расписания
                 Spacer(Modifier.height(16.dp))
                 Text(
                     text = "Полное расписание:",
@@ -345,15 +373,27 @@ fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto, n
                 OperatingHoursDisplay(convertHoursStringToMap(establishment.operatingHoursString))
             }
         }
-        // ⭐ ИЗМЕНЕНИЕ: Вкладка "Меню" теперь тоже с прокруткой, чтобы избежать конфликта.
-        1 -> Column(
+        // ⭐ ИЗМЕНЕНИЕ: Вкладка "Меню"
+        1 -> Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 16.dp) // Общий горизонтальный отступ
         ) {
-            Text("Здесь будет отображаться Меню", style = MaterialTheme.typography.titleMedium)
-            // Если тут будет длинный контент, он теперь сможет скроллиться
+            if (isMenuLoading) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
+            } else if (menuState == null || (menuState.foodGroups.isEmpty() && menuState.drinksGroups.isEmpty())) {
+                Column(Modifier.align(Alignment.Center)) {
+                    Text("Меню отсутствует.", style = MaterialTheme.typography.bodyLarge)
+                }
+            } else {
+                // ⭐ ПЕРЕДАЕМ isOwner И НАЧИНАЕМ С MenuDisplayContent
+                MenuDisplayContent(
+                    menu = menuState,
+                    isOwner = isOwner,
+                    establishmentId = establishment.id,
+                    navController = navController
+                )
+            }
         }
         2 -> {
             // Карта
@@ -364,7 +404,7 @@ fun EstablishmentTabContent(page: Int, establishment: EstablishmentDisplayDto, n
             )
         }
         3 -> {
-            // Отзывы (LazyColumn здесь работает, так как это последняя вкладка)
+            // Отзывы
             ReviewTabContent(establishment = establishment, navController = navController)
         }
     }
@@ -525,7 +565,6 @@ private fun ReviewContent(review: ReviewEntity, hasPhoto: Boolean) {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(8.dp))
-                // TODO: Добавить иконки звезд
             }
 
             // Дата создания
@@ -726,4 +765,181 @@ private fun findNextOpenDay(operatingHoursMap: Map<String, String>, startDayInt:
     }
     Log.d("OpStatus", "Все дни закрыты.")
     return OperatingStatus(false, "Временно закрыто на неопределенный срок.")
+}
+
+@Composable
+fun MenuDisplayContent(
+    menu: MenuOfEstablishment,
+    isOwner: Boolean, // ⭐ НОВЫЙ ПАРАМЕТР
+    establishmentId: Long, // ⭐ НОВЫЙ ПАРАМЕТР
+    navController: NavController // ⭐ НОВЫЙ ПАРАМЕТР
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        // contentPadding убираем или уменьшаем, так как внешний Box уже имеет отступ.
+        // Оставим только вертикальный, чтобы разгрузить внешний Box.
+        contentPadding = PaddingValues(top = 16.dp)
+    ) {
+        // --- 1. Заголовок ---
+        item {
+            Text(
+                "Меню заведения",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp) // Горизонтальный отступ здесь
+            )
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // --- 2. Кнопка редактирования меню (только для владельца) ---
+        if (isOwner) {
+            item {
+                Button(
+                    onClick = {
+                        navController.navigate(
+                            EstablishmentScreens.MenuEdit.createRoute(establishmentId)
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp) // Горизонтальный отступ здесь
+                ) {
+                    Text("Редактировать меню")
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+
+        // --- Группы Еды ---
+        if (menu.foodGroups.isNotEmpty()) {
+            item {
+                Text(
+                    text = "🍽️ Блюда",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp, start = 16.dp, end = 16.dp)
+                )
+            }
+
+            items(menu.foodGroups) { group ->
+                // ⭐ Обработка null (group.name) с использованием оператора Elvis
+                Text(
+                    text = group.name ?: "Название группы не указано",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                )
+
+                if (group.items.isEmpty()) {
+                    Text("Нет блюд в этой группе.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                } else {
+                    LazyRow(contentPadding = PaddingValues(vertical = 4.dp)) {
+                        items(group.items) { food ->
+                            FoodCard(food = food)
+                            Spacer(Modifier.width(16.dp)) // Отступ между горизонтальными карточками
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Разделитель между едой и напитками ---
+        item {
+            Spacer(Modifier.height(24.dp))
+            Divider()
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "🍹 Напитки",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
+        // --- Группы Напитков ---
+        if (menu.drinksGroups.isNotEmpty()) {
+            items(menu.drinksGroups) { group ->
+                // ⭐ Обработка null (group.name)
+                Text(
+                    text = group.name ?: "Название группы не указано",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                )
+
+                if (group.items.isEmpty()) {
+                    Text("Нет напитков в этой группе.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                } else {
+                    LazyRow(contentPadding = PaddingValues(vertical = 4.dp)) {
+                        items(group.items) { drink ->
+                            DrinkCard(drink = drink)
+                            Spacer(Modifier.width(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Вспомогательные Composable для отображения карточек (нужно доработать стиль)
+
+@Composable
+fun FoodCard(food: Food) {
+    Card(
+        modifier = Modifier.width(200.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // ⭐ Обработка null (food.name)
+            Text(
+                text = food.name ?: "Блюдо без имени",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "${food.cost ?: 0} р. | ${food.weight ?: 0} г.", // Предполагаем, что cost и weight могут быть null
+                style = MaterialTheme.typography.bodySmall
+            )
+            // Ингредиенты (безопасная проверка, оставлена как у вас)
+            food.ingredients?.takeIf { it.isNotBlank() }?.let { ingredients ->
+                Text(
+                    text = ingredients,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DrinkCard(drink: Drink) {
+    Card(
+        modifier = Modifier.width(180.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // ⭐ Обработка null (drink.name)
+            Text(
+                text = drink.name ?: "Напиток без имени",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            // Обработка опций (предполагаем, что options не null, но может быть пустым)
+            val optionsText = drink.options?.joinToString("\n") {
+                "${it.sizeMl ?: 0} мл / ${"%.2f".format(it.cost ?: 0f)} р."
+            } ?: "Нет опций"
+
+            Text(
+                text = optionsText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }

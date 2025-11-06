@@ -44,39 +44,92 @@ fun BookingDetailScreen(
 ) {
     // Получаем бронь из ViewModel (предполагая, что она уже загружена в UserBookingsScreen)
     val booking = bookingViewModel.getBookingById(bookingId)
+    // ⭐ СОСТОЯНИЕ ДЛЯ ДИАЛОГА ПОДТВЕРЖДЕНИЯ
+    var showCancelDialog by remember { mutableStateOf(false) }
+    // ⭐ СЛЕДИМ ЗА СТАТУСОМ ОТМЕНЫ (для навигации/Snackbar)
+    val cancellationStatus by bookingViewModel.cancellationStatus.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(booking?.establishmentName ?: "Детали бронирования") })
-        }
-    ) { paddingValues ->
-        if (booking == null) {
-            Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                Text("Бронирование не найдено.", color = MaterialTheme.colorScheme.error)
+    // ⭐ 1. SnackbarHostState для этого экрана
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current // Для получения строковых ресурсов, если нужно
+
+    LaunchedEffect(cancellationStatus) {
+        when (cancellationStatus) {
+            true -> {
+
+                navController.previousBackStackEntry
+                    ?.savedStateHandle?.set("booking_cancellation_result", "success")
+                navController.popBackStack()
+
             }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                BookingInfoSection(booking)
+            false -> {
+                // Ошибка отмены
+                snackbarHostState.showSnackbar(
+                    message = "Ошибка при отмене бронирования. Попробуйте позже.",
+                    actionLabel = "OK",
+                    duration = SnackbarDuration.Short
+                )
+                // Очищаем статус, чтобы разрешить повторную попытку или избежать повторного показа
+                bookingViewModel.clearCancellationStatus() // Предполагаем, что эта функция добавлена в ViewModel
+            }
+            else -> {}
+        }
+    }
 
-                // ⭐ Вставляем секцию с картой
-                MapSection(booking)
-
-                // Кнопка отмены (заглушка)
-                Button(
-                    onClick = { /* TODO: Логика отмены брони */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+    if (booking == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Бронирование не найдено.", color = MaterialTheme.colorScheme.error)
+        }
+    } else {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            // Включаем PaddingValues в Column, чтобы контент был виден над Snackbar/FAB
+            content = { paddingValues ->
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(paddingValues) // Применяем паддинги Scaffold
                 ) {
-                    Text("Отменить бронирование", color = Color.White)
+                    BookingInfoSection(booking)
+                    MapSection(booking)
+
+                    Button(
+                        onClick = { showCancelDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text("Отменить бронирование", color = Color.White)
+                    }
                 }
             }
+        )
+
+        // ⭐ 1. ДИАЛОГ ПОДТВЕРЖДЕНИЯ
+        if (showCancelDialog) {
+            AlertDialog(
+                onDismissRequest = { showCancelDialog = false },
+                title = { Text("Подтвердите отмену") },
+                text = { Text("Вы уверены, что хотите отменить бронирование № ${booking.id} в ${booking.establishmentName}?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            bookingViewModel.cancelBooking(bookingId) // Вызов ViewModel
+                            showCancelDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Отменить")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCancelDialog = false }) {
+                        Text("Не отменять")
+                    }
+                }
+            )
         }
     }
 }
@@ -110,8 +163,6 @@ fun BookingInfoSection(booking: BookingDisplayDto) {
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
-            // Используем компонент из UserBookingsScreen
-            BookingStatusBadge(status = booking.status)
         }
         HorizontalDivider(Modifier.padding(vertical = 12.dp))
 

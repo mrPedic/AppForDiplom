@@ -30,6 +30,9 @@ class BookingViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _cancellationStatus = MutableStateFlow<Boolean?>(null)
+    val cancellationStatus: StateFlow<Boolean?> = _cancellationStatus.asStateFlow()
+
     private val TAG = "BookingViewModel"
 
     init {
@@ -75,5 +78,37 @@ class BookingViewModel @Inject constructor(
      */
     fun getBookingById(bookingId: Long): BookingDisplayDto? {
         return _userBookings.value.find { it.id == bookingId }
+    }
+
+    /**
+     * Отправляет запрос на сервер для отмены бронирования.
+     */
+    fun cancelBooking(bookingId: Long) {
+        // Сброс статуса перед началом
+        _cancellationStatus.value = null
+
+        viewModelScope.launch {
+            try {
+                // Вызываем эндпоинт API
+                val response = apiService.cancelBooking(bookingId)
+
+                if (response.isSuccessful) {
+                    _cancellationStatus.value = true // Успешно отменено
+                    // Опционально: Обновить список бронирований в ViewModel
+                    // Например, удалить отмененную бронь из списка, который отображается в UserBookingsScreen
+                } else {
+                    // Обработка ошибок (например, 404 Not Found или 400 Bad Request)
+                    Log.e("BookingViewModel", "Cancellation failed: ${response.code()}")
+                    _cancellationStatus.value = false
+                }
+            } catch (e: Exception) {
+                Log.e("BookingViewModel", "Cancellation exception", e)
+                _cancellationStatus.value = false
+            }
+        }
+    }
+
+    fun clearCancellationStatus() {
+        _cancellationStatus.value = null
     }
 }

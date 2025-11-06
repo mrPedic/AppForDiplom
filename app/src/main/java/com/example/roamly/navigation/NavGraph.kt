@@ -25,6 +25,8 @@ import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentEditScreen
 import com.example.roamly.ui.screens.establishment.MapPickerScreen
+// ⭐ ИМПОРТ ЗАГЛУШКИ ДЛЯ НОВОГО ЭКРАНА
+import com.example.roamly.ui.screens.establishment.MenuEditScreen
 import com.example.roamly.ui.screens.establishment.ReviewCreationScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
@@ -39,7 +41,6 @@ fun NavGraph(
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel,
     mapRefreshKey: Boolean // ⭐ ДОБАВЛЕНО: Ключ для принудительного обновления карты
-
 ) {
     NavHost(
         navController = navController,
@@ -48,30 +49,26 @@ fun NavGraph(
     ) {
         // --- Основные вкладки ---
         composable(SealedButtonBar.Home.route) {
-            HomeScreen(navController,mapRefreshKey )
+            HomeScreen(navController, mapRefreshKey)
         }
         composable(SealedButtonBar.Searching.route) {
             SearchScreen(navController)
         }
 
-        // ⭐ ЛУЧШАЯ ПРАКТИКА: Использовать маршрут из SealedButtonBar для вкладок нижней панели
         composable(SealedButtonBar.Booking.route) {
             UserBookingsScreen(navController = navController, userViewModel = userViewModel)
         }
 
-        // --- ЕДИНЫЙ ЭКРАН ПРОФИЛЯ ---
-        // Предполагаем, что этот роут используется в BottomBar
         composable(SealedButtonBar.Profile.route) {
-            ProfileScreen(navController,userViewModel)
+            ProfileScreen(navController, userViewModel)
         }
 
         // --- Экраны авторизации ---
-        // ИСПРАВЛЕНО: Теперь SingUp (регистрация) и Login (вход) правильно связаны с роутами
-        composable(LogSinUpScreens.SingUp.route) { // SingUp = Регистрация
-            SingUpScreen(navController,userViewModel)
+        composable(LogSinUpScreens.SingUp.route) {
+            SingUpScreen(navController, userViewModel)
         }
-        composable(LogSinUpScreens.Login.route) { // Login = Вход
-            LoginScreen(navController,userViewModel)
+        composable(LogSinUpScreens.Login.route) {
+            LoginScreen(navController, userViewModel)
         }
 
         // --- Админ панель ---
@@ -80,25 +77,24 @@ fun NavGraph(
         }
 
         // --- Создание заведения ---
-        composable(EstablishmentScreens.CreateEstablishment.route){
-            CreateEstablishmentScreen(navController,userViewModel)
+        composable(EstablishmentScreens.CreateEstablishment.route) {
+            CreateEstablishmentScreen(navController, userViewModel)
         }
-        composable(EstablishmentScreens.MapPicker.route){
+        composable(EstablishmentScreens.MapPicker.route) {
             MapPickerScreen(navController)
         }
-        composable(EstablishmentScreens.UserEstablishments.route){
+        composable(EstablishmentScreens.UserEstablishments.route) {
             UserEstablishmentsScreen(navController, userViewModel)
         }
 
-        // Просмотре и редактирование заведения
+        // Просмотр и редактирование заведения
 
         composable(
-            route = EstablishmentScreens.EstablishmentDetail.route, // "establishment/detail/{establishmentId}"
+            route = EstablishmentScreens.EstablishmentDetail.route,
             arguments = listOf(navArgument("establishmentId") { type = NavType.LongType })
         ) { backStackEntry ->
-            // Also update the argument retrieval for clarity, though 'id' works here if you use the correct name below
             val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: return@composable
-            EstablishmentDetailScreen(navController, establishmentId) // Assuming the function expects a Long
+            EstablishmentDetailScreen(navController, establishmentId)
         }
 
         composable(
@@ -109,8 +105,18 @@ fun NavGraph(
             EstablishmentEditScreen(navController, id)
         }
 
+        // ⭐ НОВОЕ: ЭКРАН РЕДАКТИРОВАНИЯ МЕНЮ
         composable(
-            route = EstablishmentScreens.ReviewCreation.route, // "establishment/review/{establishmentId}"
+            route = EstablishmentScreens.MenuEdit.route,
+            arguments = listOf(navArgument("id") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getLong("id") ?: return@composable
+            // Предполагаем, что у вас есть композабл MenuEditScreen
+            MenuEditScreen(navController, establishmentId = id) // ⭐ Вызываем новый композабл
+        }
+
+        composable(
+            route = EstablishmentScreens.ReviewCreation.route,
             arguments = listOf(
                 navArgument(EstablishmentScreens.ReviewCreation.ESTABLISHMENT_ID_KEY) {
                     type = NavType.LongType
@@ -119,25 +125,23 @@ fun NavGraph(
         ) { backStackEntry ->
             val establishmentId = backStackEntry.arguments?.getLong(EstablishmentScreens.ReviewCreation.ESTABLISHMENT_ID_KEY)
 
-            // Защита, если establishmentId не найден (хотя вряд ли)
             if (establishmentId != null) {
                 ReviewCreationScreen(
                     navController = navController,
                     establishmentId = establishmentId
                 )
             } else {
-                // Обработка ошибки или возврат назад
                 navController.popBackStack()
             }
         }
 
         // Админские фишки
-        composable(AdminScreens.PendingList.route){
+        composable(AdminScreens.PendingList.route) {
             PendingListScreen()
         }
 
         // =====================================
-        // ⭐ НОВЫЙ ЭКРАН: Создание бронирования
+        // Создание и просмотр бронирования
         // =====================================
         composable(
             route = BookingScreens.CreateBooking.route,
@@ -150,20 +154,17 @@ fun NavGraph(
             val establishmentId = backStackEntry.arguments?.getLong(BookingScreens.ESTABLISHMENT_ID_KEY)
 
             if (establishmentId != null) {
-                // ⭐ Вызываем композабл для создания бронирования
                 CreateBooking(
                     navController = navController,
                     establishmentId = establishmentId
                 )
             } else {
-                // Обработка ошибки
                 navController.popBackStack()
             }
         }
 
-        // ⭐ НОВЫЙ ЭКРАН: Детали бронирования
         composable(
-            route = BookingScreens.BookingDetail.route, // "booking/detail/{bookingId}"
+            route = BookingScreens.BookingDetail.route,
             arguments = listOf(
                 navArgument(BookingScreens.BOOKING_ID_KEY) {
                     type = NavType.LongType
@@ -181,7 +182,5 @@ fun NavGraph(
                 navController.popBackStack()
             }
         }
-
-
     }
 }
