@@ -28,12 +28,12 @@ data class DrinkOption(
 // =================================================================
 interface MenuItem {
     var id: Long? // ID присваивает сервер
-    var name: String
+    var name: String? // <-- ИСПРАВЛЕНО (было String)
     var caloriesPer100g: Double
     var fatPer100g: Double
     var carbohydratesPer100g: Double
     var proteinPer100g: Double
-    var ingredients: String
+    var ingredients: String? // <-- ИСПРАВЛЕНО (было String)
     var photoBase64: String?
 }
 
@@ -44,12 +44,12 @@ data class Food(
     override var id: Long? = null, // ID присваивает сервер
     // Внешний ключ: к какой группе еды относится это блюдо
     var foodGroupId: Long? = null,
-    override var name: String,
+    override var name: String?, // <-- ИСПРАВЛЕНО
     override var caloriesPer100g: Double,
     override var fatPer100g: Double,
     override var carbohydratesPer100g: Double,
     override var proteinPer100g: Double,
-    override var ingredients: String,
+    override var ingredients: String?, // <-- ИСПРАВЛЕНО
     var cost: Double,
     var weight: Int,
     override var photoBase64: String? = null
@@ -62,12 +62,12 @@ data class Drink(
     override var id: Long? = null, // ID присваивает сервер
     // Внешний ключ: к какой группе напитков относится этот напиток
     var drinkGroupId: Long? = null,
-    override var name: String,
+    override var name: String?, // <-- ИСПРАВЛЕНО (Это устранит ошибку в Drink.copy)
     override var caloriesPer100g: Double,
     override var fatPer100g: Double,
     override var carbohydratesPer100g: Double,
     override var proteinPer100g: Double,
-    override var ingredients: String,
+    override var ingredients: String?, // <-- ИСПРАВЛЕНО
     // При получении с сервера DrinkOption будут иметь drinkId = Drink.id
     var options: MutableList<DrinkOption>,
     override var photoBase64: String? = null
@@ -80,7 +80,7 @@ data class FoodGroup(
     var id: Long? = null, // ID присваивает сервер
     // Внешний ключ: к какому меню относится эта группа (равен establishmentId)
     val establishmentId: Long? = null,
-    var name: String,
+    var name: String?, // <-- ИСПРАВЛЕНО
     // Items теперь просто список, т.к. Food содержит foodGroupId
     var items: MutableList<Food> = mutableListOf()
 )
@@ -89,7 +89,7 @@ data class DrinksGroup(
     var id: Long? = null, // ID присваивает сервер
     // Внешний ключ: к какому меню относится эта группа (равен establishmentId)
     val establishmentId: Long? = null,
-    var name: String,
+    var name: String?, // <-- ИСПРАВЛЕНО
     // Items теперь просто список, т.к. Drink содержит drinkGroupId
     var items: MutableList<Drink> = mutableListOf()
 )

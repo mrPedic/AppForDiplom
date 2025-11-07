@@ -771,24 +771,120 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
-    private val _saveStatus = MutableStateFlow<SaveStatus>(SaveStatus.Idle)
-    val saveStatus: StateFlow<SaveStatus> = _saveStatus.asStateFlow()
-
-    // 2. Функция для сброса статуса (чтобы Snackbar не висел вечно)
-    fun clearSaveStatus() {
-        _saveStatus.value = SaveStatus.Idle
+    fun deleteGroupById(groupId: Long, isFood: Boolean) {
+        viewModelScope.launch {
+            try {
+                apiService.deleteGroup(groupId, isFood)
+            } catch (e: Exception) { /* Обработка */ }
+        }
     }
 
+    fun deleteItemById(itemId: Long, isFood: Boolean) {
+        viewModelScope.launch {
+            try {
+                apiService.deleteItem(itemId, isFood)
+            } catch (e: Exception) { /* Обработка */ }
+        }
+    }
+
+    // --- Списки для отслеживания удалений ---
     private val deletedFoodGroupIds = mutableStateListOf<Long>()
     private val deletedFoodItemIds = mutableStateListOf<Long>()
     private val deletedDrinksGroupIds = mutableStateListOf<Long>()
     private val deletedDrinkItemIds = mutableStateListOf<Long>()
 
+    // --- Статус сохранения ---
+    private val _saveStatus = MutableStateFlow<SaveStatus>(SaveStatus.Idle)
+    val saveStatus: StateFlow<SaveStatus> = _saveStatus.asStateFlow()
+
+    fun clearSaveStatus() {
+        _saveStatus.value = SaveStatus.Idle
+    }
+
+    // --- Статус загрузки меню ---
+    private val _isMenuLoading = MutableStateFlow(false)
+    val isMenuLoading: StateFlow<Boolean> = _isMenuLoading
+
+    private val _menuOfEstablishment = MutableStateFlow<MenuOfEstablishment?>(null)
+    val menuOfEstablishment: StateFlow<MenuOfEstablishment?> = _menuOfEstablishment
+
+    private val _menuErrorMessage = MutableStateFlow<String?>(null)
+    val menuErrorMessage: StateFlow<String?> = _menuErrorMessage
+
+    /**
+     * Загружает меню с сервера.
+     */
+    fun fetchMenuForEstablishment(establishmentId: Long) {
+        if (_isMenuLoading.value) return
+
+        _menuErrorMessage.value = null
+        _isMenuLoading.value = true
+
+        viewModelScope.launch {
+            try {
+                Log.d("MenuVM", "Начинаем загрузку меню для ID: $establishmentId")
+                val menu = apiService.getMenuForEstablishment(establishmentId)
+                Log.d("MenuVM", "Меню успешно загружено. Групп еды: ${menu.foodGroups.size}")
+                _menuOfEstablishment.value = menu
+            } catch (e: Exception) {
+                val message = "Ошибка загрузки меню: ${e.localizedMessage ?: "Неизвестная ошибка"}"
+                Log.e("MenuVM", message, e)
+
+                _menuErrorMessage.value = "Не удалось загрузить меню."
+                _menuOfEstablishment.value = null
+            } finally {
+                _isMenuLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Отслеживает группу для удаления.
+     */
+    fun trackAndDeleteGroup(groupId: Long?, isFood: Boolean, menu: MenuOfEstablishment) {
+        if (groupId == null) return
+        if (groupId > 0) { // Игнорируем временные ID
+            if (isFood) {
+                deletedFoodGroupIds.add(groupId)
+            } else {
+                deletedDrinksGroupIds.add(groupId)
+            }
+        }
+        if (isFood) {
+            menu.foodGroups.removeAll { it.id == groupId }
+        } else {
+            menu.drinksGroups.removeAll { it.id == groupId }
+        }
+    }
+
+    /**
+     * Отслеживает компонент для удаления.
+     */
+    fun trackAndDeleteItem(groupId: Long?, itemId: Long?, isFood: Boolean, menu: MenuOfEstablishment) {
+        if (groupId == null || itemId == null) return
+        if (itemId > 0) { // Игнорируем временные ID
+            if (isFood) {
+                deletedFoodItemIds.add(itemId)
+            } else {
+                deletedDrinkItemIds.add(itemId)
+            }
+        }
+        if (isFood) {
+            menu.foodGroups.find { it.id == groupId }?.items?.removeAll { it.id == itemId }
+        } else {
+            menu.drinksGroups.find { it.id == groupId }?.items?.removeAll { it.id == itemId }
+        }
+    }
+
+    /**
+     * Обрабатывает все изменения (Create, Update, Delete) в меню.
+     */
     fun processMenuChanges(menu: MenuOfEstablishment) {
 
         _saveStatus.value = SaveStatus.Loading
 
-        // 1. Преобразуем SnapshotStateList в MutableList (Исправляет ClassCastException)
+        // 1. 🌟 ИСПРАВЛЕНИЕ ClassCastException:
+        // Преобразуем SnapshotStateList в MutableList с помощью .toMutableList()
         val safeFoodGroups = menu.foodGroups.map { foodGroup ->
             foodGroup.copy(items = foodGroup.items.toMutableList())
         }
@@ -932,8 +1028,6 @@ class EstablishmentViewModel @Inject constructor(
                 // -----------------------------------------------------------
                 // 5. ⭐ ОБРАБОТКА УДАЛЕНИЙ (DELETE) ⭐
                 // -----------------------------------------------------------
-
-                // Удаляем компоненты (в первую очередь, чтобы избежать ошибок внешнего ключа)
                 deletedFoodItemIds.forEach { itemId ->
                     println("DEBUG: Deleting Food Item: $itemId")
                     apiService.deleteItem(itemId, isFood = true)
@@ -942,8 +1036,6 @@ class EstablishmentViewModel @Inject constructor(
                     println("DEBUG: Deleting Drink Item: $itemId")
                     apiService.deleteItem(itemId, isFood = false)
                 }
-
-                // Удаляем группы
                 deletedFoodGroupIds.forEach { groupId ->
                     println("DEBUG: Deleting Food Group: $groupId")
                     apiService.deleteGroup(groupId, isFood = true)
@@ -959,101 +1051,17 @@ class EstablishmentViewModel @Inject constructor(
                 deletedDrinksGroupIds.clear()
                 deletedDrinkItemIds.clear()
 
+                // После сохранения, принудительно обновляем _menuOfEstablishment
+                // чтобы UI (MenuDetailScreen) отобразил новые данные,
+                // а MenuEditScreen в следующий раз загрузил актуальные.
+                fetchMenuForEstablishment(menu.establishmentId)
+
                 _saveStatus.value = SaveStatus.Success
 
             } catch (e: Exception) {
                 println("Error saving menu: HTTP 500 - ${e.message}")
-            }
-        }
-    }
-
-    fun trackAndDeleteGroup(groupId: Long?, isFood: Boolean, menu: MenuOfEstablishment) {
-        if (groupId == null) return
-
-        // 1. Отслеживаем реальный ID для отправки на сервер
-        if (groupId > 0) { // Игнорируем временные ID (например, < 100), их не нужно удалять с сервера
-            if (isFood) {
-                deletedFoodGroupIds.add(groupId)
-            } else {
-                deletedDrinksGroupIds.add(groupId)
-            }
-        }
-
-        // 2. Удаляем из локального состояния (чтобы UI обновился)
-        if (isFood) {
-            menu.foodGroups.removeAll { it.id == groupId }
-        } else {
-            menu.drinksGroups.removeAll { it.id == groupId }
-        }
-    }
-
-    // Вы должны вызывать ЭТУ функцию из UI для удаления блюда/напитка
-    fun trackAndDeleteItem(groupId: Long?, itemId: Long?, isFood: Boolean, menu: MenuOfEstablishment) {
-        if (groupId == null || itemId == null) return
-
-        // 1. Отслеживаем реальный ID
-        if (itemId > 0) { // Игнорируем временные ID
-            if (isFood) {
-                deletedFoodItemIds.add(itemId)
-            } else {
-                deletedDrinkItemIds.add(itemId)
-            }
-        }
-
-        // 2. Удаляем из локального состояния
-        if (isFood) {
-            menu.foodGroups.find { it.id == groupId }?.items?.removeAll { it.id == itemId }
-        } else {
-            menu.drinksGroups.find { it.id == groupId }?.items?.removeAll { it.id == itemId }
-        }
-    }
-
-    fun deleteGroupById(groupId: Long, isFood: Boolean) {
-        viewModelScope.launch {
-            try {
-                apiService.deleteGroup(groupId, isFood)
-            } catch (e: Exception) { /* Обработка */ }
-        }
-    }
-
-    fun deleteItemById(itemId: Long, isFood: Boolean) {
-        viewModelScope.launch {
-            try {
-                apiService.deleteItem(itemId, isFood)
-            } catch (e: Exception) { /* Обработка */ }
-        }
-    }
-
-    private val _isMenuLoading = MutableStateFlow(false)
-    val isMenuLoading: StateFlow<Boolean> = _isMenuLoading
-
-    private val _menuOfEstablishment = MutableStateFlow<MenuOfEstablishment?>(null)
-    val menuOfEstablishment: StateFlow<MenuOfEstablishment?> = _menuOfEstablishment
-
-    private val _menuErrorMessage = MutableStateFlow<String?>(null) // Добавляем обработчик ошибок
-    val menuErrorMessage: StateFlow<String?> = _menuErrorMessage
-
-    fun fetchMenuForEstablishment(establishmentId: Long) {
-        if (_isMenuLoading.value) return
-
-        // Сбрасываем предыдущие ошибки перед началом новой загрузки
-        _menuErrorMessage.value = null
-        _isMenuLoading.value = true
-
-        viewModelScope.launch {
-            try {
-                // ⭐ ИСПРАВЛЕНИЕ 1: Использование инжектированного члена (apiService)
-                val menu = apiService.getMenuForEstablishment(establishmentId)
-                _menuOfEstablishment.value = menu
-            } catch (e: Exception) {
-                // ⭐ ИСПРАВЛЕНИЕ 2: Обработка ошибок
-                val message = "Ошибка загрузки меню: ${e.localizedMessage ?: "Неизвестная ошибка"}"
-                Log.e("EstablishmentVM", message, e)
-
-                _menuErrorMessage.value = "Не удалось загрузить меню." // Сообщение для UI
-                _menuOfEstablishment.value = null
-            } finally {
-                _isMenuLoading.value = false
+                // Передаем ошибку в UI
+                _saveStatus.value = SaveStatus.Error(e.message ?: "Неизвестная ошибка сети")
             }
         }
     }

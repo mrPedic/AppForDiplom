@@ -2,6 +2,7 @@
 
 package com.example.roamly.ui.screens.establishment
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,36 +41,77 @@ fun MenuEditScreen(
     establishmentId: Long,
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
-    // ⭐ Используем mutableStateListOf для коллекций внутри MenuOfEstablishment
-    val menuState = remember {
-        mutableStateOf(
-            MenuOfEstablishment(
-                establishmentId = establishmentId,
-                // Используем mutableStateListOf для отслеживания изменений в списках групп
-                foodGroups = mutableStateListOf(
-                    FoodGroup(id = 101L, establishmentId = establishmentId, name = "Закуски", items = mutableStateListOf(
-                        Food(id = 1L, foodGroupId = 101L, name = "Сырники", caloriesPer100g = 200.0, fatPer100g = 10.0, carbohydratesPer100g = 15.0, proteinPer100g = 15.0, ingredients = "Творог, яйцо", cost = 5.0, weight = 250)
-                    )),
-                    FoodGroup(id = 102L, establishmentId = establishmentId, name = "Основные блюда", items = mutableStateListOf()),
-                ),
-                drinksGroups = mutableStateListOf(
-                    DrinksGroup(id = 201L, establishmentId = establishmentId, name = "Кофе", items = mutableStateListOf(
-                        Drink(id = 2L, drinkGroupId = 201L, name = "Латте", caloriesPer100g = 50.0, fatPer100g = 1.5, carbohydratesPer100g = 5.0, proteinPer100g = 2.0, ingredients = "Молоко, кофе", options = mutableStateListOf(
-                            DrinkOption(id = 301L, drinkId = 2L, sizeMl = 300, cost = 3.4),
-                            DrinkOption(id = 302L, drinkId = 2L, sizeMl = 400, cost = 4.0)
-                        ))
-                    ))
-                )
-            )
-        )
-    }
-    var menu by menuState
-    var editMode by remember { mutableStateOf<EditMode>(EditMode.Idle) }
-    var showConfirmDeleteGroup by remember { mutableStateOf<Pair<Long?, Boolean>?>(null) }
-
+    // --- 1. ЗАГРУЗКА ДАННЫХ ---
+    val serverMenu by viewModel.menuOfEstablishment.collectAsState()
+    val isMenuLoading by viewModel.isMenuLoading.collectAsState()
     val saveStatus by viewModel.saveStatus.collectAsState()
     val isLoading = saveStatus is SaveStatus.Loading
+
+    // --- 2. ИНИЦИАЛИЗАЦИЯ ЛОКАЛЬНОГО СОСТОЯНИЯ (menuState) ---
+    // Используем remember { mutableStateOf(...) }, чтобы UI мог редактировать menu
+    val menuState = remember(serverMenu) {
+        val initialState = if (serverMenu != null) {
+            // Глубокое копирование данных из ViewModel в локальный SnapshotStateList
+            Log.d("MenuEditScreen", "Инициализация menuState из serverMenu.")
+            serverMenu!!.copy(
+                foodGroups = serverMenu!!.foodGroups.map { fg ->
+                    fg.copy(
+                        // 🌟 ИСПРАВЛЕНИЕ: Обрабатываем null для group.name
+                        name = fg.name ?: "",
+                        items = fg.items.map { f ->
+                            f.copy(
+                                // 🌟 ИСПРАВЛЕНИЕ: Обрабатываем null для food.name
+                                name = f.name ?: "",
+                                // (Предполагаем, что ingredients уже nullable (String?),
+                                // но добавляем проверку на всякий случай)
+                                ingredients = f.ingredients ?: ""
+                            )
+                        }.toMutableStateList()
+                    )
+                }.toMutableStateList(),
+
+                drinksGroups = serverMenu!!.drinksGroups.map { dg ->
+                    dg.copy(
+                        // 🌟 ИСПРАВЛЕНИЕ: Обрабатываем null для group.name
+                        name = dg.name ?: "",
+                        items = dg.items.map { d ->
+                            d.copy(
+                                // 🌟 ИСПРАВЛЕНИЕ: Обрабатываем null для drink.name
+                                name = d.name ?: "",
+                                // (Предполагаем, что ingredients уже nullable (String?))
+                                ingredients = d.ingredients ?: "",
+                                options = d.options.toMutableStateList()
+                            )
+                        }.toMutableStateList()
+                    )
+                }.toMutableStateList()
+            )
+        } else {
+            // Заглушка, если меню еще не загружено или пустое
+            Log.d("MenuEditScreen", "Инициализация menuState пустым меню.")
+            MenuOfEstablishment(
+                establishmentId = establishmentId,
+                foodGroups = mutableStateListOf(),
+                drinksGroups = mutableStateListOf()
+            )
+        }
+        mutableStateOf(initialState)
+    }
+
+    var menu by menuState
+    val hasInitialized = remember { mutableStateOf(false) } // Флаг, чтобы избежать перезаписи при recompose
+
+    var editMode by remember { mutableStateOf<EditMode>(EditMode.Idle) }
+    var showConfirmDeleteGroup by remember { mutableStateOf<Pair<Long?, Boolean>?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // --- 3. ЗАГРУЗКА И СИНХРОНИЗАЦИЯ ---
+
+    // Запускаем загрузку меню при входе на экран
+    LaunchedEffect(establishmentId) {
+        Log.d("MenuEditScreen", "Запускаем fetchMenuForEstablishment для ID: $establishmentId")
+        viewModel.fetchMenuForEstablishment(establishmentId)
+    }
 
     // --- Вспомогательные функции для манипуляции состоянием (CRUD логика) ---
 
@@ -77,14 +119,15 @@ fun MenuEditScreen(
     val saveGroupName: (Long?, Boolean, String) -> Unit = { groupId, isFood, newName ->
         if (isFood) {
             if (groupId == null) {
-                menu.foodGroups.add(FoodGroup(id = generateTempId(), establishmentId = establishmentId, name = newName))
+                // Используем establishmentId из локального 'menu'
+                menu.foodGroups.add(FoodGroup(id = generateTempId(), establishmentId = menu.establishmentId, name = newName))
             } else {
                 val index = menu.foodGroups.indexOfFirst { it.id == groupId }
                 if (index != -1) menu.foodGroups[index] = menu.foodGroups[index].copy(name = newName)
             }
         } else {
             if (groupId == null) {
-                menu.drinksGroups.add(DrinksGroup(id = generateTempId(), establishmentId = establishmentId, name = newName))
+                menu.drinksGroups.add(DrinksGroup(id = generateTempId(), establishmentId = menu.establishmentId, name = newName))
             } else {
                 val index = menu.drinksGroups.indexOfFirst { it.id == groupId }
                 if (index != -1) menu.drinksGroups[index] = menu.drinksGroups[index].copy(name = newName)
@@ -93,7 +136,7 @@ fun MenuEditScreen(
         editMode = EditMode.Idle
     }
 
-    // ⭐ ЛОГИКА: Удаление группы (Используем локальное удаление для работы, в реальном коде вызываем ViewModel)
+    // ⭐ ЛОГИКА: Удаление группы (Вызов ViewModel)
     val deleteGroup: (Long?, Boolean) -> Unit = { groupId, isFood ->
         viewModel.trackAndDeleteGroup(groupId, isFood, menu)
         showConfirmDeleteGroup = null
@@ -107,6 +150,7 @@ fun MenuEditScreen(
             is Food -> {
                 menu.foodGroups.find { it.id == groupId }?.let { targetGroup ->
                     val updatedFood = item.copy(foodGroupId = groupId)
+                    // Проверяем на null ИЛИ временный ID (отрицательный)
                     if (item.id == null || item.id!! < 0) {
                         targetGroup.items.add(updatedFood.copy(id = generateTempId()))
                     } else {
@@ -133,141 +177,150 @@ fun MenuEditScreen(
         editMode = EditMode.Idle
     }
 
-    // ⭐ ЛОГИКА: Удаление компонента (Food/Drink) (Используем локальное удаление для работы, в реальном коде вызываем ViewModel)
+    // ⭐ ЛОГИКА: Удаление компонента (Food/Drink) (Вызов ViewModel)
     val deleteItem: (Long?, Long?, Boolean) -> Unit = { groupId, itemId, isFood ->
-        // ⭐ ИСПРАВЛЕНИЕ: Вызываем метод ViewModel для отслеживания удаления компонента
         viewModel.trackAndDeleteItem(groupId, itemId, isFood, menu)
     }
 
-    // ⭐ ЛОГИКА: Сохранение всего меню (теперь только запускает)
+    // ⭐ ЛОГИКА: Сохранение всего меню (Вызов ViewModel)
     val saveMenu: () -> Unit = {
-        // ⭐ ИСПРАВЛЕНИЕ: Вызов метода ViewModel для отправки данных
         viewModel.processMenuChanges(menu)
         println("Запущена отправка изменений меню: $menu")
     }
 
-    // --- 2. SCAFFOLD И BOTTOMBAR С БЛОКИРОВКОЙ ---
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            BottomAppBar(
-                actions = {
-                    Text("Меню ресторана", modifier = Modifier.padding(start = 16.dp), style = MaterialTheme.typography.titleMedium)
-                },
-                floatingActionButton = {
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            if (!isLoading) {
-                                saveMenu()
-                            }
-                        },
-                        icon = {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Icon(Icons.Filled.Check, contentDescription = "Сохранить")
-                            }
-                        },
-                        text = {
-                            if (!isLoading) {
-                                Text("Сохранить меню")
-                            }
+    // --- 4. ОТОБРАЖЕНИЕ UI (С УЧЕТОМ ЗАГРУЗКИ) ---
+
+    // Показываем загрузчик, пока данные не инициализированы
+    if (isMenuLoading && serverMenu == null) {
+        Box(Modifier.fillMaxSize()) {
+            CircularProgressIndicator(Modifier.align(Alignment.Center))
+        }
+    } else {
+        // Показываем Scaffold, как только serverMenu загружен (даже если он пустой)
+        // `menu` будет корректно инициализирован благодаря remember(serverMenu)
+            Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            bottomBar = {
+                BottomAppBar(
+                    actions = {
+                        Text("Меню ресторана", modifier = Modifier.padding(start = 16.dp), style = MaterialTheme.typography.titleMedium)
+                    },
+                    floatingActionButton = {
+                        ExtendedFloatingActionButton(
+                            onClick = {
+                                if (!isLoading) {
+                                    saveMenu()
+                                }
+                            },
+                            icon = {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                } else {
+                                    Icon(Icons.Filled.Check, contentDescription = "Сохранить")
+                                }
+                            },
+                            text = {
+                                if (!isLoading) {
+                                    Text("Сохранить меню")
+                                }
+                            },
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                )
+            }
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // --- БЛОК: Кнопки добавления новых групп ---
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Button(
+                            onClick = { editMode = EditMode.GroupName(null, true, "") },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isLoading
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Группа Еды")
                         }
+                        Spacer(Modifier.width(16.dp))
+                        Button(
+                            onClick = { editMode = EditMode.GroupName(null, false, "") },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isLoading
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Группа Напитков")
+                        }
+                    }
+                    Divider()
+                }
+
+                // --- Группы Еды ---
+                item { Text("Меню Еды", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                items(menu.foodGroups, key = { it.id ?: generateTempId() }) { group ->
+                    FoodGroupEditor(
+                        group = group,
+                        onEditGroupName = { if (!isLoading) editMode = EditMode.GroupName(group.id, true, group.name ?: "") },
+                        onAddItem = { if (!isLoading) editMode = EditMode.FoodItem(group.id, null) },
+                        onDeleteItem = { itemId -> if (!isLoading) deleteItem(group.id, itemId, true) },
+                        onEditItem = { item -> if (!isLoading) editMode = EditMode.FoodItem(group.id, item) },
+                        onDeleteGroup = { if (!isLoading) showConfirmDeleteGroup = Pair(group.id, true) }
                     )
                 }
-            )
-        }
-    ) { paddingValues ->
-        // --- 3. LAZYCOLUMN С БЛОКИРОВАННЫМИ КНОПКАМИ ---
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .padding(paddingValues),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // --- БЛОК: Кнопки добавления новых групп ---
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(
-                        onClick = { editMode = EditMode.GroupName(null, true, "") },
-                        modifier = Modifier.weight(1f),
-                        enabled = !isLoading // Блокировка
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Группа Еды")
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Button(
-                        onClick = { editMode = EditMode.GroupName(null, false, "") },
-                        modifier = Modifier.weight(1f),
-                        enabled = !isLoading // Блокировка
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Группа Напитков")
-                    }
-                }
-                Divider()
-            }
-            // --- Группы Еды ---
-            item { Text("Меню Еды", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-            items(menu.foodGroups, key = { it.id ?: generateTempId() }) { group ->
-                FoodGroupEditor(
-                    group = group,
-                    // Блокируем вызовы, если идет загрузка
-                    onEditGroupName = { if (!isLoading) editMode = EditMode.GroupName(group.id, true, group.name) },
-                    onAddItem = { if (!isLoading) editMode = EditMode.FoodItem(group.id, null) },
-                    onDeleteItem = { itemId -> if (!isLoading) deleteItem(group.id, itemId, true) },
-                    onEditItem = { item -> if (!isLoading) editMode = EditMode.FoodItem(group.id, item) },
-                    onDeleteGroup = { if (!isLoading) showConfirmDeleteGroup = Pair(group.id, true) }
-                )
-            }
 
-            // --- Группы Напитков ---
-            item { Spacer(Modifier.height(20.dp)); Text("Меню Напитков", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-            items(menu.drinksGroups, key = { it.id ?: generateTempId() }) { group ->
-                DrinksGroupEditor(
-                    group = group,
-                    // Блокируем вызовы, если идет загрузка
-                    onEditGroupName = { if (!isLoading) editMode = EditMode.GroupName(group.id, false, group.name) },
-                    onAddItem = { if (!isLoading) editMode = EditMode.DrinkItem(group.id, null) },
-                    onDeleteItem = { itemId -> if (!isLoading) deleteItem(group.id, itemId, false) },
-                    onEditItem = { item -> if (!isLoading) editMode = EditMode.DrinkItem(group.id, item) },
-                    onDeleteGroup = { if (!isLoading) showConfirmDeleteGroup = Pair(group.id, false) }
-                )
+                // --- Группы Напитков ---
+                item { Spacer(Modifier.height(20.dp)); Text("Меню Напитков", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                items(menu.drinksGroups, key = { it.id ?: generateTempId() }) { group ->
+                    DrinksGroupEditor(
+                        group = group,
+                        onEditGroupName = { if (!isLoading) editMode = EditMode.GroupName(group.id, false, group.name ?: "") },
+                        onAddItem = { if (!isLoading) editMode = EditMode.DrinkItem(group.id, null) },
+                        onDeleteItem = { itemId -> if (!isLoading) deleteItem(group.id, itemId, false) },
+                        onEditItem = { item -> if (!isLoading) editMode = EditMode.DrinkItem(group.id, item) },
+                        onDeleteGroup = { if (!isLoading) showConfirmDeleteGroup = Pair(group.id, false) }
+                    )
+                }
             }
         }
     }
 
-    // --- 4. LaunchedEffect ДЛЯ СТАТУСА СОХРАНЕНИЯ (В реальном коде) ---
-    LaunchedEffect(viewModel.saveStatus) {
-        when (val status = viewModel.saveStatus.value) {
+    // --- 5. LaunchedEffect ДЛЯ СТАТУСА СОХРАНЕНИЯ (Snackbar) ---
+    LaunchedEffect(saveStatus) {
+        when (val status = saveStatus) {
             is SaveStatus.Success -> {
                 snackbarHostState.showSnackbar(message = "Меню успешно сохранено! ✨", withDismissAction = true)
                 viewModel.clearSaveStatus()
             }
             is SaveStatus.Error -> {
-                snackbarHostState.showSnackbar(message = "Ошибка сохранения: ${status.message} ⚠️", withDismissAction = true, duration = SnackbarDuration.Long)
+                snackbarHostState.showSnackbar(
+                    message = "Ошибка сохранения: ${status.message} ⚠️",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Long
+                )
                 viewModel.clearSaveStatus()
             }
             else -> {}
         }
     }
 
-    // --- 5. ДИАЛОГОВЫЕ ОКНА С БЛОКИРОВКОЙ ---
-
-    // 1. Диалог подтверждения удаления группы
+    // --- 6. ДИАЛОГОВЫЕ ОКНА (Без изменений, уже используют isLoading) ---
     showConfirmDeleteGroup?.let { (groupId, isFood) ->
         AlertDialog(
             onDismissRequest = { if (!isLoading) showConfirmDeleteGroup = null },
@@ -287,27 +340,18 @@ fun MenuEditScreen(
         )
     }
 
-    // 2. Диалог редактирования/создания элемента меню
     when (val mode = editMode) {
         is EditMode.FoodItem -> MenuEditDialog(
-            isFood = true,
-            foodItem = mode.item,
-            onDismiss = { if (!isLoading) editMode = EditMode.Idle },
-            onSave = { item -> saveMenuItem(item, mode.groupId) },
-            isLoading = isLoading
+            isFood = true, foodItem = mode.item, onDismiss = { if (!isLoading) editMode = EditMode.Idle },
+            onSave = { item -> saveMenuItem(item, mode.groupId) }, isLoading = isLoading
         )
         is EditMode.DrinkItem -> MenuEditDialog(
-            isFood = false,
-            drinkItem = mode.item,
-            onDismiss = { if (!isLoading) editMode = EditMode.Idle },
-            onSave = { item -> saveMenuItem(item, mode.groupId) },
-            isLoading = isLoading
+            isFood = false, drinkItem = mode.item, onDismiss = { if (!isLoading) editMode = EditMode.Idle },
+            onSave = { item -> saveMenuItem(item, mode.groupId) }, isLoading = isLoading
         )
         is EditMode.GroupName -> GroupNameEditDialog(
-            currentName = mode.currentName,
-            onDismiss = { if (!isLoading) editMode = EditMode.Idle },
-            onSave = { newName -> saveGroupName(mode.groupId, mode.isFood, newName) },
-            isLoading = isLoading
+            currentName = mode.currentName, onDismiss = { if (!isLoading) editMode = EditMode.Idle },
+            onSave = { newName -> saveGroupName(mode.groupId, mode.isFood, newName) }, isLoading = isLoading
         )
         EditMode.Idle -> { /* Ничего не показываем */ }
     }
@@ -321,10 +365,10 @@ fun FoodGroupEditor(
     onDeleteItem: (Long?) -> Unit, onEditItem: (Food) -> Unit, onDeleteGroup: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        GroupHeader(group.name, onEditGroupName, onAddItem, onDeleteGroup)
+        GroupHeader(group.name ?: "", onEditGroupName, onAddItem, onDeleteGroup)
         Spacer(Modifier.height(4.dp))
         group.items.forEach { food ->
-            MenuItemCard(food.name, "Вес: ${food.weight} г, Цена: ${food.cost} р.", { onEditItem(food) }, { onDeleteItem(food.id) })
+            MenuItemCard(food.name ?: "", "Вес: ${food.weight} г, Цена: ${food.cost} р.", { onEditItem(food) }, { onDeleteItem(food.id) })
             Spacer(Modifier.height(4.dp))
         }
         if (group.items.isEmpty()) Text("Нет блюд в этой группе.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
@@ -337,11 +381,11 @@ fun DrinksGroupEditor(
     onDeleteItem: (Long?) -> Unit, onEditItem: (Drink) -> Unit, onDeleteGroup: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        GroupHeader(group.name, onEditGroupName, onAddItem, onDeleteGroup)
+        GroupHeader(group.name ?: "", onEditGroupName, onAddItem, onDeleteGroup)
         Spacer(Modifier.height(4.dp))
         group.items.forEach { drink ->
             val optionsText = drink.options.joinToString { "${it.sizeMl} мл / ${it.cost} р." }
-            MenuItemCard(drink.name, optionsText, { onEditItem(drink) }, { onDeleteItem(drink.id) })
+            MenuItemCard(drink.name ?: "", optionsText, { onEditItem(drink) }, { onDeleteItem(drink.id) })
             Spacer(Modifier.height(4.dp))
         }
         if (group.items.isEmpty()) Text("Нет напитков в этой группе.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
