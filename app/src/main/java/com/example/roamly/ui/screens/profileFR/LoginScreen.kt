@@ -4,8 +4,10 @@ import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer // <-- Добавлен импорт
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height // <-- Добавлен импорт
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +29,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import kotlin.math.log
 
 @Composable
 fun LoginScreen(
@@ -35,6 +38,12 @@ fun LoginScreen(
 ) {
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+
+    // ⭐ 1. ИЗМЕНЕНИЕ: Используем String? для хранения текста ошибки
+    var loginError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var serverError by remember { mutableStateOf<String?>(null) }
+
 
     Column (
         modifier = Modifier
@@ -45,30 +54,83 @@ fun LoginScreen(
     ) {
         OutlinedTextField(
             value = login,
-            onValueChange = { login = it },
-            label = { Text(text = "Введите логин") }
+            // ⭐ 2. ИЗМЕНЕНИЕ: isError и supportingText
+            isError = loginError != null,
+            onValueChange = {
+                login = it
+                // Сбрасываем ошибку, как только пользователь начинает печатать
+                if (loginError != null) loginError = null
+                if (serverError != null) serverError = null
+            },
+            label = { Text(text = "Введите логин") },
+            supportingText = {
+                if (loginError != null) {
+                    Text(text = loginError!!, color = MaterialTheme.colorScheme.error)
+                }
+            }
         )
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
-            label = { Text(text = "Введите пароль") }
+            // ⭐ 2. ИЗМЕНЕНИЕ: isError и supportingText
+            isError = passwordError != null,
+            onValueChange = {
+                password = it
+                // Сбрасываем ошибку, как только пользователь начинает печатать
+                if (passwordError != null) passwordError = null
+                if (serverError != null) serverError = null
+            },
+            label = { Text(text = "Введите пароль") },
+            supportingText = {
+                if (passwordError != null) {
+                    Text(text = passwordError!!, color = MaterialTheme.colorScheme.error)
+                }
+            }
         )
 
         Button(
             modifier = Modifier.fillMaxWidth(0.7f),
             onClick = {
-                if (login.length > 3 && password.length > 3){
-                    userViewModel.loginUser(login = login, password = password, { createdUser ->
+                // ⭐ 3. ИЗМЕНЕНИЕ: Улучшенная логика валидации
+                // Сначала сбрасываем ошибки
+                loginError = null
+                passwordError = null
+                serverError = null
+
+                // Проверяем
+                if (login.length <= 3 ) {
+                    loginError = "Логин должен быть длиннее 3 символов"
+                }
+                if (password.length <= 3 ) {
+                    passwordError = "Пароль должен быть длиннее 3 символов"
+                }
+
+                // Если локальных ошибок нет, пробуем войти
+                if (loginError == null && passwordError == null){
+                    userViewModel.loginUser(login = login, password = password) { createdUser ->
                         if (createdUser != null) {
                             Log.i("LoginScreen", "Пользователь вошел с id: ${createdUser.id}")
                             navController.popBackStack()
+                        } else {
+                            // Ошибка от сервера
+                            serverError = "Неверный логин или пароль"
                         }
-                    })
+                    }
                 }
             }
         ) {
             Text(text = "Войти в аккаунт")
+        }
+
+        // ⭐ 4. ДОБАВЛЕНО: Отображение ошибки сервера
+        if (serverError != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = serverError!!,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
+            )
         }
 
         Text(

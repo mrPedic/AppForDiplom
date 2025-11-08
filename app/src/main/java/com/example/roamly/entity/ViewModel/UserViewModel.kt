@@ -56,10 +56,10 @@ class UserViewModel @Inject constructor(
         _isServerConnected.value = isConnected
     }
 
-    fun registerUser(name: String, login: String, password: String, email: String, onResult: (User?) -> Unit) {
+    fun registerUser(name: String, login: String, password: String, onResult: (User?) -> Unit) {
         viewModelScope.launch {
             try {
-                val newUser = User(name = name, login = login, password = password, email = email)
+                val newUser = User(name = name, login = login, password = password)
                 val newId = withContext(Dispatchers.IO) {
                     apiService.createUser(newUser)
                 }
@@ -125,7 +125,7 @@ class UserViewModel @Inject constructor(
     fun isLoggedIn(): Boolean = user.value.role != Role.UnRegistered
     fun isAdmin(): Boolean = user.value.role == Role.AdminOfApp || user.value.role == Role.AdminOfInstitution
     fun getAllData(): String = user.value.let {
-        "Name: ${it.name}, Role: ${it.role}, Login: ${it.login}, Email: ${it.email}, Password: [HIDDEN], Id: ${it.id}"
+        "Name: ${it.name}, Role: ${it.role}, Login: ${it.login}, Password: [HIDDEN], Id: ${it.id}"
     }
 
     // --- Private Helpers ---

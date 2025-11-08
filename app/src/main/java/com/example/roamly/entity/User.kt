@@ -10,7 +10,6 @@ data class User(
     val login: String = "",
     val password: String = "", // Используется для API-запросов
     var role: Role = Role.UnRegistered,
-    var email: String = "" // ⭐ ДОБАВЛЕНО: Поле электронной почты
 )
 
 /**

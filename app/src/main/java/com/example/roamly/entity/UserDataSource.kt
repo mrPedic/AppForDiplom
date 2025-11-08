@@ -60,7 +60,6 @@ class UserDataSource @Inject constructor(
             putString(PrefKeys.NAME, user.name)
             putString(PrefKeys.LOGIN, user.login)
             putString(PrefKeys.ROLE, user.role.name)
-            putString(PrefKeys.EMAIL, user.email)
             apply()
         }
         // Обновляем Flow, скрывая пароль
@@ -118,7 +117,6 @@ class UserDataSource @Inject constructor(
                 id = id,
                 name = prefs.getString(PrefKeys.NAME, "")!!,
                 login = prefs.getString(PrefKeys.LOGIN, "")!!,
-                email = prefs.getString(PrefKeys.EMAIL, "")!!,
                 password = "", // Пароль не хранится и не загружается
                 role = Role.valueOf(roleString)
             )

@@ -4,8 +4,10 @@ import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer // <-- 1. Добавлен импорт
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height // <-- 2. Добавлен импорт
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -36,17 +38,21 @@ fun SingUpScreen(
 ) {
     var username by remember { mutableStateOf("") }
     var login by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") } // ⭐ ДОБАВЛЕНО: Состояние для email
     var password by remember { mutableStateOf("") }
+
+    // ⭐ 3. ИЗМЕНЕНИЕ: Используем String? для хранения текста ошибки
+    var usernameError by remember { mutableStateOf<String?>(null) }
+    var loginError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var serverError by remember { mutableStateOf<String?>(null) } // Ошибка от сервера
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 100.dp, bottom = 100.dp), // Увеличен отступ для размещения всех полей
+            .padding(top = 100.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ⭐ ДОБАВЛЕНО: Заголовок
         Text(
             text = "Регистрация",
             style = MaterialTheme.typography.headlineLarge,
@@ -54,52 +60,108 @@ fun SingUpScreen(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
+        // --- Поле Имени ---
         OutlinedTextField(
             value = username,
-            onValueChange = { username = it },
-            label = { Text(text = "Введите имя пользователя") }
+            isError = usernameError != null, // Проверяем наличие ошибки
+            onValueChange = {
+                username = it
+                usernameError = null // Сбрасываем ошибку при вводе
+                serverError = null
+            },
+            label = { Text(text = "Введите имя пользователя") },
+            // Добавляем supportingText для отображения ошибки
+            supportingText = {
+                if (usernameError != null) {
+                    Text(text = usernameError!!, color = MaterialTheme.colorScheme.error)
+                }
+            }
         )
 
-        // ⭐ ДОБАВЛЕНО: Поле для Email
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text(text = "Введите Email") }
-        )
-
+        // --- Поле Логина ---
         OutlinedTextField(
             value = login,
-            onValueChange = { login = it },
-            label = { Text(text = "Введите логин") }
+            isError = loginError != null,
+            onValueChange = {
+                login = it
+                loginError = null // Сбрасываем ошибку при вводе
+                serverError = null
+            },
+            label = { Text(text = "Введите логин") },
+            supportingText = {
+                if (loginError != null) {
+                    Text(text = loginError!!, color = MaterialTheme.colorScheme.error)
+                }
+            }
         )
 
+        // --- Поле Пароля ---
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
-            label = { Text(text = "Введите пароль") }
+            isError = passwordError != null,
+            onValueChange = {
+                password = it
+                passwordError = null // Сбрасываем ошибку при вводе
+                serverError = null
+            },
+            label = { Text(text = "Введите пароль") },
+            supportingText = {
+                if (passwordError != null) {
+                    Text(text = passwordError!!, color = MaterialTheme.colorScheme.error)
+                }
+            }
         )
 
         Button(
             modifier = Modifier.fillMaxWidth(0.7f),
             onClick = {
-                // ⭐ ОБНОВЛЕНО: Добавлена проверка email
-                if (username.length > 3 && login.length > 3 && password.length > 3 && email.length > 5) {
-                    // ⭐ ОБНОВЛЕНО: Передаем email в registerUser
-                    userViewModel.registerUser(username, login, password, email) { createdUser ->
+                // ⭐ 4. ИЗМЕНЕНИЕ: Улучшенная логика валидации
+                // Сначала сбрасываем ошибки
+                usernameError = null
+                loginError = null
+                passwordError = null
+                serverError = null
+
+                // Валидация полей
+                if (username.length <= 3) {
+                    usernameError = "Имя должно быть длиннее 3 символов"
+                }
+                if (login.length <= 3) {
+                    loginError = "Логин должен быть длиннее 3 символов"
+                }
+                if (password.length <= 3) {
+                    passwordError = "Пароль должен быть длиннее 3 символов"
+                }
+
+                // Если локальных ошибок нет, отправляем запрос
+                if (usernameError == null && loginError == null && passwordError == null) {
+                    userViewModel.registerUser(username, login, password) { createdUser ->
                         if (createdUser != null) {
                             Log.i("SingUpScreen", "✅ Пользователь создан с id: ${createdUser.id}")
                             navController.popBackStack()
                         } else {
                             Log.e("SingUpScreen", "Ошибка при регистрации")
+                            // Отображаем ошибку сервера
+                            serverError = "Ошибка регистрации. Возможно, логин занят."
                         }
                     }
                 } else {
-                    Log.w("SingUpScreen", "Ошибка: Все поля должны быть заполнены и иметь достаточную длину.")
-                    // В реальном приложении здесь было бы Toast или Snackbar
+                    Log.w("SingUpScreen", "Ошибка: Локальная валидация не пройдена.")
                 }
             }
         ) {
             Text(text = "Зарегистрироваться")
+        }
+
+        // ⭐ 5. ДОБАВЛЕНО: Отображение ошибки сервера
+        if (serverError != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = serverError!!,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
+            )
         }
 
         Text(
@@ -108,7 +170,7 @@ fun SingUpScreen(
                 navController.navigate(route = LogSinUpScreens.Login.route)
             },
             text = "Войти в существующий аккаунт",
-            color = MaterialTheme.colorScheme.primary, // Используем основную тему вместо Magenta
+            color = MaterialTheme.colorScheme.primary,
             fontSize = MaterialTheme.typography.bodySmall.fontSize,
             fontWeight = FontWeight.Bold
         )
@@ -120,14 +182,3 @@ fun SingUpScreen(
 fun SingUpScreenPreview() {
     SingUpScreen(navController = rememberNavController(), userViewModel = hiltViewModel())
 }
-
-
-/**
- * Column:                    Row:                    Box:
- *  ↑ Top                     → Start                 +-----------+
- *  │                         │                       | TopStart  |
- *  │                         │                       |           |
- *  │                         │                       |   Center  |
- *  │                         │                       |           |
- *  ↓ Bottom                  ← End                   | BottomEnd |
- * */
