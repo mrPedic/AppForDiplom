@@ -40,7 +40,7 @@ fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel,
-    mapRefreshKey: Boolean // ⭐ ДОБАВЛЕНО: Ключ для принудительного обновления карты
+    mapRefreshKey: Boolean
 ) {
     NavHost(
         navController = navController,

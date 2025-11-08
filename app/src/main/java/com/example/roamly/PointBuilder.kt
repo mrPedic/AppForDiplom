@@ -127,18 +127,20 @@ class PointBuilder(
      */
     @Composable
     fun BuildAllMarkers(
-        viewModel: EstablishmentViewModel = hiltViewModel()
+        viewModel: EstablishmentViewModel = hiltViewModel(),
+        mapRefreshKey: Boolean
     ) {
-        // ⭐ ИЗМЕНЕНИЕ 1: Collect EstablishmentMarkerDto
         val establishments by viewModel.establishmentMarkers.collectAsState(initial = emptyList())
         val isLoading by viewModel.isLoading.collectAsState(initial = false)
         val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
-        LaunchedEffect(key1 = viewModel) {
-            if (establishments.isEmpty() && !isLoading && errorMessage == null) {
-                // ⭐ ИЗМЕНЕНИЕ 2: Вызов нового метода
-                viewModel.fetchEstablishmentMarkers()
-            }
+        // ⭐ 2. РЕАГИРУЕМ НА ИЗМЕНЕНИЕ КЛЮЧА
+        LaunchedEffect(key1 = mapRefreshKey) {
+            // Этот блок будет запускаться при первой композиции И каждый раз,
+            // когда mapRefreshKey меняется (с false на true и обратно).
+
+            Log.d("PointBuilder", "Запускаем fetchEstablishmentMarkers. RefreshKey: $mapRefreshKey")
+            viewModel.fetchEstablishmentMarkers()
         }
 
         if (!isLoading && errorMessage == null) {

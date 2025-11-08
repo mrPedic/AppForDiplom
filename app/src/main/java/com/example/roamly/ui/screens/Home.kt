@@ -58,6 +58,6 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
 
     mapState?.let { mapView ->
         val pointBuilder = remember(mapView) { PointBuilder(mapView) }
-        pointBuilder.BuildAllMarkers()
+        pointBuilder.BuildAllMarkers(mapRefreshKey = refreshTrigger)
     }
 }

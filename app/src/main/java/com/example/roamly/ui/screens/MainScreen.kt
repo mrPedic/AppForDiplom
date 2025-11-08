@@ -112,7 +112,7 @@ fun MainScreen(
             navController = navController,
             modifier = Modifier.padding(innerPadding),
             userViewModel = userViewModel,
-            mapRefreshKey = mapRefreshKey // ⭐ ПЕРЕДАЧА КЛЮЧА
+            mapRefreshKey = mapRefreshKey
         )
     }
 }
@@ -138,7 +138,7 @@ fun getCurrentTopAppBarTitle(currentRoute: String?): String {
         currentRoute == EstablishmentScreens.UserEstablishments.route -> "Мои заведения"
         currentRoute == EstablishmentScreens.CreateEstablishment.route -> "Создание заведения"
         currentRoute == EstablishmentScreens.MapPicker.route -> "Выбор места заведения"
-        currentRoute == SealedButtonBar.AdminPanel.route -> "Админ-панель" // ⭐ ИСПРАВЛЕНО
+        currentRoute == SealedButtonBar.AdminPanel.route -> "（￣︶￣）↗　"
         currentRoute == AdminScreens.PendingList.route -> "Заявки на одобрение"
 
         // Если маршрут не определен или null

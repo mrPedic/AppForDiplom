@@ -189,9 +189,7 @@ fun EstablishmentHeader(
                 .fillMaxWidth()
                 .height(200.dp)
         ) {
-            val mainPhotoBase64 = establishment?.photoBase64s
-                ?.filter { it.isNotBlank() }
-                ?.firstOrNull()
+            val mainPhotoBase64 = establishment?.photoBase64s?.firstOrNull { it.isNotBlank() }
 
             // Добавим логгирование для отладки
             LaunchedEffect(mainPhotoBase64) {
