@@ -53,13 +53,6 @@ fun SingUpScreen(
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Регистрация",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
         // --- Поле Имени ---
         OutlinedTextField(
             value = username,
