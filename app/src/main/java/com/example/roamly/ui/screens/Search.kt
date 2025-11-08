@@ -1,6 +1,5 @@
 package com.example.roamly.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,23 +13,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.DTO.EstablishmentDisplayDto
-import com.example.roamly.entity.ViewModel.EstablishmentViewModel // Импорт вашего ViewModel
+import com.example.roamly.entity.DTO.EstablishmentSearchResultDto // ⭐ ИСПРАВЛЕНИЕ: Используем новый DTO
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.entity.DTO.EstablishmentDisplayDto // Оставляем, если он используется в другом месте
 
 @Composable
 fun SearchScreen(
     navController: NavController,
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
-    // Состояние для поля поиска
     var searchQuery by remember { mutableStateOf("") }
 
-    // Получаем результаты поиска из ViewModel
-    // NOTE: Вам нужно убедиться, что у вас есть StateFlow в ViewModel для хранения результатов поиска
-    // или использовать уже существующий userEstablishments, если он подходит для этой цели.
-    val searchResults by viewModel.userEstablishments.collectAsState(initial = emptyList())
-    val isLoading by viewModel.isLoading.collectAsState(initial = false)
+    // ⭐ ИСПРАВЛЕНИЕ 1: Используем правильные StateFlow для поиска
+    val searchResults by viewModel.establishmentSearchResults.collectAsState(initial = emptyList())
+    val isLoading by viewModel.isSearchLoading.collectAsState(initial = false) // Используем правильный флаг загрузки
 
     Column(
         modifier = Modifier
@@ -42,7 +39,7 @@ fun SearchScreen(
             value = searchQuery,
             onValueChange = { newValue ->
                 searchQuery = newValue
-                // ⭐ Выполняем поиск при каждом изменении (или можно добавить debounce)
+                // ⭐ ВЫЗОВ VM: Логика предотвращения HTTP 400 уже в ViewModel
                 viewModel.searchEstablishments(newValue)
             },
             label = { Text("Название или адрес") },
@@ -56,7 +53,7 @@ fun SearchScreen(
         // Отображение результатов
         if (isLoading) {
             Box(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
@@ -66,6 +63,7 @@ fun SearchScreen(
         } else {
             LazyColumn {
                 items(searchResults) { establishment ->
+                    // ⭐ ИСПРАВЛЕНИЕ 2: Передаем EstablishmentSearchResultDto
                     EstablishmentResultItem(
                         establishment = establishment,
                         navController = navController
@@ -77,22 +75,23 @@ fun SearchScreen(
     }
 }
 
+// ⭐ ИСПРАВЛЕНИЕ: ОБНОВЛЕНИЕ EstablishmentResultItem для приема EstablishmentSearchResultDto
 @Composable
 fun EstablishmentResultItem(
-    establishment: EstablishmentDisplayDto,
+    establishment: EstablishmentSearchResultDto, // Используем EstablishmentSearchResultDto
     navController: NavController
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = {
-                // ⭐ НАВИГАЦИЯ НА ЭКРАН ДЕТАЛЕЙ
                 navController.navigate(
                     EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id)
                 )
             })
             .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
             Text(
@@ -106,10 +105,11 @@ fun EstablishmentResultItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        // Опционально: можно показать статус или рейтинг
+        // Отображение рейтинга
         Text(
+            // Rating - это Double в новом DTO
             text = "Рейтинг: ${String.format("%.1f", establishment.rating)}",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium, // Немного увеличен размер
             color = MaterialTheme.colorScheme.secondary
         )
     }

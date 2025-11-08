@@ -9,6 +9,7 @@ import com.example.roamly.entity.BookingCreationDto
 import com.example.roamly.entity.BookingEntity
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
+import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
 import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.ReviewEntity
@@ -50,9 +51,8 @@ interface ApiService {
     @GET("establishments/markers")
     suspend fun getAllEstablishmentMarkers(): List<EstablishmentMarkerDto>
 
-    @GET("establishments/search")
-    suspend fun searchEstablishments(@Query("query") query: String): List<EstablishmentDisplayDto>
-
+    @GET("establishments/search") // Примерный URL
+    suspend fun searchEstablishments(@Query("query") query: String): List<EstablishmentSearchResultDto>
     @GET("establishments/pending")
     suspend fun getPendingEstablishments(): List<EstablishmentDisplayDto>
 

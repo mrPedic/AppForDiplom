@@ -16,6 +16,7 @@ import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.BookingCreationDto
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
+import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
 import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentStatus
@@ -28,6 +29,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -76,8 +82,6 @@ class EstablishmentViewModel @Inject constructor(
     // ===================================================== //
 
     private val _tables = MutableStateFlow<List<TableEntity>>(emptyList())
-    // Список всех столов заведения
-    val tables: StateFlow<List<TableEntity>> = _tables
 
     // Список столов, доступных для бронирования на выбранную дату/время
     private val _availableTables = MutableStateFlow<List<TableEntity>>(emptyList())
@@ -152,38 +156,67 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
+    private val _searchQueryFlow = MutableStateFlow("")
+
+    // ⭐ СУЩЕСТВУЮЩИЕ ПОТОКИ: Результаты и состояние загрузки
+    private val _establishmentSearchResults = MutableStateFlow<List<EstablishmentSearchResultDto>>(emptyList())
+    val establishmentSearchResults: StateFlow<List<EstablishmentSearchResultDto>> = _establishmentSearchResults.asStateFlow()
+
+    private val _isSearchLoading = MutableStateFlow(false)
+    val isSearchLoading: StateFlow<Boolean> = _isSearchLoading.asStateFlow()
+
+    init {
+        // Начальное значение StateFlow уже должно быть ""
+        _searchQueryFlow // Начальное значение: ""
+            .debounce(300L) // Ждем 300 мс после последнего ввода
+            .distinctUntilChanged() // Игнорируем повторные одинаковые значения
+            .filter { it.isNotEmpty() } // ⭐ ГЛАВНОЕ ИСПРАВЛЕНИЕ: Фильтруем пустые значения ДО onEach
+            .onEach { query ->
+                performSearch(query)
+            }
+            .launchIn(viewModelScope)
+
+        // Добавляем отдельный обработчик для пустых запросов
+        _searchQueryFlow
+            .filter { it.isBlank() } // Фильтруем только пустые значения
+            .onEach {
+                _establishmentSearchResults.value = emptyList()
+                _isSearchLoading.value = false
+                Log.i("EstViewModel", "Запрос поиска пуст. Запрос на сервер не отправлен.")
+            }
+            .launchIn(viewModelScope)
+    }
+
     /**
-     * Выполняет поиск заведений по названию или адресу.
-     * @param query Строка поиска (название или адрес).
+     * Вызывается из UI при каждом изменении поля. Обновляет поток запроса.
+     * @param query Строка поиска.
      */
     fun searchEstablishments(query: String) {
-        if (query.isBlank()) {
-            _userEstablishments.value = emptyList()
-            return
-        }
+        _searchQueryFlow.value = query // Просто обновляем StateFlow
+    }
 
-        _isLoading.value = true
-        _errorMessage.value = null
+
+    private fun performSearch(query: String) {
+        _isSearchLoading.value = true
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val results = apiService.searchEstablishments(query)
+                // ⭐ ВЫЗЫВАЕМ API
+                val results: List<EstablishmentSearchResultDto> = apiService.searchEstablishments(query)
 
                 withContext(Dispatchers.Main) {
-                    _userEstablishments.value = results
+                    _establishmentSearchResults.value = results
                     Log.i("EstViewModel", "Найдено заведений по запросу '$query': ${results.size}")
-                    _errorMessage.value = null
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     val msg = "Ошибка поиска заведений: ${e.message}"
                     Log.e("EstViewModel", msg)
-                    _errorMessage.value = "Ошибка при поиске заведений. Проверьте соединение."
-                    _userEstablishments.value = emptyList()
+                    _establishmentSearchResults.value = emptyList()
                 }
             } finally {
                 withContext(Dispatchers.Main) {
-                    _isLoading.value = false
+                    _isSearchLoading.value = false
                 }
             }
         }

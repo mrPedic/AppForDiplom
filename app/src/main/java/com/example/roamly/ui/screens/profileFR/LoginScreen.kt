@@ -139,7 +139,7 @@ fun LoginScreen(
                 navController.navigate(route = LogSinUpScreens.SingUp.route)
             },
             text = "Созать новый аккаунт",
-            color = Color.Magenta,
+            color = MaterialTheme.colorScheme.primary,
             fontSize = MaterialTheme.typography.bodySmall.fontSize,
             fontWeight = FontWeight.Bold
         )
