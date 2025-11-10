@@ -1098,4 +1098,45 @@ class EstablishmentViewModel @Inject constructor(
             }
         }
     }
+
+    private val _selectedEstablishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
+    val selectedEstablishment: StateFlow<EstablishmentDisplayDto?> = _selectedEstablishment.asStateFlow()
+
+    private val _isDetailWidgetVisible = MutableStateFlow(false)
+    val isDetailWidgetVisible: StateFlow<Boolean> = _isDetailWidgetVisible.asStateFlow()
+
+    fun loadEstablishmentDetails(id: Long) {
+        _isDetailWidgetVisible.value = false // Скрываем предыдущий виджет на время загрузки
+        _selectedEstablishment.value = null  // Очищаем предыдущие данные
+
+        // Включаем индикатор загрузки, если нужно
+        // _isDetailsLoading.value = true
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // ⭐ ВЫЗОВ API: Получаем полный DTO по ID.
+                // Вам нужно создать apiService.getEstablishmentById(id)
+                val details: EstablishmentDisplayDto = apiService.getEstablishmentById(id)
+
+                withContext(Dispatchers.Main) {
+                    _selectedEstablishment.value = details
+                    _isDetailWidgetVisible.value = true // Показываем виджет с полными данными
+                    Log.d("EstViewModel", "Полные данные заведения ID $id загружены: ${details.name}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("EstViewModel", "Ошибка загрузки деталей заведения ID $id: ${e.message}")
+                    // Добавьте логику обработки ошибок, например, показ Toast
+                }
+            } finally {
+                // _isDetailsLoading.value = false
+            }
+        }
+    }
+
+    fun closeDetailWidget() {
+        _isDetailWidgetVisible.value = false
+        _selectedEstablishment.value = null
+        Log.d("EstViewModel", "Виджет деталей закрыт.")
+    }
 }

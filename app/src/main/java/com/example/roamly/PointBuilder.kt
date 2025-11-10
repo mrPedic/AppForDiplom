@@ -24,8 +24,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToColor
-import com.example.roamly.factory.RetrofitFactory
-import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer // Убедитесь, что это импортировано!
+import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer
 import org.osmdroid.bonuspack.clustering.StaticCluster
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -45,11 +44,8 @@ class PointBuilder(
 
         // Инициализация кластеризатора в init блоке
         markerClusterer = object : RadiusMarkerClusterer(mapView.context) {
-            // Override buildClusterMarker to customize the cluster icon and its click listener
             override fun buildClusterMarker(cluster: StaticCluster, mapView: MapView): Marker {
                 val clusterMarker = super.buildClusterMarker(cluster, mapView)
-
-                // Create the text paint object
                 val textPaint = Paint().apply {
                     color = Color.WHITE
                     textSize = 12.dpToPx().toFloat()
@@ -57,21 +53,16 @@ class PointBuilder(
                     isFakeBoldText = true
                     isAntiAlias = true
                 }
-
                 val clusterIconBitmap =
                     createClusterIconBitmap(mapView.context).copy(Bitmap.Config.ARGB_8888, true)
                 val canvas = Canvas(clusterIconBitmap)
-
                 val text = cluster.size.toString()
                 val x = clusterIconBitmap.width / 2f
                 val y =
                     (clusterIconBitmap.height / 2f) - ((textPaint.descent() + textPaint.ascent()) / 2f)
                 canvas.drawText(text, x, y, textPaint)
-
                 clusterMarker.icon = BitmapDrawable(mapView.context.resources, clusterIconBitmap)
 
-                // --- START OF THE FIX ---
-                // Set the click listener directly on the marker being built
                 clusterMarker.setOnMarkerClickListener { marker, map ->
                     Log.d("PointBuilder", "Клик по кластеру: ${marker.title}")
                     try {
@@ -82,63 +73,42 @@ class PointBuilder(
                     }
                     true // Event handled
                 }
-                // --- END OF THE FIX ---
-
                 return clusterMarker
             }
         }.apply {
-            // Радиус кластеризации в пикселях
             setRadius(100)
-
-            // Create a base bitmap for the cluster icon.
-            // This is still useful as a fallback or for the initial state.
             val clusterIconBitmap = createClusterIconBitmap(mapView.context)
             setIcon(clusterIconBitmap)
         }
-        // Добавляем кластеризатор в оверлеи карты
         mapView.overlays.add(markerClusterer)
     }
 
-    /**
-     * Создает Bitmap для иконки кластера.
-     * ✅ Теперь возвращает Bitmap, а не Drawable
-     */
     private fun createClusterIconBitmap(context: Context): Bitmap {
         try {
             val sizePx = 40.dpToPx()
-
-            // Создание фона (фиолетовый круг)
             val clusterBackground = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#FF6200EE"))
+                setColor(Color.parseColor("#FF6200EE")) // Можете использовать MaterialTheme
                 setBounds(0, 0, sizePx, sizePx)
             }
-
             return createBitmapFromDrawable(clusterBackground)
         } catch (e: Exception) {
             Log.e("PointBuilder", "Ошибка создания иконки кластера: ${e.message}", e)
-            // Возвращаем запасной Bitmap, чтобы избежать краша
             return Bitmap.createBitmap(40, 40, Bitmap.Config.ARGB_8888)
         }
     }
 
-    /**
-     * Компонент Compose, который заполняет карту маркерами из ViewModel.
-     */
     @Composable
     fun BuildAllMarkers(
         viewModel: EstablishmentViewModel = hiltViewModel(),
         mapRefreshKey: Boolean
     ) {
+        // establishmentMarkers - это List<EstablishmentMarkerDto> (облегченный)
         val establishments by viewModel.establishmentMarkers.collectAsState(initial = emptyList())
         val isLoading by viewModel.isLoading.collectAsState(initial = false)
         val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
-        // ⭐ 2. РЕАГИРУЕМ НА ИЗМЕНЕНИЕ КЛЮЧА
         LaunchedEffect(key1 = mapRefreshKey) {
-            // Этот блок будет запускаться при первой композиции И каждый раз,
-            // когда mapRefreshKey меняется (с false на true и обратно).
-
             Log.d("PointBuilder", "Запускаем fetchEstablishmentMarkers. RefreshKey: $mapRefreshKey")
             viewModel.fetchEstablishmentMarkers()
         }
@@ -147,19 +117,13 @@ class PointBuilder(
             LaunchedEffect(establishments) {
                 try {
                     markerClusterer.items.clear()
-
                     if (establishments.isNotEmpty()) {
-                        Log.d(
-                            "PointBuilder",
-                            "Найдено ${establishments.size} заведений для отображения."
-                        )
-
-                        // ⭐ ИЗМЕНЕНИЕ 3: Передача EstablishmentMarkerDto
+                        Log.d("PointBuilder", "Найдено ${establishments.size} заведений для отображения.")
                         establishments.forEach { establishment ->
-                            val marker = createEstablishmentMarker(establishment)
+                            // Передаем VM в функцию создания маркера
+                            val marker = createEstablishmentMarker(establishment, viewModel)
                             markerClusterer.add(marker)
                         }
-
                         markerClusterer.clusterer(mapView)
                         mapView.invalidate()
                     } else {
@@ -167,62 +131,39 @@ class PointBuilder(
                     }
                 } catch (e: Exception) {
                     Log.e("PointBuilder", "Ошибка при обновлении маркеров: ${e.message}", e)
-                    Toast.makeText(
-                        mapView.context,
-                        "Ошибка загрузки маркеров: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(mapView.context, "Ошибка загрузки маркеров: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
         } else if (errorMessage != null) {
             LaunchedEffect(errorMessage) {
-                Toast.makeText(
-                    mapView.context,
-                    "Ошибка: $errorMessage",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(mapView.context, "Ошибка: $errorMessage", Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    /**
-     * Преобразует XML-макет в Drawable.
-     */
     @SuppressLint("InflateParams", "ResourceType")
-    private fun getMarkerDrawableWithColor(
-        @ColorInt dotColor: Int
-    ): Drawable? {
+    private fun getMarkerDrawableWithColor(@ColorInt dotColor: Int): Drawable? {
         return try {
             val inflater = LayoutInflater.from(mapView.context)
             val markerView = inflater.inflate(R.drawable.ic_map_flag, null)
             val flagRoot = markerView.findViewById<View>(R.id.flag_root)
                 ?: throw IllegalStateException("flag_root not found in ic_map_flag")
-
             val backgroundDrawable = flagRoot.background
             if (backgroundDrawable is GradientDrawable) {
-                // ✅ FIX: Use PorterDuffColorFilter to apply the tint
                 backgroundDrawable.mutate().colorFilter =
                     PorterDuffColorFilter(dotColor, PorterDuff.Mode.SRC_IN)
             } else {
-                // This is a good fallback
                 flagRoot.setBackgroundColor(dotColor)
             }
-
             val sizePx = 20.dpToPx()
             markerView.measure(
                 View.MeasureSpec.makeMeasureSpec(sizePx, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(sizePx, View.MeasureSpec.EXACTLY)
             )
             markerView.layout(0, 0, markerView.measuredWidth, markerView.measuredHeight)
-
-            val bitmap = Bitmap.createBitmap(
-                markerView.measuredWidth,
-                markerView.measuredHeight,
-                Bitmap.Config.ARGB_8888
-            )
+            val bitmap = Bitmap.createBitmap(markerView.measuredWidth, markerView.measuredHeight, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             markerView.draw(canvas)
-
             BitmapDrawable(mapView.context.resources, bitmap)
         } catch (e: Exception) {
             Log.e("PointBuilder", "Ошибка создания кастомной иконки из XML: ${e.message}", e)
@@ -232,9 +173,12 @@ class PointBuilder(
 
     /**
      * Создает один маркер osmdroid.
-     * ⭐ ИЗМЕНЕНИЕ: Принимает EstablishmentMarkerDto
+     * Принимает облегченный DTO (EstablishmentMarkerDto) и ViewModel.
      */
-    private fun createEstablishmentMarker(establishment: EstablishmentMarkerDto): Marker {
+    private fun createEstablishmentMarker(
+        establishment: EstablishmentMarkerDto,
+        viewModel: EstablishmentViewModel
+    ): Marker {
         val geoPoint = GeoPoint(establishment.latitude, establishment.longitude)
         val marker = Marker(mapView)
 
@@ -242,31 +186,22 @@ class PointBuilder(
             position = geoPoint
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
 
-            // Используем тип из EstablishmentMarkerDto
             val customIcon = getMarkerDrawableWithColor(convertTypeToColor(establishment.type))
             if (customIcon != null) {
                 icon = customIcon
             }
 
             title = establishment.name
-            // ⭐ ИЗМЕНЕНИЕ: Используем доступные поля (rating, address)
+            // В subDescription используется только облегченный DTO
             subDescription = "Рейтинг: ${String.format("%.1f", establishment.rating)}\n" +
                     "Адрес: ${establishment.address}\n" +
-                    "Часы: ${establishment.operatingHoursString ?: "Нет данных"}" // Добавили часы работы
+                    "Часы: ${establishment.operatingHoursString ?: "Нет данных"}"
 
-            // Устанавливаем слушатель клика для одиночного маркера
             setOnMarkerClickListener { m, _ ->
-                Toast.makeText(
-                    mapView.context,
-                    "ID заведения: ${establishment.name}",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-                if (m.isInfoWindowShown) {
-                    m.closeInfoWindow()
-                } else {
-                    m.showInfoWindow()
-                }
+                // ⭐ ГЛАВНОЕ ИСПРАВЛЕНИЕ:
+                // Вызываем VM для загрузки ПОЛНЫХ данных по ID
+                viewModel.loadEstablishmentDetails(establishment.id)
+                m.closeInfoWindow() // Закрываем стандартное инфо-окно
                 true
             }
         }
@@ -281,7 +216,6 @@ class PointBuilder(
     private fun createBitmapFromDrawable(drawable: Drawable): Bitmap {
         val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 100
         val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 100
-
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         drawable.setBounds(0, 0, canvas.width, canvas.height)
