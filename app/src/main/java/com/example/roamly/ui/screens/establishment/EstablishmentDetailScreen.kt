@@ -42,12 +42,6 @@ import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import java.util.Calendar
 
-// Используем заглушки для отсутствующих частей
-val convertTypeToWord: (String) -> String = { it }
-val EstablishmentMapTab: @Composable (name: String, latitude: Double, longitude: Double) -> Unit =
-    { name, lat, lon -> Text("Карта для $name ($lat, $lon)", Modifier.fillMaxSize().padding(16.dp)) }
-
-
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable

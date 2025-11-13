@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,40 +14,87 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.DTO.EstablishmentSearchResultDto // ⭐ ИСПРАВЛЕНИЕ: Используем новый DTO
+import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
-import com.example.roamly.entity.DTO.EstablishmentDisplayDto // Оставляем, если он используется в другом месте
+import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.entity.convertTypeToWord
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     navController: NavController,
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var showFilterDialog by remember { mutableStateOf(false) }
 
-    // ⭐ ИСПРАВЛЕНИЕ 1: Используем правильные StateFlow для поиска
+    val selectedTypes by viewModel.selectedTypes.collectAsState(initial = emptySet())
+
     val searchResults by viewModel.establishmentSearchResults.collectAsState(initial = emptyList())
-    val isLoading by viewModel.isSearchLoading.collectAsState(initial = false) // Используем правильный флаг загрузки
+    val isLoading by viewModel.isSearchLoading.collectAsState(initial = false)
+
+
+    // Изменение фильтров (selectedTypes) будет обработано функцией updateFilters
+    // и объединено (combine) в ViewModel.
+    LaunchedEffect(searchQuery) {
+        // Вызываем метод VM, который просто обновляет _searchQueryFlow.
+        viewModel.searchEstablishments(searchQuery)
+    }
+
+    // ⭐ Показываем диалог фильтра
+    if (showFilterDialog) {
+        FilterDialog(
+            currentSelections = selectedTypes, // Используем состояние из VM
+            onDismiss = { showFilterDialog = false },
+            onConfirm = { newSelections ->
+                viewModel.updateFilters(newSelections)
+                showFilterDialog = false
+                // ViewModel автоматически запустит новый поиск через combine
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Поле поиска
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { newValue ->
-                searchQuery = newValue
-                // ⭐ ВЫЗОВ VM: Логика предотвращения HTTP 400 уже в ViewModel
-                viewModel.searchEstablishments(newValue)
-            },
-            label = { Text("Название или адрес") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Поиск") },
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it }, // Просто обновляем состояние
+                label = { Text("Название или адрес") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Поиск") },
+                modifier = Modifier.weight(1f), // Занимает все место
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            // Кнопка фильтра
+            IconButton(onClick = { showFilterDialog = true }) {
+                Icon(Icons.Default.Menu, contentDescription = "Фильтр")
+            }
+        }
+
+        if (selectedTypes.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                selectedTypes.forEach { type ->
+                    FilterChip(
+                        selected = true,
+                        onClick = { /* Можно удалить по клику, если хотите */ },
+                        label = { Text(convertTypeToWord(type)) }
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -63,7 +111,6 @@ fun SearchScreen(
         } else {
             LazyColumn {
                 items(searchResults) { establishment ->
-                    // ⭐ ИСПРАВЛЕНИЕ 2: Передаем EstablishmentSearchResultDto
                     EstablishmentResultItem(
                         establishment = establishment,
                         navController = navController
@@ -75,10 +122,9 @@ fun SearchScreen(
     }
 }
 
-// ⭐ ИСПРАВЛЕНИЕ: ОБНОВЛЕНИЕ EstablishmentResultItem для приема EstablishmentSearchResultDto
 @Composable
 fun EstablishmentResultItem(
-    establishment: EstablishmentSearchResultDto, // Используем EstablishmentSearchResultDto
+    establishment: EstablishmentSearchResultDto,
     navController: NavController
 ) {
     Row(
@@ -113,4 +159,80 @@ fun EstablishmentResultItem(
             color = MaterialTheme.colorScheme.secondary
         )
     }
+}
+
+/**
+ * Новый Composable для диалога выбора фильтрова
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterDialog(
+    currentSelections: Set<TypeOfEstablishment>,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<TypeOfEstablishment>) -> Unit
+) {
+    // Временное состояние, пока пользователь выбирает в диалоге
+    var tempSelections by remember { mutableStateOf(currentSelections) }
+    val allTypes = remember { TypeOfEstablishment.values() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Фильтр по типу заведения") },
+        text = {
+            Column {
+                // Кнопки "Выбрать все" / "Очистить"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TextButton(onClick = { tempSelections = allTypes.toSet() }) {
+                        Text("Выбрать все")
+                    }
+                    TextButton(onClick = { tempSelections = emptySet() }) {
+                        Text("Очистить")
+                    }
+                }
+                Divider()
+                // Список всех типов с чекбоксами
+                LazyColumn(modifier = Modifier.padding(top = 8.dp)) {
+                    items(allTypes) { type ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    tempSelections = if (type in tempSelections) {
+                                        tempSelections - type
+                                    } else {
+                                        tempSelections + type
+                                    }
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = type in tempSelections,
+                                onCheckedChange = { isChecked ->
+                                    tempSelections = if (isChecked) {
+                                        tempSelections + type
+                                    } else {
+                                        tempSelections - type
+                                    }
+                                }
+                            )
+                            Text(convertTypeToWord(type), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(tempSelections) }) {
+                Text("Применить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
 }

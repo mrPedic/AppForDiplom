@@ -26,8 +26,8 @@ import retrofit2.http.Query
 
 interface ApiService {
 
-    // ======================================= //
-    // ===== Все точки для пользователей ===== //
+      // ======================================= //
+     // ===== Все точки для пользователей ===== //
     // ======================================= //
     @POST("auth/register")
     suspend fun createUser(@Body user: User): Long
@@ -35,8 +35,8 @@ interface ApiService {
     @POST("auth/login")
     suspend fun loginUser(@Body user: User): User?
 
-    // =================================== //
-    // ===== Все точки для заведений ===== //
+      // =================================== //
+     // ===== Все точки для заведений ===== //
     // =================================== //
     @POST("establishments/create")
     suspend fun createEstablishment(@Body establishment: EstablishmentEntity): EstablishmentEntity?
@@ -47,12 +47,16 @@ interface ApiService {
     @GET("establishments/getAll")
     suspend fun getAllEstablishments(): List<EstablishmentDisplayDto>
 
-    // ⭐ НОВАЯ ТОЧКА: Загрузка облегченных данных для карты
     @GET("establishments/markers")
     suspend fun getAllEstablishmentMarkers(): List<EstablishmentMarkerDto>
 
-    @GET("establishments/search") // Примерный URL
-    suspend fun searchEstablishments(@Query("query") query: String): List<EstablishmentSearchResultDto>
+    @GET("establishments/search")
+    suspend fun searchEstablishments(
+        @Query("query") query: String,
+        @Query("types") types: List<String>
+    ): List<EstablishmentSearchResultDto>
+
+
     @GET("establishments/pending")
     suspend fun getPendingEstablishments(): List<EstablishmentDisplayDto>
 
@@ -71,8 +75,8 @@ interface ApiService {
         @Body establishment: EstablishmentEntity
     ): EstablishmentDisplayDto
 
-    // ================================== //
-    // ===== Все точки для столиков ===== //
+      // ================================== //
+     // ===== Все точки для столиков ===== //
     // ================================== //
 
     @POST("tables/establishment/{establishmentId}/create")
@@ -84,8 +88,8 @@ interface ApiService {
     @GET("tables/establishment/{establishmentId}")
     suspend fun getTablesByEstablishmentId(@Path("establishmentId") establishmentId: Long): List<TableEntity>
 
-    // =============================== //
-    // ===== Все точки для брони ===== //
+      // =============================== //
+     // ===== Все точки для брони ===== //
     // =============================== //
 
     @GET("bookings/{establishmentId}/available")
@@ -107,14 +111,14 @@ interface ApiService {
     @DELETE("bookings/{bookingId}")
     suspend fun cancelBooking(@Path("bookingId") bookingId: Long): Response<Unit>
 
-    // ================================ //
-    // ===== Все точки для тестов ===== //
+      // ================================ //
+     // ===== Все точки для тестов ===== //
     // ================================ //
     @GET("test/ping")
     suspend fun pingServer(): String
 
-    // ================================= //
-    // ===== Все точки для отзывов ===== //
+      // ================================= //
+     // ===== Все точки для отзывов ===== //
     // ================================= //
     @POST("reviews/create")
     suspend fun createReview(@Body review: ReviewEntity): ReviewEntity
@@ -122,8 +126,8 @@ interface ApiService {
     @GET("reviews/establishment/{establishmentId}") // Соответствует Spring @GetMapping("/establishment/{establishmentId}")
     suspend fun getReviewsByEstablishmentId(@Path("establishmentId") id: Long): List<ReviewEntity>
 
-    // =================================== //
-    // ===== Все точки для меню (NEW)===== //
+      // =================================== //
+     // ===== Все точки для меню (NEW)===== //
     // =================================== //
 
     // --- Получение всего меню по ID заведения ---

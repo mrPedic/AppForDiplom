@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -74,8 +75,20 @@ class EstablishmentViewModel @Inject constructor(
     private val _isReviewsLoading = MutableStateFlow(false)
     val isReviewsLoading: StateFlow<Boolean> = _isReviewsLoading
 
+    // =========================================== //
+    // ===== ПОЛЯ ДЛЯ РАБОТЫ С КАРТОЙ (Map) ===== //
+    // =========================================== //
+
     private val _establishmentMarkers = MutableStateFlow<List<EstablishmentMarkerDto>>(emptyList())
     val establishmentMarkers: StateFlow<List<EstablishmentMarkerDto>> = _establishmentMarkers
+
+    // Потоки для виджета деталей на карте
+    private val _selectedEstablishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
+    val selectedEstablishment: StateFlow<EstablishmentDisplayDto?> = _selectedEstablishment.asStateFlow()
+
+    private val _isDetailWidgetVisible = MutableStateFlow(false)
+    val isDetailWidgetVisible: StateFlow<Boolean> = _isDetailWidgetVisible.asStateFlow()
+
 
     // ===================================================== //
     // ===== ПОЛЯ ДЛЯ РАБОТЫ С БРОНИРОВАНИЕМ (Booking) ===== //
@@ -90,8 +103,154 @@ class EstablishmentViewModel @Inject constructor(
     private val _isBookingLoading = MutableStateFlow(false)
     val isBookingLoading: StateFlow<Boolean> = _isBookingLoading
 
+    // ============================================== //
+    // ===== ПОЛЯ ДЛЯ РАБОТЫ С ПОИСКОМ (Search) ===== //
+    // ============================================== //
+
+    // ⭐ 1. ОПРЕДЕЛЯЕМ ПОЛЯ ДЛЯ ПОИСКА (ОДИН РАЗ)
+
+    // Поток для текстового запроса
+    private val _searchQueryFlow = MutableStateFlow("")
+
+    // Поток для выбранных фильтров (типов)
+    private val _selectedTypesFlow = MutableStateFlow(emptySet<TypeOfEstablishment>())
+    val selectedTypes: StateFlow<Set<TypeOfEstablishment>> = _selectedTypesFlow.asStateFlow()
+
+    // Поток для результатов поиска
+    private val _establishmentSearchResults = MutableStateFlow<List<EstablishmentSearchResultDto>>(emptyList())
+    val establishmentSearchResults: StateFlow<List<EstablishmentSearchResultDto>> = _establishmentSearchResults.asStateFlow()
+
+    // Поток для индикатора загрузки поиска
+    private val _isSearchLoading = MutableStateFlow(false)
+    val isSearchLoading: StateFlow<Boolean> = _isSearchLoading.asStateFlow()
+
+
     // =========================================== //
+    // ===== ИНИЦИАЛИЗАЦИЯ ViewModel (init) ===== //
     // =========================================== //
+
+    init {
+        // ⭐ 2. ОБЪЕДИНЕННЫЙ INIT БЛОК ДЛЯ ПОИСКА (ОДИН РАЗ)
+        // (Удалены все конфликтующие/дублирующиеся init блоки)
+
+        combine(_searchQueryFlow, _selectedTypesFlow) { query, types ->
+            query.trim() to types // Обрезаем пробелы и объединяем в Pair
+        }
+            .debounce(300L) // Ждем 300 мс
+            .distinctUntilChanged() // Игнорируем, если ничего не изменилось
+            .onEach { (query, types) ->
+
+                // Выполняем поиск, только если запрос не пуст ИЛИ выбраны фильтры
+                if (query.isBlank() && types.isEmpty()) {
+                    _establishmentSearchResults.value = emptyList()
+                    _isSearchLoading.value = false
+                    Log.i("EstViewModel", "Запрос пуст, фильтры не выбраны.")
+                } else {
+                    // Если запрос пуст, но есть фильтры, query будет "" (пустая строка)
+                    performSearch(query, types) // Вызов API
+                }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    // =========================================== //
+    // ===== МЕТОДЫ ПОИСКА (Search Methods) ===== //
+    // =========================================== //
+
+    /**
+     * Вызывается из UI (SearchScreen) при каждом изменении поля.
+     * Обновляет поток запроса.
+     * @param query Строка поиска.
+     */
+    fun searchEstablishments(query: String) {
+        _searchQueryFlow.value = query
+    }
+
+    /**
+     * Вызывается из UI (SearchScreen) при применении фильтров.
+     * @param newTypes Новый набор выбранных типов.
+     */
+    fun updateFilters(newTypes: Set<TypeOfEstablishment>) {
+        _selectedTypesFlow.value = newTypes
+    }
+
+    /**
+     * (Private) Фактическое выполнение API-запроса поиска с фильтрами.
+     */
+    private fun performSearch(query: String, types: Set<TypeOfEstablishment>) {
+        _isSearchLoading.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Конвертируем Set<Enum> в List<String> для Retrofit
+                val typeStrings = types.map { it.name }
+
+                // ⭐ ВЫЗЫВАЕМ API С ФИЛЬТРАМИ
+                val results = apiService.searchEstablishments(query, typeStrings)
+
+                withContext(Dispatchers.Main) {
+                    _establishmentSearchResults.value = results
+                    Log.i("EstViewModel", "Найдено заведений по запросу '$query' с фильтрами [${typeStrings.joinToString()}]: ${results.size}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val msg = "Ошибка поиска заведений: ${e.message}"
+                    Log.e("EstViewModel", msg)
+                    _establishmentSearchResults.value = emptyList()
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    _isSearchLoading.value = false
+                }
+            }
+        }
+    }
+
+
+    // ================================================= //
+    // ===== МЕТОДЫ ДЛЯ КАРТЫ (Map Detail Widget) ===== //
+    // ================================================= //
+
+    /**
+     * Загружает полные данные заведения при клике на маркер.
+     */
+    fun loadEstablishmentDetails(id: Long) {
+        _isDetailWidgetVisible.value = false
+        _selectedEstablishment.value = null
+
+        // (Можно добавить _isDetailsLoading.value = true, если есть отдельный индикатор)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Предполагаем, что apiService.getEstablishmentById возвращает EstablishmentDisplayDto
+                val details: EstablishmentDisplayDto = apiService.getEstablishmentById(id)
+
+                withContext(Dispatchers.Main) {
+                    _selectedEstablishment.value = details
+                    _isDetailWidgetVisible.value = true
+                    Log.d("EstViewModel", "Полные данные заведения ID $id загружены: ${details.name}")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("EstViewModel", "Ошибка загрузки деталей заведения ID $id: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Закрывает виджет деталей на карте.
+     */
+    fun closeDetailWidget() {
+        _isDetailWidgetVisible.value = false
+        _selectedEstablishment.value = null
+        Log.d("EstViewModel", "Виджет деталей закрыт.")
+    }
+
+
+    //авыэфлашлщвыфроашщплвфырпарощуцфвралвщдыфпарофывоалщзфыврапргвыфьшсщвцйтифгнам втыфшс твыфргаствлыщфраовырфшщгарвшыщгфаошвщыфрзха
+
+
+
 
 
     /**
@@ -151,72 +310,6 @@ class EstablishmentViewModel @Inject constructor(
             } finally {
                 withContext(Dispatchers.Main) {
                     _isLoading.value = false
-                }
-            }
-        }
-    }
-
-    private val _searchQueryFlow = MutableStateFlow("")
-
-    // ⭐ СУЩЕСТВУЮЩИЕ ПОТОКИ: Результаты и состояние загрузки
-    private val _establishmentSearchResults = MutableStateFlow<List<EstablishmentSearchResultDto>>(emptyList())
-    val establishmentSearchResults: StateFlow<List<EstablishmentSearchResultDto>> = _establishmentSearchResults.asStateFlow()
-
-    private val _isSearchLoading = MutableStateFlow(false)
-    val isSearchLoading: StateFlow<Boolean> = _isSearchLoading.asStateFlow()
-
-    init {
-        // Начальное значение StateFlow уже должно быть ""
-        _searchQueryFlow // Начальное значение: ""
-            .debounce(300L) // Ждем 300 мс после последнего ввода
-            .distinctUntilChanged() // Игнорируем повторные одинаковые значения
-            .filter { it.isNotEmpty() } // ⭐ ГЛАВНОЕ ИСПРАВЛЕНИЕ: Фильтруем пустые значения ДО onEach
-            .onEach { query ->
-                performSearch(query)
-            }
-            .launchIn(viewModelScope)
-
-        // Добавляем отдельный обработчик для пустых запросов
-        _searchQueryFlow
-            .filter { it.isBlank() } // Фильтруем только пустые значения
-            .onEach {
-                _establishmentSearchResults.value = emptyList()
-                _isSearchLoading.value = false
-                Log.i("EstViewModel", "Запрос поиска пуст. Запрос на сервер не отправлен.")
-            }
-            .launchIn(viewModelScope)
-    }
-
-    /**
-     * Вызывается из UI при каждом изменении поля. Обновляет поток запроса.
-     * @param query Строка поиска.
-     */
-    fun searchEstablishments(query: String) {
-        _searchQueryFlow.value = query // Просто обновляем StateFlow
-    }
-
-
-    private fun performSearch(query: String) {
-        _isSearchLoading.value = true
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // ⭐ ВЫЗЫВАЕМ API
-                val results: List<EstablishmentSearchResultDto> = apiService.searchEstablishments(query)
-
-                withContext(Dispatchers.Main) {
-                    _establishmentSearchResults.value = results
-                    Log.i("EstViewModel", "Найдено заведений по запросу '$query': ${results.size}")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    val msg = "Ошибка поиска заведений: ${e.message}"
-                    Log.e("EstViewModel", msg)
-                    _establishmentSearchResults.value = emptyList()
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    _isSearchLoading.value = false
                 }
             }
         }
@@ -1097,46 +1190,5 @@ class EstablishmentViewModel @Inject constructor(
                 _saveStatus.value = SaveStatus.Error(e.message ?: "Неизвестная ошибка сети")
             }
         }
-    }
-
-    private val _selectedEstablishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
-    val selectedEstablishment: StateFlow<EstablishmentDisplayDto?> = _selectedEstablishment.asStateFlow()
-
-    private val _isDetailWidgetVisible = MutableStateFlow(false)
-    val isDetailWidgetVisible: StateFlow<Boolean> = _isDetailWidgetVisible.asStateFlow()
-
-    fun loadEstablishmentDetails(id: Long) {
-        _isDetailWidgetVisible.value = false // Скрываем предыдущий виджет на время загрузки
-        _selectedEstablishment.value = null  // Очищаем предыдущие данные
-
-        // Включаем индикатор загрузки, если нужно
-        // _isDetailsLoading.value = true
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // ⭐ ВЫЗОВ API: Получаем полный DTO по ID.
-                // Вам нужно создать apiService.getEstablishmentById(id)
-                val details: EstablishmentDisplayDto = apiService.getEstablishmentById(id)
-
-                withContext(Dispatchers.Main) {
-                    _selectedEstablishment.value = details
-                    _isDetailWidgetVisible.value = true // Показываем виджет с полными данными
-                    Log.d("EstViewModel", "Полные данные заведения ID $id загружены: ${details.name}")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Log.e("EstViewModel", "Ошибка загрузки деталей заведения ID $id: ${e.message}")
-                    // Добавьте логику обработки ошибок, например, показ Toast
-                }
-            } finally {
-                // _isDetailsLoading.value = false
-            }
-        }
-    }
-
-    fun closeDetailWidget() {
-        _isDetailWidgetVisible.value = false
-        _selectedEstablishment.value = null
-        Log.d("EstViewModel", "Виджет деталей закрыт.")
     }
 }

@@ -48,6 +48,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.PointBuilder
+import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.establishment.base64ToByteArray
@@ -110,7 +111,7 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
 }
 
 // =================================================================
-// ⭐ "ПРОКАЧАННЫЙ" UI ВИДЖЕТА
+// UI ВИДЖЕТА
 // =================================================================
 @Composable
 fun EstablishmentDetailWidget(
@@ -165,8 +166,8 @@ fun EstablishmentDetailWidget(
                                 contentDescription = currentEstablishment.name,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
-                                    .size(56.dp) // ⭐ UI: Уменьшен размер
-                                    .clip(CircleShape) // ⭐ UI: Сделано круглым
+                                    .size(56.dp)
+                                    .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                             )
                             Spacer(Modifier.width(12.dp))
