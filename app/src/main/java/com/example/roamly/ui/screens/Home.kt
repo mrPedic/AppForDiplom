@@ -2,6 +2,7 @@ package com.example.roamly.ui.screens
 
 import android.content.Context
 import android.util.Base64 // ⭐ Импорт для Base64
+import android.view.View
 import android.view.ViewGroup
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,6 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -57,17 +61,53 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import kotlin.apply
 
 @Composable
-fun HomeScreen(navController: NavController, mapRefreshKey: Boolean) {
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        OsmMapAndroidView(refreshTrigger = mapRefreshKey, modifier = Modifier.fillMaxSize())
+fun HomeScreen(
+    navController: NavController,
+    mapRefreshKey: Boolean,
+    onMapRefresh: () -> Unit // ⭐ НОВОЕ: Колбек для обновления
+) {
+    Box {
+        // 1. Карта занимает весь экран
+        OsmMapAndroidView(
+            refreshTrigger = mapRefreshKey,
+            modifier = Modifier.fillMaxSize()
+        )
 
+        // 2. ⭐ НОВЫЕ: Плавающие кнопки управления (Align to TopEnd)
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 16.dp, end = 12.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            // Кнопка обновления карты (Вместо TopAppBar Action)
+            SmallFloatingActionButton(
+                onClick = onMapRefresh,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(Icons.Filled.Refresh, contentDescription = "Обновить карту")
+            }
+            Spacer(Modifier.height(8.dp))
+            // Кнопка для навигационного меню или профиля (Если нужно)
+            // SmallFloatingActionButton(
+            //    onClick = { /* Open drawer or navigate */ },
+            //    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            //    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            //    modifier = Modifier.size(48.dp)
+            // ) {
+            //    Icon(Icons.Filled.Menu, contentDescription = "Меню")
+            // }
+        }
+
+
+        // 3. Виджет деталей заведения (Align to BottomCenter)
         EstablishmentDetailWidget(
             navController = navController,
-            // ⭐ ИСПРАВЛЕНИЕ: Modifier.align применяется здесь, к AnimatedVisibility
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
@@ -81,6 +121,9 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
         modifier = modifier,
         factory = { ctx ->
             Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
+
+            Configuration.getInstance().tileDownloadThreads = 8
+
             val mapView = MapView(ctx).apply {
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
@@ -89,9 +132,32 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
                 this.minZoomLevel = 6.0
+
+                // ⭐ АГРЕССИВНОЕ КЭШИРОВАНИЕ ДЛЯ ПЛАВНОСТИ (как в предыдущем шаге)
+                Configuration.getInstance().cacheMapTileOvershoot = 2048
+                Configuration.getInstance().cacheMapTileCount = 800
+
+                Configuration.getInstance().tileFileSystemCacheMaxBytes = 52L * 1024L * 1024L
+                Configuration.getInstance().tileFileSystemCacheTrimBytes = 40L * 1024L * 1024L
+
+                // ⭐ НОВОЕ: Установка режима рендеринга для предотвращения обрезки
+                // Повышает производительность и может решить проблемы с отображением границ.
+                // Не всегда доступно в старых версиях, но стоит попробовать.
+                // setHardwareAcceleration(true) // Это, как правило, делается на уровне Activity/Manifest
+
+                // ⭐ НОВОЕ: Увеличение буфера видимости
+                // Этот параметр, хоть и не является официальным API в Configuration,
+                // иногда помогает избежать преждевременной обрезки тайлов.
+                // В osmdroid нет прямого API для "искусственного увеличения экрана",
+                // но Overshoot — это самое близкое. Давайте еще раз проверим его.
+
                 val minskPoint = GeoPoint(53.9006, 27.5590)
                 controller.setZoom(14.0)
                 controller.setCenter(minskPoint)
+
+//                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
                 invalidate()
             }
             mapState = mapView
@@ -106,9 +172,10 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
 
     mapState?.let { mapView ->
         val pointBuilder = remember(mapView) { PointBuilder(mapView) }
-        pointBuilder.BuildAllMarkers(mapRefreshKey = refreshTrigger)
+        pointBuilder.BuildAllMarkers()
     }
 }
+
 
 // =================================================================
 // UI ВИДЖЕТА
@@ -265,5 +332,3 @@ private fun InfoRow(
         )
     }
 }
-
-// TODO: Оптимизировать загрузку путем создания более легковестного DTO

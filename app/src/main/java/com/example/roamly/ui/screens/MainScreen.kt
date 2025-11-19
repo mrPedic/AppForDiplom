@@ -4,10 +4,15 @@ package com.example.roamly.ui.screens
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.Refresh // ⭐ Импорт иконки обновления
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -16,22 +21,26 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState // ⭐ Импорт для сбора StateFlow
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.Role
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.navigation.NavGraph
 import com.example.roamly.ui.screens.sealed.AdminScreens
@@ -43,14 +52,14 @@ import com.example.roamly.ui.screens.sealed.SealedButtonBar
 @Composable
 fun MainScreen(
     navController: NavHostController = rememberNavController(),
-    userViewModel: UserViewModel = hiltViewModel()
+    userViewModel: UserViewModel = hiltViewModel(),
+    establishmentViewModel: EstablishmentViewModel = hiltViewModel()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
     val safeRoute = currentRoute ?: ""
 
-    // ⭐ ВОССТАНОВЛЕНО: Состояние для принудительного обновления карты
     var mapRefreshKey by remember { mutableStateOf(false) }
 
     val hideBottomBarRoutes = listOf(
@@ -66,73 +75,78 @@ fun MainScreen(
         SealedButtonBar.AdminPanel.route
     )
 
-    val isHomeScreen = safeRoute == SealedButtonBar.Home.route // ⭐ Проверка на главный экран
+    val isHomeScreen = safeRoute == SealedButtonBar.Home.route
     val showBottomBar = safeRoute !in hideBottomBarRoutes
     val showBackIcon = safeRoute !in hideBackIcon
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {Text(text = getCurrentTopAppBarTitle(currentRoute = currentRoute))},
-                navigationIcon = {
-                    if(showBackIcon){
-                        IconButton(
-                            onClick = {
-                                navController.popBackStack()
-                            },
-                            content = { Icon(Icons.Filled.KeyboardArrowLeft, "Назад") }
-                        )
-                    }
-                },
-                actions = { // ⭐ ВОССТАНОВЛЕНО: Блок для иконки Обновить
-                    if(isHomeScreen) {
-                        IconButton(
-                            onClick = {
-                                // Тогглим ключ для принудительного обновления AndroidView
-                                mapRefreshKey = !mapRefreshKey
-                            },
-                            content = { Icon(Icons.Filled.Refresh, "Обновить карту") }
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.primary
+            if (isHomeScreen) {
+                // ⭐ НОВОЕ: Низкий, прозрачный TopAppBar (заглушка) для HomeScreen
+                // Это предотвращает вытягивание шторки, но занимает меньше места, чем стандартный TopAppBar.
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Устанавливаем фиксированную низкую высоту (например, 32dp вместо 56dp)
+                        .height(32.dp),
+                    color = Color.Transparent,
+                    content = {}
                 )
-            )
+            } else {
+                // Стандартный TopAppBar для всех остальных экранов
+                CenterAlignedTopAppBar(
+                    title = { Text(text = getCurrentTopAppBarTitle(currentRoute = currentRoute)) },
+                    navigationIcon = {
+                        if (showBackIcon && !isHomeScreen) {
+                            IconButton(
+                                onClick = { navController.popBackStack() },
+                                content = { Icon(Icons.Filled.KeyboardArrowLeft, "Назад") }
+                            )
+                        }
+                    },
+                    actions = { /* Пусто */ },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        // ⭐ Используем полупрозрачность для всех не-Home экранов
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+                        titleContentColor = MaterialTheme.colorScheme.primary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
         },
-        bottomBar = {
-            if(showBottomBar){
-                ButtonBar(navController = navController, userViewModel = userViewModel) // ⭐ ПЕРЕДАН userViewModel
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavGraph(
+                navController = navController,
+                modifier = Modifier.padding(innerPadding),
+                userViewModel = userViewModel,
+                mapRefreshKey = mapRefreshKey,
+                onMapRefresh = {
+                    establishmentViewModel.fetchEstablishmentMarkers()
+                    mapRefreshKey = !mapRefreshKey
+                }
+            )
+
+            if (showBottomBar) {
+                FloatingButtonBar(
+                    navController = navController,
+                    userViewModel = userViewModel,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp)
+                )
             }
         }
-    ) { innerPadding ->
-        NavGraph(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding),
-            userViewModel = userViewModel,
-            mapRefreshKey = mapRefreshKey
-        )
     }
 }
 
 fun getCurrentTopAppBarTitle(currentRoute: String?): String {
-    // ⭐ Шаблон для маршрутов с ID
     val detailRoutePattern = EstablishmentScreens.EstablishmentDetail.route.substringBefore("/{")
     val editRoutePattern = EstablishmentScreens.EstablishmentEdit.route.substringBefore("/{")
 
     return when {
-        // --- Анализ маршрутов с аргументами ---
-        currentRoute?.startsWith(detailRoutePattern) == true -> {
-            // Внимание: Здесь мы не можем легко получить название заведения без ViewModel.
-            // Вместо этого покажем общий заголовок.
-            "Детали заведения"
-        }
+        currentRoute?.startsWith(detailRoutePattern) == true -> "Детали заведения"
         currentRoute?.startsWith(editRoutePattern) == true -> "Редактирование заведения"
-
-
-        // --- Маршруты без аргументов ---
         currentRoute ==  LogSinUpScreens.SingUp.route -> "Регистрация"
         currentRoute == LogSinUpScreens.Login.route -> "Вход в аккаунт"
         currentRoute == EstablishmentScreens.UserEstablishments.route -> "Мои заведения"
@@ -140,16 +154,15 @@ fun getCurrentTopAppBarTitle(currentRoute: String?): String {
         currentRoute == EstablishmentScreens.MapPicker.route -> "Выбор места заведения"
         currentRoute == SealedButtonBar.AdminPanel.route -> "（￣︶￣）↗　"
         currentRoute == AdminScreens.PendingList.route -> "Заявки на одобрение"
-
-        // Если маршрут не определен или null
         else -> "Roamly"
     }
 }
 
 @Composable
-fun ButtonBar(
+fun FloatingButtonBar(
     navController: NavHostController,
-    userViewModel: UserViewModel = hiltViewModel()
+    userViewModel: UserViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier
 ) {
     val screens = mutableListOf(
         SealedButtonBar.Home,
@@ -157,7 +170,6 @@ fun ButtonBar(
         SealedButtonBar.Booking,
     )
 
-    // ⭐ ИСПРАВЛЕНО: Сборка StateFlow из ViewModel в Compose State
     val user by userViewModel.user.collectAsState()
 
     screens.add(SealedButtonBar.Profile)
@@ -169,37 +181,50 @@ fun ButtonBar(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // NavigationBar предоставляет RowScope в своей лямбде, так что внутри здесь можно вызывать NavigationBarItem
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    Surface(
+        modifier = modifier.border(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = MaterialTheme.shapes.extraLarge
+        ),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+        tonalElevation = 8.dp,
+        shadowElevation = 8.dp
     ) {
-        screens.forEach { screen ->
-            NavigationBarItem(
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.secondary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedTextColor = MaterialTheme.colorScheme.secondary,
-                    indicatorColor = MaterialTheme.colorScheme.background
-                ),
-                icon = {
-                    Icon(
-                        imageVector = screen.icon,
-                        contentDescription = screen.title
-                    )
-                },
-                label = { Text(text = screen.title) },
-                selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                onClick = {
-                    navController.navigate(screen.route) {
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
+        NavigationBar(
+            containerColor = Color.Transparent // Навигационная панель сама по себе прозрачна
+        ) {
+            screens.forEach { screen ->
+                NavigationBarItem(
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+
+                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                    ),
+                    icon = {
+                        Icon(
+                            imageVector = screen.icon,
+                            contentDescription = screen.title
+                        )
+                    },
+                    label = { Text(text = screen.title) },
+                    selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                    onClick = {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            )
+                )
+            }
         }
     }
 }

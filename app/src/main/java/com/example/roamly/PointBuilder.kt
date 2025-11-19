@@ -98,29 +98,34 @@ class PointBuilder(
         }
     }
 
+
+
     @Composable
     fun BuildAllMarkers(
-        viewModel: EstablishmentViewModel = hiltViewModel(),
-        mapRefreshKey: Boolean
+        viewModel: EstablishmentViewModel = hiltViewModel()
     ) {
-        // establishmentMarkers - это List<EstablishmentMarkerDto> (облегченный)
+        // establishmentMarkers - это List<EstablishmentMarkerDto>
         val establishments by viewModel.establishmentMarkers.collectAsState(initial = emptyList())
         val isLoading by viewModel.isLoading.collectAsState(initial = false)
         val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
-        LaunchedEffect(key1 = mapRefreshKey) {
-            Log.d("PointBuilder", "Запускаем fetchEstablishmentMarkers. RefreshKey: $mapRefreshKey")
+        // ⭐ ИЗМЕНЕНИЕ 1: Загружаем данные ОДИН РАЗ при инициализации
+        // (или используем LaunchedEffect(Unit) для однократного запуска)
+        LaunchedEffect(Unit) {
+            Log.d("PointBuilder", "Первоначальная загрузка маркеров.")
             viewModel.fetchEstablishmentMarkers()
         }
 
         if (!isLoading && errorMessage == null) {
+            // ⭐ ИЗМЕНЕНИЕ 2: Перестроение маркеров только при изменении списка establishments
+            // (Это произойдет после fetchEstablishmentMarkers)
             LaunchedEffect(establishments) {
                 try {
+                    // Если список изменился, мы перерисовываем
                     markerClusterer.items.clear()
                     if (establishments.isNotEmpty()) {
-                        Log.d("PointBuilder", "Найдено ${establishments.size} заведений для отображения.")
+                        Log.d("PointBuilder", "Перестроение маркеров. Найдено ${establishments.size} заведений.")
                         establishments.forEach { establishment ->
-                            // Передаем VM в функцию создания маркера
                             val marker = createEstablishmentMarker(establishment, viewModel)
                             markerClusterer.add(marker)
                         }
@@ -128,6 +133,7 @@ class PointBuilder(
                         mapView.invalidate()
                     } else {
                         Log.d("PointBuilder", "Список маркеров пуст.")
+                        mapView.invalidate() // Обновляем, даже если пусто
                     }
                 } catch (e: Exception) {
                     Log.e("PointBuilder", "Ошибка при обновлении маркеров: ${e.message}", e)

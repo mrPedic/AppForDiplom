@@ -40,7 +40,8 @@ fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel,
-    mapRefreshKey: Boolean
+    mapRefreshKey: Boolean,
+    onMapRefresh: () -> Unit
 ) {
     NavHost(
         navController = navController,
@@ -49,7 +50,7 @@ fun NavGraph(
     ) {
         // --- Основные вкладки ---
         composable(SealedButtonBar.Home.route) {
-            HomeScreen(navController, mapRefreshKey)
+            HomeScreen(navController, mapRefreshKey, onMapRefresh)
         }
         composable(SealedButtonBar.Searching.route) {
             SearchScreen(navController)
