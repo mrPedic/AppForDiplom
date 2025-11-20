@@ -33,11 +33,13 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -57,6 +59,9 @@ import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.establishment.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.screens.sealed.SealedButtonBar
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -67,8 +72,10 @@ import kotlin.apply
 fun HomeScreen(
     navController: NavController,
     mapRefreshKey: Boolean,
-    onMapRefresh: () -> Unit // ⭐ НОВОЕ: Колбек для обновления
+    onMapRefresh: () -> Unit
 ) {
+    val bottomBarHeightWithPadding = 85.dp
+
     Box {
         // 1. Карта занимает весь экран
         OsmMapAndroidView(
@@ -108,7 +115,9 @@ fun HomeScreen(
         // 3. Виджет деталей заведения (Align to BottomCenter)
         EstablishmentDetailWidget(
             navController = navController,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = bottomBarHeightWithPadding)
         )
     }
 }
@@ -184,22 +193,20 @@ fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
 fun EstablishmentDetailWidget(
     navController: NavController,
     viewModel: EstablishmentViewModel = hiltViewModel(),
-    modifier: Modifier // Принимаем modifier из HomeScreen
+    modifier: Modifier
 ) {
     val isVisible by viewModel.isDetailWidgetVisible.collectAsState()
-    // 'establishment' - это полный DTO (EstablishmentDisplayDto)
     val establishment by viewModel.selectedEstablishment.collectAsState()
+    val scope = rememberCoroutineScope()
 
     val currentEstablishment = establishment ?: return
 
     AnimatedVisibility(
         visible = isVisible,
-        // ⭐ ИСПРАВЛЕНИЕ: Применяем modifier (с .align()) к AnimatedVisibility
         modifier = modifier,
         enter = slideInVertically(initialOffsetY = { it }),
         exit = slideOutVertically(targetOffsetY = { it })
     ) {
-        // ⭐ UI: Используем Surface вместо Card для M3-вида
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -294,10 +301,30 @@ fun EstablishmentDetailWidget(
                 // 3. Кнопка перехода к деталям
                 Button(
                     onClick = {
+                        val establishmentId = currentEstablishment.id
                         viewModel.closeDetailWidget()
-                        navController.navigate(
-                            EstablishmentScreens.EstablishmentDetail.createRoute(currentEstablishment.id)
-                        )
+
+                        // ⭐ ИСПРАВЛЕНИЕ: Комбинированная навигация (сначала переключение вкладки, затем детали)
+                        scope.launch {
+                            // 1. Ждем начала анимации закрытия виджета
+                            delay(300)
+
+                            // 2. Переключаемся на вкладку "Поиск" (или другую целевую вкладку)
+                            // Используем паттерн переключения вкладок
+                            navController.navigate(SealedButtonBar.Searching.route) {
+                                popUpTo(navController.graph.startDestinationId) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+
+                            // 3. Сразу после переключения вкладки открываем экран деталей
+                            // (Навигация происходит уже в новом, активном стеке)
+                            navController.navigate(
+                                EstablishmentScreens.EstablishmentDetail.createRoute(establishmentId)
+                            )
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {

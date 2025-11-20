@@ -81,38 +81,13 @@ fun MainScreen(
 
     Scaffold(
         topBar = {
-            if (isHomeScreen) {
-                // ⭐ НОВОЕ: Низкий, прозрачный TopAppBar (заглушка) для HomeScreen
-                // Это предотвращает вытягивание шторки, но занимает меньше места, чем стандартный TopAppBar.
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        // Устанавливаем фиксированную низкую высоту (например, 32dp вместо 56dp)
                         .height(32.dp),
                     color = Color.Transparent,
                     content = {}
                 )
-            } else {
-                // Стандартный TopAppBar для всех остальных экранов
-                CenterAlignedTopAppBar(
-                    title = { Text(text = getCurrentTopAppBarTitle(currentRoute = currentRoute)) },
-                    navigationIcon = {
-                        if (showBackIcon && !isHomeScreen) {
-                            IconButton(
-                                onClick = { navController.popBackStack() },
-                                content = { Icon(Icons.Filled.KeyboardArrowLeft, "Назад") }
-                            )
-                        }
-                    },
-                    actions = { /* Пусто */ },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        // ⭐ Используем полупрозрачность для всех не-Home экранов
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                        titleContentColor = MaterialTheme.colorScheme.primary,
-                        navigationIconContentColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
         },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
@@ -140,23 +115,7 @@ fun MainScreen(
     }
 }
 
-fun getCurrentTopAppBarTitle(currentRoute: String?): String {
-    val detailRoutePattern = EstablishmentScreens.EstablishmentDetail.route.substringBefore("/{")
-    val editRoutePattern = EstablishmentScreens.EstablishmentEdit.route.substringBefore("/{")
 
-    return when {
-        currentRoute?.startsWith(detailRoutePattern) == true -> "Детали заведения"
-        currentRoute?.startsWith(editRoutePattern) == true -> "Редактирование заведения"
-        currentRoute ==  LogSinUpScreens.SingUp.route -> "Регистрация"
-        currentRoute == LogSinUpScreens.Login.route -> "Вход в аккаунт"
-        currentRoute == EstablishmentScreens.UserEstablishments.route -> "Мои заведения"
-        currentRoute == EstablishmentScreens.CreateEstablishment.route -> "Создание заведения"
-        currentRoute == EstablishmentScreens.MapPicker.route -> "Выбор места заведения"
-        currentRoute == SealedButtonBar.AdminPanel.route -> "（￣︶￣）↗　"
-        currentRoute == AdminScreens.PendingList.route -> "Заявки на одобрение"
-        else -> "Roamly"
-    }
-}
 
 @Composable
 fun FloatingButtonBar(

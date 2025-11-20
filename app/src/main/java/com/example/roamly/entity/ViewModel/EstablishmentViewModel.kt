@@ -23,6 +23,7 @@ import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.TableEntity
 import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.manager.SearchHistoryManager
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -42,6 +44,7 @@ import javax.inject.Inject
 @HiltViewModel
 class EstablishmentViewModel @Inject constructor(
     private val apiService: ApiService,
+    private val searchHistoryManager: SearchHistoryManager
 ) : ViewModel() {
 
     // --- StateFlow для списка заведений пользователя ---
@@ -1189,6 +1192,28 @@ class EstablishmentViewModel @Inject constructor(
                 // Передаем ошибку в UI
                 _saveStatus.value = SaveStatus.Error(e.message ?: "Неизвестная ошибка сети")
             }
+        }
+    }
+
+    private val _recentEstablishmentsFlow = MutableStateFlow<List<EstablishmentSearchResultDto>>(
+        searchHistoryManager.loadHistory()
+    )
+    val recentEstablishments: StateFlow<List<EstablishmentSearchResultDto>> = _recentEstablishmentsFlow.asStateFlow()
+
+    fun addRecentEstablishment(establishment: EstablishmentSearchResultDto) {
+        _recentEstablishmentsFlow.update { currentList ->
+            val newList = currentList.toMutableList().apply {
+                removeAll { it.id == establishment.id }
+                add(0, establishment)
+            }
+            val finalHistory = newList.take(5)
+
+            // ⭐ СОХРАНЯЕМ В ХРАНИЛИЩЕ ПОСЛЕ ОБНОВЛЕНИЯ
+            viewModelScope.launch {
+                searchHistoryManager.saveHistory(finalHistory)
+            }
+
+            finalHistory
         }
     }
 }

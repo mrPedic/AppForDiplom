@@ -1,5 +1,6 @@
 package com.example.roamly.ui.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,10 @@ import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.convertTypeToWord
+import androidx.compose.foundation.background // ⭐ Добавлен импорт для фона
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.graphics.Color // ⭐ Добавлен импорт для Color
+import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -34,23 +39,20 @@ fun SearchScreen(
     val searchResults by viewModel.establishmentSearchResults.collectAsState(initial = emptyList())
     val isLoading by viewModel.isSearchLoading.collectAsState(initial = false)
 
+    val recentEstablishments by viewModel.recentEstablishments.collectAsState(initial = emptyList())
 
-    // Изменение фильтров (selectedTypes) будет обработано функцией updateFilters
-    // и объединено (combine) в ViewModel.
+
     LaunchedEffect(searchQuery) {
-        // Вызываем метод VM, который просто обновляет _searchQueryFlow.
         viewModel.searchEstablishments(searchQuery)
     }
 
-    // ⭐ Показываем диалог фильтра
     if (showFilterDialog) {
         FilterDialog(
-            currentSelections = selectedTypes, // Используем состояние из VM
+            currentSelections = selectedTypes,
             onDismiss = { showFilterDialog = false },
             onConfirm = { newSelections ->
                 viewModel.updateFilters(newSelections)
                 showFilterDialog = false
-                // ViewModel автоматически запустит новый поиск через combine
             }
         )
     }
@@ -58,27 +60,28 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp)
     ) {
+        // --- 1. Поле поиска и фильтр ---
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { searchQuery = it }, // Просто обновляем состояние
+                onValueChange = { searchQuery = it },
                 label = { Text("Название или адрес") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Поиск") },
-                modifier = Modifier.weight(1f), // Занимает все место
+                modifier = Modifier.weight(1f),
                 singleLine = true
             )
             Spacer(modifier = Modifier.width(8.dp))
-            // Кнопка фильтра
             IconButton(onClick = { showFilterDialog = true }) {
                 Icon(Icons.Default.Menu, contentDescription = "Фильтр")
             }
         }
 
+        // --- 2. Активные фильтры ---
         if (selectedTypes.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             FlowRow(
@@ -89,7 +92,7 @@ fun SearchScreen(
                 selectedTypes.forEach { type ->
                     FilterChip(
                         selected = true,
-                        onClick = { /* Можно удалить по клику, если хотите */ },
+                        onClick = { /* Удаление фильтра */ },
                         label = { Text(convertTypeToWord(type)) }
                     )
                 }
@@ -98,7 +101,8 @@ fun SearchScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Отображение результатов
+        // --- 3. Отображение результатов/истории ---
+
         if (isLoading) {
             Box(
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -106,58 +110,145 @@ fun SearchScreen(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (searchQuery.isNotEmpty() && searchResults.isEmpty()) {
-            Text(text = "Заведений не найдено.", modifier = Modifier.padding(8.dp))
-        } else {
-            LazyColumn {
+        } else if (searchQuery.isEmpty() && recentEstablishments.isNotEmpty()) {
+            // Если строка поиска пуста и есть история
+            Text(
+                text = "Недавние заведения",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            // ⭐ ИСПРАВЛЕНИЕ: LazyColumn для Истории и результатов
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp) // Отступ между карточками
+            ) {
+                items(recentEstablishments) { establishment ->
+                    EstablishmentResultItem(
+                        establishment = establishment,
+                        navController = navController,
+                        viewModel = viewModel,
+                        isRecent = true
+                    )
+                    // ⭐ УДАЛЕН HorizontalDivider
+                }
+
+                if (searchResults.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Результаты поиска",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        // Оставляем разделитель между заголовком "Результаты поиска" и элементами
+                        HorizontalDivider(
+                            Modifier,
+                            DividerDefaults.Thickness,
+                            DividerDefaults.color
+                        )
+                    }
+                }
+
                 items(searchResults) { establishment ->
                     EstablishmentResultItem(
                         establishment = establishment,
-                        navController = navController
+                        navController = navController,
+                        viewModel = viewModel,
+                        isRecent = false
                     )
-                    Divider()
+                    // ⭐ УДАЛЕН HorizontalDivider
+                }
+            }
+
+        } else if (searchQuery.isNotEmpty() && searchResults.isEmpty()) {
+            Text(text = "Заведений не найдено.", modifier = Modifier.padding(8.dp))
+        } else {
+            // Если история пуста или мы в активном поиске и есть результаты
+            // ⭐ ИСПРАВЛЕНИЕ: LazyColumn для обычных результатов
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { // Отступ между карточками
+                if (searchQuery.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Результаты поиска",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        // Оставляем разделитель после заголовка
+                        HorizontalDivider(
+                            Modifier,
+                            DividerDefaults.Thickness,
+                            DividerDefaults.color
+                        )
+                    }
+                }
+                items(searchResults) { establishment ->
+                    EstablishmentResultItem(
+                        establishment = establishment,
+                        navController = navController,
+                        viewModel = viewModel,
+                        isRecent = false
+                    )
                 }
             }
         }
     }
 }
 
+@SuppressLint("DefaultLocale")
 @Composable
 fun EstablishmentResultItem(
     establishment: EstablishmentSearchResultDto,
-    navController: NavController
+    navController: NavController,
+    viewModel: EstablishmentViewModel,
+    isRecent: Boolean
 ) {
-    Row(
+    // Выбираем цвет фона: серый (surfaceVariant) для истории, прозрачный для обычных результатов
+    val backgroundColor = if (isRecent) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent
+
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = {
+                viewModel.addRecentEstablishment(establishment)
                 navController.navigate(
                     EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id)
                 )
-            })
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            }),
+        shape = MaterialTheme.shapes.medium, // ⭐ НОВОЕ: Более скругленная форма (например, medium или roundedCornerShape(8.dp))
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Небольшая тень
+        colors = CardDefaults.cardColors(containerColor = backgroundColor) // Применяем цвет фона к Card
     ) {
-        Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                // ⭐ Убираем .background(backgroundColor), т.к. цвет теперь у Card
+                .padding(vertical = 12.dp, horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) { // Занимаем доступное пространство
+                Text(
+                    text = establishment.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = establishment.address,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            // Отображение рейтинга
             Text(
-                text = establishment.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = establishment.address,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "Рейтинг: ${String.format("%.1f", establishment.rating)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.secondary
             )
         }
-        // Отображение рейтинга
-        Text(
-            // Rating - это Double в новом DTO
-            text = "Рейтинг: ${String.format("%.1f", establishment.rating)}",
-            style = MaterialTheme.typography.bodyMedium, // Немного увеличен размер
-            color = MaterialTheme.colorScheme.secondary
-        )
     }
 }
 
@@ -173,7 +264,7 @@ private fun FilterDialog(
 ) {
     // Временное состояние, пока пользователь выбирает в диалоге
     var tempSelections by remember { mutableStateOf(currentSelections) }
-    val allTypes = remember { TypeOfEstablishment.values() }
+    val allTypes = remember { TypeOfEstablishment.entries.toTypedArray() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -192,7 +283,7 @@ private fun FilterDialog(
                         Text("Очистить")
                     }
                 }
-                Divider()
+                HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
                 // Список всех типов с чекбоксами
                 LazyColumn(modifier = Modifier.padding(top = 8.dp)) {
                     items(allTypes) { type ->

@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -24,6 +25,8 @@ import com.example.roamly.entity.DTO.BookingDisplayDto
 import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens
+import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -55,12 +58,43 @@ fun UserBookingsScreen(
         }
 
         if (userId == null || userId == -1L || !userViewModel.isLoggedIn()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Для просмотра бронирований необходимо авторизоваться.", color = MaterialTheme.colorScheme.error)
+            // ⭐ ИСПРАВЛЕНИЕ СТИЛЯ ДЛЯ НЕАВТОРИЗОВАННОГО ПОЛЬЗОВАТЕЛЯ
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "🔐 Требуется авторизация",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Для просмотра списка ваших бронирований, пожалуйста, войдите в свой аккаунт.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = {
+                        navController.navigate(SealedButtonBar.Profile.route) {
+                            popUpTo(navController.graph.startDestinationId)
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }) {
+                        Text("Перейти к Профилю")
+                    }
+                }
             }
         } else if (!isLoading && bookings.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("У вас пока нет активных бронирований.")
+                Text("У вас пока нет активных бронирований.", style = MaterialTheme.typography.titleMedium)
             }
         } else {
             LazyColumn(
@@ -71,7 +105,7 @@ fun UserBookingsScreen(
                     BookingItemCard(
                         booking = booking,
                         onClick = {
-                            // Переход на экран деталей
+
                             navController.navigate(BookingScreens.BookingDetail.createRoute(booking.id))
                         }
                     )

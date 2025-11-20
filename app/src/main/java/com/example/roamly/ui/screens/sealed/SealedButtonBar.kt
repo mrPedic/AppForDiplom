@@ -39,7 +39,7 @@ sealed class SealedButtonBar (
 
     object AdminPanel: SealedButtonBar(
         route = "admin_panel",
-        title = "Админ-панель",
+        title = "Админ",
         icon = Icons.Default.AccountCircle
     )
 }

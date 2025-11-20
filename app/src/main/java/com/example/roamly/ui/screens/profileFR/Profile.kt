@@ -66,22 +66,22 @@ private fun RegisteredProfileContent(
 ) {
     val currentUser by userViewModel.user.collectAsState()
 
-    // ⭐ ИСПРАВЛЕНО: Убран Box с серым фоном. Используем Column с отступами.
+    val buttonBarHeight = 102.dp
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp), // Общий отступ для всего экрана
+            .padding(horizontal = 16.dp), // Общий горизонтальный отступ
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = "Ваш Профиль",
-            style = MaterialTheme.typography.headlineLarge, // Увеличен стиль
+            style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary, // Используем цвет темы
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
         )
 
-        // ⭐ ИСПРАВЛЕНО: Данные пользователя обернуты в Card для лучшего вида
         Card(
             modifier = Modifier.fillMaxWidth(),
             elevation = CardDefaults.cardElevation(4.dp),
@@ -97,7 +97,6 @@ private fun RegisteredProfileContent(
                 Divider()
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Используем вспомогательный Composable для красивого вывода
                 InfoRow(label = "Имя:", value = currentUser.name ?: "Не указано")
                 InfoRow(label = "Логин:", value = currentUser.login)
                 InfoRow(label = "Роль:", value = currentUser.role.toString())
@@ -111,7 +110,9 @@ private fun RegisteredProfileContent(
             onClick = {
                 navController.navigate(EstablishmentScreens.UserEstablishments.route)
             },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
         ){
             Text(text = "Мои Заведения")
         }
@@ -120,24 +121,26 @@ private fun RegisteredProfileContent(
             onClick = {
                 navController.navigate(EstablishmentScreens.CreateEstablishment.route)
             },
-            modifier = Modifier.fillMaxWidth() // Убран нижний отступ
+            modifier = Modifier.fillMaxWidth()
         ){
             Text(text = "Создать свое заведение")
         }
 
-        // ⭐ ИСПРАВЛЕНО: Spacer с weight(1f) прижимает кнопку "Выйти" к низу
+        // Spacer с weight(1f) прижимает кнопку "Выйти" к низу
         Spacer(modifier = Modifier.weight(1f))
 
         Button(
             onClick = {
                 userViewModel.logout()
             },
-            // ⭐ ИСПРАВЛЕНО: Кнопка выхода сделана "опасной" (красной)
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.error,
                 contentColor = MaterialTheme.colorScheme.onError
             ),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                // чтобы кнопка была над ним.
+                .padding(bottom = buttonBarHeight)
         ) {
             Text(text = "Выйти из аккаунта")
         }
@@ -178,8 +181,7 @@ private fun UnRegisteredProfileContent(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // ✅ Выносим логику статуса сервера в отдельный Composable
-        ServerStatus(userViewModel = userViewModel)
+
 
         Spacer(modifier = Modifier.height(48.dp))
 
@@ -213,40 +215,6 @@ private fun UnRegisteredProfileContent(
 // Вспомогательные компоненты
 // ----------------------------------------------------
 
-/**
- * Вспомогательный Composable для отображения статуса сервера
- */
-@Composable
-private fun ServerStatus(userViewModel: UserViewModel) {
-    var isCheckingConnection by remember { mutableStateOf(true) }
-    val isConnected by userViewModel.isServerConnected.collectAsState(initial = false)
-
-    LaunchedEffect(Unit) {
-        userViewModel.checkServerConnection()
-        isCheckingConnection = false
-    }
-
-    if (isCheckingConnection) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "Проверка подключения...",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    } else {
-        // ⭐ ИСПРАВЛЕНО: Используем цвета темы вместо Color.Green/Red
-        val statusText = if (isConnected) "Сервер доступен ✅" else "Сервер недоступен ❌"
-        val statusColor = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-
-        Text(
-            text = statusText,
-            color = statusColor,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
 
 /**
  * Вспомогательный Composable для отображения строки "Метка: Значение"
