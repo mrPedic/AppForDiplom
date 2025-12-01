@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,6 +43,7 @@ import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.navigation.NavGraph
 import com.example.roamly.ui.screens.sealed.AdminScreens
+import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
@@ -64,7 +64,15 @@ fun MainScreen(
 
     val hideBottomBarRoutes = listOf(
         LogSinUpScreens.SingUp.route,
-        LogSinUpScreens.Login.route
+        LogSinUpScreens.Login.route,
+        EstablishmentScreens.EstablishmentDetail.route,
+        EstablishmentScreens.CreateEstablishment.route,
+        EstablishmentScreens.UserEstablishments.route,
+        EstablishmentScreens.MenuEdit.route,
+        EstablishmentScreens.ReviewCreation.route,
+        BookingScreens.CreateBooking.route,
+        EstablishmentScreens.EstablishmentEdit.route,
+        EstablishmentScreens.MapPicker.route
     )
 
     val hideBackIcon = listOf(

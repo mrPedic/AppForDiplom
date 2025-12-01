@@ -20,9 +20,8 @@ import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.convertTypeToWord
-import androidx.compose.foundation.background // ⭐ Добавлен импорт для фона
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.graphics.Color // ⭐ Добавлен импорт для Color
+import androidx.compose.ui.graphics.Color 
 import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -218,14 +217,13 @@ fun EstablishmentResultItem(
                     EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id)
                 )
             }),
-        shape = MaterialTheme.shapes.medium, // ⭐ НОВОЕ: Более скругленная форма (например, medium или roundedCornerShape(8.dp))
+        shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Небольшая тень
         colors = CardDefaults.cardColors(containerColor = backgroundColor) // Применяем цвет фона к Card
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // ⭐ Убираем .background(backgroundColor), т.к. цвет теперь у Card
                 .padding(vertical = 12.dp, horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically

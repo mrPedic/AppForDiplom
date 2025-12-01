@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -254,7 +255,11 @@ fun MenuEditScreen(
                             modifier = Modifier.weight(1f),
                             enabled = !isLoading
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(Modifier.width(4.dp))
                             Text("Группа Еды")
                         }
@@ -264,12 +269,16 @@ fun MenuEditScreen(
                             modifier = Modifier.weight(1f),
                             enabled = !isLoading
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(Modifier.width(4.dp))
                             Text("Группа Напитков")
                         }
                     }
-                    Divider()
+                    HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
                 }
 
                 // --- Группы Еды ---
@@ -400,12 +409,28 @@ fun GroupHeader(name: String, onEditName: () -> Unit, onAddItem: () -> Unit, onD
     ) {
         Text(name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         Row {
-            IconButton(onClick = onEditName) { Icon(Icons.Default.Edit, contentDescription = "Редактировать название") }
-            IconButton(onClick = onAddItem) { Icon(Icons.Default.Add, contentDescription = "Добавить компонент") }
-            IconButton(onClick = onDeleteGroup) { Icon(Icons.Default.Delete, contentDescription = "Удалить группу", tint = MaterialTheme.colorScheme.error) }
+            IconButton(onClick = onEditName) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "Редактировать название"
+                )
+            }
+            IconButton(onClick = onAddItem) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Добавить компонент"
+                )
+            }
+            IconButton(onClick = onDeleteGroup) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Удалить группу",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
         }
     }
-    Divider()
+    HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
 }
 
 @Composable

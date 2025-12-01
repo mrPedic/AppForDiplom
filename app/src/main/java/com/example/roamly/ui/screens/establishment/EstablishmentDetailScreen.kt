@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.roamly.ui.screens.establishment
 
 import android.util.Base64
@@ -12,7 +14,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,6 +33,11 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.roamly.classes.cl_menu.Drink
 import com.example.roamly.classes.cl_menu.Food
@@ -48,7 +54,8 @@ import java.util.Calendar
 fun EstablishmentDetailScreen(
     navController: NavController,
     establishmentId: Long,
-    viewModel: EstablishmentViewModel = hiltViewModel()
+    viewModel: EstablishmentViewModel = hiltViewModel(),
+    userViewModel: UserViewModel = hiltViewModel()
 ) {
     // Получаем состояние из ViewModel
     val establishment by viewModel.currentEstablishment.collectAsState()
@@ -57,6 +64,10 @@ fun EstablishmentDetailScreen(
     val isMenuLoading by viewModel.isMenuLoading.collectAsState()
 
     val isLoading by viewModel.isLoading.collectAsState()
+
+
+    val userState by userViewModel.user.collectAsState()
+    val currentUserId = userState.id ?: -1L
 
     // Вкладки
     val tabs = listOf("Описание", "Меню", "Карта", "Отзывы")
@@ -69,8 +80,14 @@ fun EstablishmentDetailScreen(
 
     LaunchedEffect(establishment) {
         establishment?.let {
-            // ⭐ ИСПРАВЛЕНИЕ: Загрузка меню
             viewModel.fetchMenuForEstablishment(it.id)
+        }
+    }
+
+    LaunchedEffect(currentUserId) {
+        if (currentUserId > 0) {
+
+            viewModel.fetchFavoriteEstablishmentsList(currentUserId)
         }
     }
 
@@ -86,32 +103,30 @@ fun EstablishmentDetailScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            EstablishmentHeader(
-                establishment = establishment,
-                selectedTab = selectedTab,
-                tabs = tabs,
-                onTabSelected = { selectedTab = it },
-                navController = navController
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        when {
+            isLoading && establishment == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+            errorMessage != null -> Text(
+                text = "Ошибка: $errorMessage",
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.align(Alignment.Center)
             )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when {
-                isLoading && establishment == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                errorMessage != null -> Text(
-                    text = "Ошибка: $errorMessage",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-                establishment != null -> {
-                    HorizontalPager(state = pagerState) { page ->
-                        // ⭐ ИСПРАВЛЕНИЕ: Передача состояния меню
+            establishment != null -> {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    EstablishmentHeaderContent(
+                        establishment = establishment!!,
+                        selectedTab = selectedTab,
+                        tabs = tabs,
+                        onTabSelected = { selectedTab = it },
+                        navController = navController
+                    )
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.weight(1f)
+                    ) { page ->
                         EstablishmentTabContent(
                             page = page,
                             establishment = establishment!!,
@@ -121,8 +136,16 @@ fun EstablishmentDetailScreen(
                         )
                     }
                 }
-                else -> Text("Данные не найдены", Modifier.align(Alignment.Center))
+
+                EstablishmentTopBar(
+                    navController = navController,
+                    establishmentName = establishment!!.name,
+                    establishmentId = establishment!!.id,
+                    userId = currentUserId,
+                    establishmentViewModel = viewModel
+                )
             }
+            else -> Text("Данные не найдены", Modifier.align(Alignment.Center))
         }
     }
 }
@@ -165,13 +188,63 @@ fun OperatingHoursDisplay(operatingHours: Map<String, String>) {
 }
 
 // --------------------------------------------------------------------------------------------------
-// ⭐ НОВЫЙ КОМПОНЕНТ ДЛЯ ШАПКИ
+// КОМПОНЕНТ ДЛЯ ШАПКИ
 // --------------------------------------------------------------------------------------------------
+
+@Composable
+fun EstablishmentTopBar(
+    navController: NavController,
+    establishmentName: String,
+    establishmentId: Long,
+    userId: Long,
+    establishmentViewModel: EstablishmentViewModel // Используем переданную VM
+) {
+    val favoriteIds by establishmentViewModel.favoriteEstablishmentIds.collectAsState()
+    val isFavorite = favoriteIds.contains(establishmentId)
+
+    CenterAlignedTopAppBar(
+        title = {
+            Text(
+                establishmentName,
+                color = MaterialTheme.colorScheme.secondary,
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Назад",
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+            }
+        },
+        actions = {
+            IconButton(onClick = {
+                establishmentViewModel.toggleFavorite(establishmentId, userId)
+            }) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = if (isFavorite) "Удалить из избранного" else "Добавить в избранное",
+                    tint = if (isFavorite) Color.Red else Color.White
+                )
+            }
+        },
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.primary
+        ),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EstablishmentHeader(
-    establishment: EstablishmentDisplayDto?,
+fun EstablishmentHeaderContent(
+    establishment: EstablishmentDisplayDto,
     selectedTab: Int,
     tabs: List<String>,
     onTabSelected: (Int) -> Unit,
@@ -181,9 +254,9 @@ fun EstablishmentHeader(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(150.dp) // Увеличим высоту, чтобы оставить место для TopBar
         ) {
-            val mainPhotoBase64 = establishment?.photoBase64s?.firstOrNull { it.isNotBlank() }
+            val mainPhotoBase64 = establishment.photoBase64s.firstOrNull { it.isNotBlank() }
 
             // Добавим логгирование для отладки
             LaunchedEffect(mainPhotoBase64) {
@@ -200,14 +273,6 @@ fun EstablishmentHeader(
             if (mainPhotoBase64 != null) {
                 val imageBytes = remember(mainPhotoBase64) { base64ToByteArray(mainPhotoBase64) }
 
-                LaunchedEffect(imageBytes) {
-                    if (imageBytes != null) {
-                        Log.d("EstablishmentHeader", "Base64 успешно конвертирован в ${imageBytes.size} байт.")
-                    } else {
-                        Log.e("EstablishmentHeader", "Ошибка конвертации Base64 в байты.")
-                    }
-                }
-
                 if (imageBytes != null) {
                     Image(
                         painter = rememberAsyncImagePainter(model = imageBytes),
@@ -216,11 +281,10 @@ fun EstablishmentHeader(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    // Заглушка, если Base64 некорректен
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Gray.copy(alpha = 0.5f)) // Простой серый фон
+                            .background(Color.Gray.copy(alpha = 0.5f))
                     ) {
                         Text(
                             "Не удалось загрузить фото",
@@ -230,7 +294,6 @@ fun EstablishmentHeader(
                     }
                 }
             } else {
-                // Заглушка, если фото нет вообще
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -244,14 +307,12 @@ fun EstablishmentHeader(
                 }
             }
 
-            // ⭐ Сплошная заливка на фоне текста
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f)) // Сплошная заливка, более темная
+                    .background(Color.Black.copy(alpha = 0.4f)) // Слегка уменьшим прозрачность, чтобы TopBar лучше выделялся
             )
 
-            // ⭐ Заголовок и кнопка Edit (прикреплены к нижней части Box)
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -263,35 +324,21 @@ fun EstablishmentHeader(
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Название заведения
-                    Text(
-                        text = establishment?.name ?: "Загрузка...",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        // Ограничиваем, чтобы название не наезжало на кнопку
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
-                    )
 
-                    // Кнопка редактирования
-                    establishment?.let {
-                        IconButton(onClick = {
-                            navController.navigate(EstablishmentScreens.EstablishmentEdit.createRoute(it.id))
-                        }) {
-                            Icon(
-                                Icons.Filled.Edit,
-                                contentDescription = "Редактировать",
-                                tint = Color.White
-                            )
-                        }
+                    // Кнопка редактирования (оставляем здесь, если она должна быть над фото, а не в TopAppBar)
+                    IconButton(onClick = {
+                        navController.navigate(EstablishmentScreens.EstablishmentEdit.createRoute(establishment.id))
+                    }) {
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = "Редактировать",
+                            tint = Color.White
+                        )
                     }
                 }
             }
         }
 
-        // ⭐ 2. TabRow (всегда под шапкой)
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = MaterialTheme.colorScheme.surface,
@@ -322,7 +369,6 @@ fun EstablishmentTabContent(
     val currentUser by userViewModel.user.collectAsState()
     val currentUserId = currentUser.id ?: -1L
 
-    // ⭐ Проверка, является ли текущий пользователь владельцем заведения
     val isOwner = establishment.createdUserId == currentUserId
 
     when (page) {
@@ -365,7 +411,6 @@ fun EstablishmentTabContent(
                 OperatingHoursDisplay(convertHoursStringToMap(establishment.operatingHoursString))
             }
         }
-        // ⭐ ИЗМЕНЕНИЕ: Вкладка "Меню"
         1 -> Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -378,7 +423,6 @@ fun EstablishmentTabContent(
                     Text("Меню отсутствует.", style = MaterialTheme.typography.bodyLarge)
                 }
             } else {
-                // ⭐ ПЕРЕДАЕМ isOwner И НАЧИНАЕМ С MenuDisplayContent
                 MenuDisplayContent(
                     menu = menuState,
                     isOwner = isOwner,
@@ -421,7 +465,6 @@ fun ReviewTabContent(
 
     val canReview = isLoggedIn && !isOwner
 
-    // ⭐ Используем Box для размещения списка и закрепленной кнопки
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Spacer(Modifier.height(8.dp))
@@ -448,26 +491,27 @@ fun ReviewTabContent(
                 Text("Список отзывов (${reviews.size}):", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
 
-                // ⭐ LazyColumn занимает место до закрепленной кнопки
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().weight(1f), // Занимаем все доступное пространство
                     contentPadding = PaddingValues(bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(reviews) { review ->
-                        // ⭐ Логика выбора карточки
                         if (review.photoBase64.isNullOrBlank()) {
                             ReviewItem(review = review)
                         } else {
                             ReviewItemWithPhoto(review = review)
                         }
-                        Divider()
+                        HorizontalDivider(
+                            Modifier,
+                            DividerDefaults.Thickness,
+                            DividerDefaults.color
+                        )
                     }
                 }
             }
         }
 
-        // ⭐ ЗАКРЕПЛЕННАЯ КНОПКА ВНИЗУ
         if (canReview) {
             Button(
                 onClick = {
@@ -538,7 +582,6 @@ fun ReviewItemWithPhoto(review: ReviewEntity) {
     }
 }
 
-// ⭐ ОБЩИЙ КОМПОНЕНТ ДЛЯ ПОВТОРЯЮЩЕГОСЯ КОНТЕНТА
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 private fun ReviewContent(review: ReviewEntity, hasPhoto: Boolean) {
@@ -560,7 +603,7 @@ private fun ReviewContent(review: ReviewEntity, hasPhoto: Boolean) {
             }
 
             // Дата создания
-            review.dateOfCreation?.let {
+            review.dateOfCreation.let {
                 val formatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy") }
                 Text(
                     text = it.format(formatter),
@@ -594,10 +637,9 @@ private fun ReviewContent(review: ReviewEntity, hasPhoto: Boolean) {
 
 @Composable
 fun OperatingStatusDisplay(hoursString: String?) {
-    // ⭐ ВЫЗОВ ФУНКЦИИ СТАТУСА
     val status = remember(hoursString) { getOperatingStatus(hoursString) }
 
-    val color = if (status.isOpen) Color(0xFF4CAF50) /* Green */ else MaterialTheme.colorScheme.error
+    val color = if (status.isOpen) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -626,8 +668,6 @@ fun OperatingStatusDisplay(hoursString: String?) {
     }
 }
 
-// ⭐ НОВЫЙ СПИСОК ДНЕЙ ДЛЯ СОПОСТАВЛЕНИЯ С Calendar.DAY_OF_WEEK
-// Calendar.SUNDAY = 1, Calendar.MONDAY = 2, ..., Calendar.SATURDAY = 7
 val CALENDAR_DAYS_MAP = mapOf(
     Calendar.MONDAY to "Понедельник",
     Calendar.TUESDAY to "Вторник",
@@ -644,10 +684,7 @@ data class OperatingStatus(
     val statusText: String,
 )
 
-// ⭐ ИЗМЕНЕНА: Использует Calendar API для определения текущего дня и времени + ЛОГИ
 fun getOperatingStatus(hoursString: String?): OperatingStatus {
-    // ВАЖНО: Предполагаем, что convertHoursStringToMap возвращает Map<String, String>,
-    // где ключи - это русские названия дней: "Понедельник", "Вторник" и т.д.
     val operatingHoursMap = convertHoursStringToMap(hoursString)
     Log.d("OpStatusMap", "Полученное расписание: $operatingHoursMap")
 
@@ -664,7 +701,6 @@ fun getOperatingStatus(hoursString: String?): OperatingStatus {
     val todayDayName = CALENDAR_DAYS_MAP[todayDayInt] ?: "Неизвестный день"
 
     fun parseTime(time: String): Int? {
-        // ... (Функция parseTime остается прежней)
         val parts = time.split(":")
         if (parts.size != 2) return null
         return try {
@@ -704,14 +740,12 @@ fun getOperatingStatus(hoursString: String?): OperatingStatus {
                 }
 
                 if (isOpen) {
-                    // ⭐ УПРОЩЕНО: Просто говорим "Открыто" и часы на сегодня
                     Log.d("OpStatus", "Статус: ОТКРЫТО. Часы: $todayHours")
                     return OperatingStatus(
                         true,
                         "Открыто. Работает сегодня до ${parts[1]}.", // Просто конечная точка
                     )
                 } else if (nowTotalMinutes < startMinutes && !isOvernight) {
-                    // ⭐ УПРОЩЕНО: Говорим "Закрыто, откроется сегодня" (без точного времени)
                     Log.d("OpStatus", "Статус: ЗАКРЫТО, откроется сегодня.")
                     return OperatingStatus(
                         false,
@@ -730,7 +764,6 @@ fun getOperatingStatus(hoursString: String?): OperatingStatus {
     return OperatingStatus(false, "Не удалось определить статус работы.")
 }
 
-// ⭐ ИЗМЕНЕНА: Использует Calendar API для поиска следующего рабочего дня + ЛОГИ
 private fun findNextOpenDay(operatingHoursMap: Map<String, String>, startDayInt: Int): OperatingStatus {
     // Начинаем поиск со следующего дня
     for (i in 1..7) {
@@ -745,12 +778,10 @@ private fun findNextOpenDay(operatingHoursMap: Map<String, String>, startDayInt:
             if (!nextHours.isNullOrBlank() && !nextHours.contains("Закрыто", ignoreCase = true)) {
                 val dayLabel = if (i == 1) "завтра" else "в $nextDayName"
 
-                // ⭐ УПРОЩЕНО: Только день
                 Log.d("OpStatus", "Найдено: Откроется $dayLabel.")
                 return OperatingStatus(
                     false,
                     "Закрыто. Откроется $dayLabel.",
-                    // parts[0]
                 )
             }
         }
@@ -762,9 +793,9 @@ private fun findNextOpenDay(operatingHoursMap: Map<String, String>, startDayInt:
 @Composable
 fun MenuDisplayContent(
     menu: MenuOfEstablishment,
-    isOwner: Boolean, // ⭐ НОВЫЙ ПАРАМЕТР
-    establishmentId: Long, // ⭐ НОВЫЙ ПАРАМЕТР
-    navController: NavController // ⭐ НОВЫЙ ПАРАМЕТР
+    isOwner: Boolean,
+    establishmentId: Long,
+    navController: NavController
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -814,7 +845,6 @@ fun MenuDisplayContent(
             }
 
             items(menu.foodGroups) { group ->
-                // ⭐ Обработка null (group.name) с использованием оператора Elvis
                 Text(
                     text = group.name ?: "Название группы не указано",
                     style = MaterialTheme.typography.titleMedium,
@@ -838,7 +868,7 @@ fun MenuDisplayContent(
         // --- Разделитель между едой и напитками ---
         item {
             Spacer(Modifier.height(24.dp))
-            Divider()
+            HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "🍹 Напитки",
@@ -851,7 +881,6 @@ fun MenuDisplayContent(
         // --- Группы Напитков ---
         if (menu.drinksGroups.isNotEmpty()) {
             items(menu.drinksGroups) { group ->
-                // ⭐ Обработка null (group.name)
                 Text(
                     text = group.name ?: "Название группы не указано",
                     style = MaterialTheme.typography.titleMedium,
@@ -882,7 +911,6 @@ fun FoodCard(food: Food) {
         modifier = Modifier.width(200.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // ⭐ Обработка null (food.name)
             Text(
                 text = food.name ?: "Блюдо без имени",
                 style = MaterialTheme.typography.titleMedium,
@@ -891,10 +919,9 @@ fun FoodCard(food: Food) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "${food.cost ?: 0} р. | ${food.weight ?: 0} г.", // Предполагаем, что cost и weight могут быть null
+                text = "${food.cost} р. | ${food.weight} г.",
                 style = MaterialTheme.typography.bodySmall
             )
-            // Ингредиенты (безопасная проверка, оставлена как у вас)
             food.ingredients?.takeIf { it.isNotBlank() }?.let { ingredients ->
                 Text(
                     text = ingredients,
@@ -914,7 +941,6 @@ fun DrinkCard(drink: Drink) {
         modifier = Modifier.width(180.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // ⭐ Обработка null (drink.name)
             Text(
                 text = drink.name ?: "Напиток без имени",
                 style = MaterialTheme.typography.titleMedium,
@@ -922,10 +948,9 @@ fun DrinkCard(drink: Drink) {
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(4.dp))
-            // Обработка опций (предполагаем, что options не null, но может быть пустым)
-            val optionsText = drink.options?.joinToString("\n") {
-                "${it.sizeMl ?: 0} мл / ${"%.2f".format(it.cost ?: 0f)} р."
-            } ?: "Нет опций"
+            val optionsText = drink.options.joinToString("\n") {
+                "${it.sizeMl} мл / ${"%.2f".format(it.cost)} р."
+            }
 
             Text(
                 text = optionsText,
@@ -935,3 +960,4 @@ fun DrinkCard(drink: Drink) {
         }
     }
 }
+

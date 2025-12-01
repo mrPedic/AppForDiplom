@@ -1,6 +1,7 @@
 package com.example.roamly.entity
 
 import android.graphics.Color
+import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 
 data class EstablishmentEntity(
     val id: Long,
@@ -99,4 +100,25 @@ fun convertTypeToWord(typeOfEstablishment: TypeOfEstablishment): String{
         TypeOfEstablishment.Gastropub -> "Гастропаб"
         else -> "Неизвестный тип заведения"
     }
+}
+
+fun EstablishmentEntity.toDisplayDto(): EstablishmentDisplayDto {
+    return EstablishmentDisplayDto(
+        id = this.id,
+        name = this.name,
+        description = this.description,
+        address = this.address,
+        latitude = this.latitude,
+        longitude = this.longitude,
+        status = this.status,
+        rating = this.rating,
+        dateOfCreation = this.dateOfCreation,
+        type = this.type,
+        menuId = this.menuId,
+        createdUserId = this.createdUserId,
+//        createdId = this.createdUserId,
+        photoBase64s = this.photoBase64s,
+        operatingHoursString = this.operatingHoursString,
+    )
+
 }

@@ -2,6 +2,7 @@ package com.example.roamly
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import com.example.roamly.factory.RetrofitFactory.BASE_URL
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.Module
@@ -16,8 +17,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    private const val BASE_URL = "http://10.52.115.228:8080/"
-
     @RequiresApi(Build.VERSION_CODES.O)
     @Provides
     @Singleton

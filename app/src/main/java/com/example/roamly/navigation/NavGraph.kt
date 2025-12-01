@@ -3,12 +3,17 @@ package com.example.roamly.navigation
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.AdminPanelScreen
 import com.example.roamly.ui.screens.HomeScreen
 import com.example.roamly.ui.screens.SearchScreen
@@ -106,14 +111,13 @@ fun NavGraph(
             EstablishmentEditScreen(navController, id)
         }
 
-        // ⭐ НОВОЕ: ЭКРАН РЕДАКТИРОВАНИЯ МЕНЮ
         composable(
             route = EstablishmentScreens.MenuEdit.route,
             arguments = listOf(navArgument("id") { type = NavType.LongType })
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getLong("id") ?: return@composable
             // Предполагаем, что у вас есть композабл MenuEditScreen
-            MenuEditScreen(navController, establishmentId = id) // ⭐ Вызываем новый композабл
+            MenuEditScreen(navController, establishmentId = id)
         }
 
         composable(

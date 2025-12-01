@@ -6,6 +6,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
@@ -15,17 +16,21 @@ import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.BookingCreationDto
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
+import com.example.roamly.entity.DTO.EstablishmentUpdateRequest
 import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentStatus
 import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.TableEntity
 import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.entity.toDisplayDto
 import com.example.roamly.manager.SearchHistoryManager
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
+import hilt_aggregated_deps._com_example_roamly_entity_ViewModel_UserViewModel_HiltModules_KeyModule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,12 +44,13 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import retrofit2.Response
 import javax.inject.Inject
 
 @HiltViewModel
 class EstablishmentViewModel @Inject constructor(
     private val apiService: ApiService,
-    private val searchHistoryManager: SearchHistoryManager
+    private val searchHistoryManager: SearchHistoryManager,
 ) : ViewModel() {
 
     // --- StateFlow для списка заведений пользователя ---
@@ -451,51 +457,78 @@ class EstablishmentViewModel @Inject constructor(
     ) {
         viewModelScope.launch(Dispatchers.IO) {
 
-            val existing = _currentEstablishment.value
-            if (existing == null) {
-                withContext(Dispatchers.Main) {
-                    _errorMessage.value = "Ошибка: Нет данных для обновления."
-                    onResult(false)
-                }
-                return@launch
-            }
-
-            val updatedEntity = EstablishmentEntity(
-                id = establishmentId,
+            // 1. Создаем DTO для отправки (вместо Entity)
+            val updateRequest = EstablishmentUpdateRequest(
                 name = name,
+                description = description,
+                address = address,
                 latitude = latitude,
                 longitude = longitude,
-                address = address,
-                description = description,
-                rating = existing.rating,
-                status = existing.status,
-                menuId = existing.menuId,
-                createdUserId = existing.createdUserId,
-                dateOfCreation = existing.dateOfCreation,
                 type = type,
                 photoBase64s = photoBase64s,
                 operatingHoursString = operatingHoursString
             )
 
             try {
-                // Предполагается, что ваш EstablishmentEntity обновлен для использования operatingHoursString
-                val updatedEstablishment = apiService.updateEstablishment(establishmentId, updatedEntity)
+                // 2. Вызываем API, ожидая Response<EstablishmentEntity>
+                val response: Response<EstablishmentEntity> = apiService.updateEstablishment(
+                    establishmentId,
+                    updateRequest
+                )
 
-                withContext(Dispatchers.Main) {
-                    Log.i(
-                        "EstUpdateVM",
-                        "Заведение ${updatedEstablishment.name} успешно обновлено."
-                    )
-                    // Здесь нужно преобразовать EstablishmentEntity в EstablishmentDisplayDto,
-                    // если ваш API возвращает Entity, но StateFlow ждет DTO. (Предполагаем, что EstablishmentEntity - это уже DTO)
-                    _currentEstablishment.value = updatedEstablishment
-                    _errorMessage.value = null
-                    onResult(true)
+                if (response.isSuccessful) {
+                    // СЛУЧАЙ 1: УСПЕХ (200 OK)
+                    val updatedEntity = response.body()
+
+                    withContext(Dispatchers.Main) {
+                        if (updatedEntity != null) {
+                            // ⭐ ИСПРАВЛЕНИЕ: Конвертация EstablishmentEntity в EstablishmentDisplayDto
+                            val updatedDisplayDto = updatedEntity.toDisplayDto()
+
+                            Log.i("EstUpdateVM", "Заведение ${updatedDisplayDto.name} успешно обновлено.")
+
+                            // Присваиваем ожидаемый StateFlow тип
+                            _currentEstablishment.value = updatedDisplayDto
+                            _errorMessage.value = null
+                            onResult(true)
+                        } else {
+                            // Редкий случай: 200 OK, но тело пустое
+                            _errorMessage.value = "Ошибка: Сервер вернул пустой ответ при успехе."
+                            onResult(false)
+                        }
+                    }
+                } else {
+                    // СЛУЧАЙ 2: ОШИБКА СЕРВЕРА (400, 500 и т.д.)
+                    val errorBody = response.errorBody()?.string()
+                    val serverErrorMsg = if (errorBody != null) {
+                        // Пытаемся извлечь наше JSON-сообщение {"error": "..."}
+                        // Это может быть сложным, поэтому мы можем использовать простой подход.
+                        // Если тело не JSON, это будет просто строка.
+                        "Ошибка (Code ${response.code()}): $errorBody"
+                    } else {
+                        "Ошибка сервера (Code ${response.code()})"
+                    }
+
+                    Log.e("EstUpdateVM", serverErrorMsg)
+
+                    withContext(Dispatchers.Main) {
+                        // Используем более понятное сообщение для пользователя
+                        val displayError = if (serverErrorMsg.contains("error\":")) {
+                            // Извлекаем сообщение, если оно в нашем формате {"error": "..."}
+                            serverErrorMsg.substringAfter("\"error\":\"").substringBefore("\"")
+                        } else {
+                            "Не удалось обновить. Код ошибки: ${response.code()}"
+                        }
+                        _errorMessage.value = displayError
+                        onResult(false)
+                    }
                 }
+
             } catch (e: Exception) {
+                // СЛУЧАЙ 3: СЕТЕВАЯ ОШИБКА ИЛИ ДРУГИЕ ИСКЛЮЧЕНИЯ
                 withContext(Dispatchers.Main) {
-                    Log.e("EstUpdateVM", "Ошибка обновления заведения: ${e.message}")
-                    _errorMessage.value = "Не удалось обновить заведение. ${e.message}"
+                    Log.e("EstUpdateVM", "Сетевая ошибка обновления: ${e.message}")
+                    _errorMessage.value = "Ошибка сети. Проверьте соединение. ${e.message}"
                     onResult(false)
                 }
             }
@@ -1214,6 +1247,90 @@ class EstablishmentViewModel @Inject constructor(
             }
 
             finalHistory
+        }
+    }
+
+    private val _favoriteEstablishmentIds = MutableStateFlow<Set<Long>>(emptySet())
+    val favoriteEstablishmentIds: StateFlow<Set<Long>> = _favoriteEstablishmentIds.asStateFlow()
+
+    private val _favoriteEstablishmentsList = MutableStateFlow<List<EstablishmentFavoriteDto>>(emptyList())
+    val favoriteEstablishmentsList: StateFlow<List<EstablishmentFavoriteDto>> = _favoriteEstablishmentsList.asStateFlow()
+
+    /**
+     * Загружает список избранных заведений (DTO) для профиля.
+     */
+    fun fetchFavoriteEstablishmentsList(userId: Long) {
+        if (userId < 1) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = apiService.getFavoriteEstablishmentsList(userId)
+                withContext(Dispatchers.Main) {
+                    _favoriteEstablishmentsList.value = list
+                }
+            } catch (e: Exception) {
+                Log.e("EstViewModel", "Ошибка загрузки списка избранного: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Проверяет, является ли заведение избранным (локальная проверка).
+     */
+    fun isFavorite(establishmentId: Long): Boolean {
+        return _favoriteEstablishmentIds.value.contains(establishmentId)
+    }
+
+    /**
+     * Переключает состояние избранного и вызывает API-запрос.
+     * @param establishmentId ID заведения
+     * @param userId ID текущего пользователя (передается из UI)
+     */
+    fun toggleFavorite(establishmentId: Long, userId: Long) {
+        if (userId < 1) {
+            Log.e("EstViewModel", "Пользователь не авторизован (ID: $userId).")
+            _errorMessage.value = "Для добавления в избранное нужно авторизоваться."
+            return
+        }
+
+        val isCurrentlyFavorite = isFavorite(establishmentId)
+
+        _favoriteEstablishmentIds.update { currentFavorites ->
+            if (isCurrentlyFavorite) currentFavorites - establishmentId else currentFavorites + establishmentId
+        }
+
+        // 2. Сетевой запрос в фоне
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = if (isCurrentlyFavorite) {
+                    apiService.removeFavoriteEstablishment(userId, establishmentId)
+                } else {
+                    apiService.addFavoriteEstablishment(userId, establishmentId)
+                }
+
+                if (!response.isSuccessful) {
+                    // Ошибка: откатываем состояние
+                    rollbackFavoriteState(establishmentId, isCurrentlyFavorite)
+                    Log.e("EstViewModel", "Ошибка API избранного: ${response.code()}")
+                    withContext(Dispatchers.Main) {
+                        _errorMessage.value = "Не удалось обновить избранное."
+                    }
+                } else {
+                    Log.i("EstViewModel", "Избранное обновлено. Статус: ${if (isCurrentlyFavorite) "Удалено" else "Добавлено"}")
+                }
+            } catch (e: Exception) {
+                rollbackFavoriteState(establishmentId, isCurrentlyFavorite)
+                Log.e("EstViewModel", "Сетевая ошибка избранного: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    _errorMessage.value = "Ошибка сети. Изменения не сохранены."
+                }
+            }
+        }
+    }
+
+    private fun rollbackFavoriteState(establishmentId: Long, wasFavorite: Boolean) {
+        _favoriteEstablishmentIds.update { currentFavorites ->
+            if (wasFavorite) currentFavorites + establishmentId else currentFavorites - establishmentId
         }
     }
 }

@@ -62,7 +62,7 @@ fun PendingItemCard(
             Text(text = establishment.name, style = MaterialTheme.typography.titleMedium)
             Text(text = establishment.address, style = MaterialTheme.typography.bodyMedium)
             Text(text = "Тип: ${establishment.type}", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Создал: ID ${establishment.createdId}", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Создал: ID ${establishment.createdUserId}", style = MaterialTheme.typography.bodySmall)
 
             Spacer(Modifier.height(12.dp))
 

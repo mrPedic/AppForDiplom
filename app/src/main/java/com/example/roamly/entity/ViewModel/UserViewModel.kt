@@ -11,16 +11,16 @@ import com.example.roamly.factory.RetrofitFactory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
 class UserViewModel @Inject constructor(
-    // ⭐ ВНЕДРЯЕМ UserDataSource ВМЕСТО ПРЯМОЙ РАБОТЫ С SharedPreferences
     private val userDataSource: UserDataSource,
-    // Application оставлен только для checkServerConnection, если он нужен для системных сервисов
     private val application: Application
 ) : ViewModel() {
 
@@ -37,13 +37,7 @@ class UserViewModel @Inject constructor(
 
     init {
         checkServerConnection()
-        // ⭐ УДАЛЕНО: loadUser() больше не нужен, его вызывает UserDataSource в своем конструкторе
     }
-
-    // ⭐ УДАЛЕНО: Приватные поля SharedPreferences (prefs и PrefKeys)
-    // ⭐ УДАЛЕНО: Приватные функции saveUserToPrefs и loadUser
-
-    // --- Public API ---
 
     fun checkServerConnection() = viewModelScope.launch(Dispatchers.IO) {
         val isConnected = try {

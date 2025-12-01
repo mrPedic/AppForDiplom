@@ -8,8 +8,10 @@ import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.BookingCreationDto
 import com.example.roamly.entity.BookingEntity
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
+import com.example.roamly.entity.DTO.EstablishmentUpdateRequest
 import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.ReviewEntity
@@ -34,6 +36,23 @@ interface ApiService {
 
     @POST("auth/login")
     suspend fun loginUser(@Body user: User): User?
+
+    @GET("users/{userId}/favorites/list")
+    suspend fun getFavoriteEstablishmentsList(
+        @Path("userId") userId: Long
+    ): List<EstablishmentFavoriteDto>
+
+    @POST("users/{userId}/favorites/{establishmentId}")
+    suspend fun addFavoriteEstablishment(
+        @Path("userId") userId: Long,
+        @Path("establishmentId") establishmentId: Long
+    ): Response<Unit>
+
+    @DELETE("users/{userId}/favorites/{establishmentId}")
+    suspend fun removeFavoriteEstablishment(
+        @Path("userId") userId: Long,
+        @Path("establishmentId") establishmentId: Long
+    ): Response<Unit>
 
       // =================================== //
      // ===== Все точки для заведений ===== //
@@ -72,8 +91,8 @@ interface ApiService {
     @PUT("establishments/{id}")
     suspend fun updateEstablishment(
         @Path("id") id: Long,
-        @Body establishment: EstablishmentEntity
-    ): EstablishmentDisplayDto
+        @Body request: EstablishmentUpdateRequest // <-- Исправлено на DTO
+    ): Response<EstablishmentEntity> // <-- Исправлено на Response<T>
 
       // ================================== //
      // ===== Все точки для столиков ===== //
