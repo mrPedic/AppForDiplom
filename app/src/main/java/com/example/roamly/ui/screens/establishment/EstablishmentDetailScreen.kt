@@ -254,7 +254,7 @@ fun EstablishmentHeaderContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(150.dp) // Увеличим высоту, чтобы оставить место для TopBar
+                .height(270.dp) // Увеличим высоту, чтобы оставить место для TopBar
         ) {
             val mainPhotoBase64 = establishment.photoBase64s.firstOrNull { it.isNotBlank() }
 

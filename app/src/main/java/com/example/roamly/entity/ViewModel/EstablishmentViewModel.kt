@@ -28,6 +28,8 @@ import com.example.roamly.entity.TableEntity
 import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.toDisplayDto
 import com.example.roamly.manager.SearchHistoryManager
+import com.example.roamly.ui.screens.establishment.toJsonString
+import com.example.roamly.ui.screens.establishment.toMap
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import hilt_aggregated_deps._com_example_roamly_entity_ViewModel_UserViewModel_HiltModules_KeyModule
@@ -469,6 +471,8 @@ class EstablishmentViewModel @Inject constructor(
                 operatingHoursString = operatingHoursString
             )
 
+            Log.i("EstUpdateVM", "Отправка обновления ID: $establishmentId. Lat: $latitude, Lon: $longitude. Тип: $type. Фото: ${photoBase64s.size} шт.")
+
             try {
                 // 2. Вызываем API, ожидая Response<EstablishmentEntity>
                 val response: Response<EstablishmentEntity> = apiService.updateEstablishment(
@@ -498,12 +502,8 @@ class EstablishmentViewModel @Inject constructor(
                         }
                     }
                 } else {
-                    // СЛУЧАЙ 2: ОШИБКА СЕРВЕРА (400, 500 и т.д.)
                     val errorBody = response.errorBody()?.string()
                     val serverErrorMsg = if (errorBody != null) {
-                        // Пытаемся извлечь наше JSON-сообщение {"error": "..."}
-                        // Это может быть сложным, поэтому мы можем использовать простой подход.
-                        // Если тело не JSON, это будет просто строка.
                         "Ошибка (Code ${response.code()}): $errorBody"
                     } else {
                         "Ошибка сервера (Code ${response.code()})"
@@ -512,9 +512,7 @@ class EstablishmentViewModel @Inject constructor(
                     Log.e("EstUpdateVM", serverErrorMsg)
 
                     withContext(Dispatchers.Main) {
-                        // Используем более понятное сообщение для пользователя
                         val displayError = if (serverErrorMsg.contains("error\":")) {
-                            // Извлекаем сообщение, если оно в нашем формате {"error": "..."}
                             serverErrorMsg.substringAfter("\"error\":\"").substringBefore("\"")
                         } else {
                             "Не удалось обновить. Код ошибки: ${response.code()}"
@@ -525,7 +523,6 @@ class EstablishmentViewModel @Inject constructor(
                 }
 
             } catch (e: Exception) {
-                // СЛУЧАЙ 3: СЕТЕВАЯ ОШИБКА ИЛИ ДРУГИЕ ИСКЛЮЧЕНИЯ
                 withContext(Dispatchers.Main) {
                     Log.e("EstUpdateVM", "Сетевая ошибка обновления: ${e.message}")
                     _errorMessage.value = "Ошибка сети. Проверьте соединение. ${e.message}"
@@ -1331,6 +1328,96 @@ class EstablishmentViewModel @Inject constructor(
     private fun rollbackFavoriteState(establishmentId: Long, wasFavorite: Boolean) {
         _favoriteEstablishmentIds.update { currentFavorites ->
             if (wasFavorite) currentFavorites + establishmentId else currentFavorites - establishmentId
+        }
+    }
+
+    // --- Временные состояния для редактирования (чтобы избежать сброса при навигации) ---
+    private val _editedName = MutableStateFlow("")
+    val editedName: StateFlow<String> = _editedName.asStateFlow()
+
+    private val _editedDescription = MutableStateFlow("")
+    val editedDescription: StateFlow<String> = _editedDescription.asStateFlow()
+
+    private val _editedAddress = MutableStateFlow("")
+    val editedAddress: StateFlow<String> = _editedAddress.asStateFlow()
+
+    private val _editedType = MutableStateFlow(TypeOfEstablishment.Restaurant)
+    val editedType: StateFlow<TypeOfEstablishment> = _editedType.asStateFlow()
+
+    private val _editedLatitude = MutableStateFlow(0.0)
+    val editedLatitude: StateFlow<Double> = _editedLatitude.asStateFlow()
+
+    private val _editedLongitude = MutableStateFlow(0.0)
+    val editedLongitude: StateFlow<Double> = _editedLongitude.asStateFlow()
+
+    private val _editedPhotoBase64s = MutableStateFlow<List<String>>(emptyList())
+    val editedPhotoBase64s: StateFlow<List<String>> = _editedPhotoBase64s.asStateFlow()
+
+    private val _editedOperatingHours = MutableStateFlow<Map<String, String>>(emptyMap())
+    val editedOperatingHours: StateFlow<Map<String, String>> = _editedOperatingHours.asStateFlow()
+
+    // Метод для инициализации edited состояний из currentEstablishment (вызывается при загрузке экрана редактирования)
+    fun initEditedStates() {
+        currentEstablishment.value?.let { est ->
+            if (_editedName.value.isEmpty()) { // Проверка, чтобы init только если не инициализировано
+                _editedName.value = est.name
+                _editedDescription.value = est.description
+                _editedAddress.value = est.address
+                _editedType.value = est.type
+                _editedLatitude.value = est.latitude
+                _editedLongitude.value = est.longitude
+                _editedPhotoBase64s.value = est.photoBase64s.filter { it.isNotBlank() }
+                _editedOperatingHours.value = est.operatingHoursString.toMap()
+                Log.i("EstViewModel", "Инициализация edited состояний для ID ${est.id}")
+            }
+        }
+    }
+
+    // Методы для обновления edited состояний (вызываются из UI)
+    fun updateEditedName(newName: String) { _editedName.value = newName }
+    fun updateEditedDescription(newDesc: String) { _editedDescription.value = newDesc }
+    fun updateEditedAddress(newAddr: String) { _editedAddress.value = newAddr }
+    fun updateEditedType(newType: TypeOfEstablishment) { _editedType.value = newType }
+    fun updateEditedLatitude(newLat: Double) { _editedLatitude.value = newLat }
+    fun updateEditedLongitude(newLon: Double) { _editedLongitude.value = newLon }
+    fun updateEditedPhotos(newPhotos: List<String>) { _editedPhotoBase64s.value = newPhotos }
+    fun updateEditedOperatingHours(newHours: Map<String, String>) { _editedOperatingHours.value = newHours }
+
+    // В updateEstablishment: используйте edited состояния для отправки на сервер
+// (Ваш существующий метод updateEstablishment - обновите параметры, чтобы использовать edited*)
+    fun updateEstablishment(
+        establishmentId: Long,
+        onResult: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val request = EstablishmentUpdateRequest(
+                    name = editedName.value,
+                    description = editedDescription.value,
+                    address = editedAddress.value,
+                    latitude = editedLatitude.value,
+                    longitude = editedLongitude.value,
+                    type = editedType.value,
+                    photoBase64s = editedPhotoBase64s.value,
+                    operatingHoursString = editedOperatingHours.value.toJsonString()
+                )
+                val response: Response<EstablishmentEntity> = apiService.updateEstablishment(establishmentId, request)
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        Log.i("EstViewModel", "Заведение ID $establishmentId обновлено.")
+                        fetchEstablishmentById(establishmentId) // Перезагрузка после сохранения
+                        onResult(true)
+                    } else {
+                        Log.e("EstViewModel", "Ошибка обновления: ${response.code()}")
+                        onResult(false)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("EstViewModel", "Сетевая ошибка: ${e.message}")
+                    onResult(false)
+                }
+            }
         }
     }
 }

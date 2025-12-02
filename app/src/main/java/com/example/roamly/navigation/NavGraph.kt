@@ -46,7 +46,7 @@ fun NavGraph(
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel,
     mapRefreshKey: Boolean,
-    onMapRefresh: () -> Unit
+    onMapRefresh: () -> Unit,
 ) {
     NavHost(
         navController = navController,
