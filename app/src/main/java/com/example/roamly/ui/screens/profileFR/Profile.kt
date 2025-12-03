@@ -134,7 +134,7 @@ private fun RegisteredProfileContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Избранные заведения ❤️",
+            text = "Избранные заведения ",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)

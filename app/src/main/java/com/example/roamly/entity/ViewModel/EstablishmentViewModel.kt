@@ -4,14 +4,10 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.toMutableStateList
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
 import com.example.roamly.classes.cl_menu.Drink
-import com.example.roamly.classes.cl_menu.DrinkOption
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.BookingCreationDto
@@ -32,22 +28,24 @@ import com.example.roamly.ui.screens.establishment.toJsonString
 import com.example.roamly.ui.screens.establishment.toMap
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
-import hilt_aggregated_deps._com_example_roamly_entity_ViewModel_UserViewModel_HiltModules_KeyModule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Response
 import javax.inject.Inject
+
 
 @HiltViewModel
 class EstablishmentViewModel @Inject constructor(
@@ -1042,7 +1040,6 @@ class EstablishmentViewModel @Inject constructor(
 
         _saveStatus.value = SaveStatus.Loading
 
-        // 1. 🌟 ИСПРАВЛЕНИЕ ClassCastException:
         // Преобразуем SnapshotStateList в MutableList с помощью .toMutableList()
         val safeFoodGroups = menu.foodGroups.map { foodGroup ->
             foodGroup.copy(items = foodGroup.items.toMutableList())
@@ -1185,7 +1182,6 @@ class EstablishmentViewModel @Inject constructor(
                 }
 
                 // -----------------------------------------------------------
-                // 5. ⭐ ОБРАБОТКА УДАЛЕНИЙ (DELETE) ⭐
                 // -----------------------------------------------------------
                 deletedFoodItemIds.forEach { itemId ->
                     println("DEBUG: Deleting Food Item: $itemId")
@@ -1238,7 +1234,7 @@ class EstablishmentViewModel @Inject constructor(
             }
             val finalHistory = newList.take(5)
 
-            // ⭐ СОХРАНЯЕМ В ХРАНИЛИЩЕ ПОСЛЕ ОБНОВЛЕНИЯ
+            // СОХРАНЯЕМ В ХРАНИЛИЩЕ ПОСЛЕ ОБНОВЛЕНИЯ
             viewModelScope.launch {
                 searchHistoryManager.saveHistory(finalHistory)
             }
@@ -1247,11 +1243,26 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
-    private val _favoriteEstablishmentIds = MutableStateFlow<Set<Long>>(emptySet())
-    val favoriteEstablishmentIds: StateFlow<Set<Long>> = _favoriteEstablishmentIds.asStateFlow()
-
     private val _favoriteEstablishmentsList = MutableStateFlow<List<EstablishmentFavoriteDto>>(emptyList())
     val favoriteEstablishmentsList: StateFlow<List<EstablishmentFavoriteDto>> = _favoriteEstablishmentsList.asStateFlow()
+
+    // ----------------------------------------------------------------------
+    /**
+     * ✅ ИСПРАВЛЕННАЯ ЛОГИКА: Реактивно извлекает ID из полного списка избранных заведений.
+     * Этот StateFlow будет автоматически обновляться, когда обновится favoriteEstablishmentsList.
+     * Именно здесь происходит "проверка на наличие ID в списке" для UI.
+     */
+    val favoriteEstablishmentIds: StateFlow<Set<Long>> = favoriteEstablishmentsList
+        .map { list ->
+            // Преобразуем List<EstablishmentDisplayDto> в Set<Long> с ID заведений.
+            list.map { it.id }.toSet()
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptySet()
+        )
+    // ----------------------------------------------------------------------
 
     /**
      * Загружает список избранных заведений (DTO) для профиля.
@@ -1275,59 +1286,101 @@ class EstablishmentViewModel @Inject constructor(
      * Проверяет, является ли заведение избранным (локальная проверка).
      */
     fun isFavorite(establishmentId: Long): Boolean {
-        return _favoriteEstablishmentIds.value.contains(establishmentId)
+        Log.d("EstViewModel", "$Long")
+        return favoriteEstablishmentIds.value.contains(establishmentId)
     }
+
+    // EstablishmentViewModel.kt
 
     /**
      * Переключает состояние избранного и вызывает API-запрос.
-     * @param establishmentId ID заведения
+     * @param establishment EstablishmentDisplayDto заведения для оптимистического обновления
      * @param userId ID текущего пользователя (передается из UI)
      */
-    fun toggleFavorite(establishmentId: Long, userId: Long) {
+    fun toggleFavorite(establishment: EstablishmentDisplayDto, userId: Long) {
         if (userId < 1) {
             Log.e("EstViewModel", "Пользователь не авторизован (ID: $userId).")
             _errorMessage.value = "Для добавления в избранное нужно авторизоваться."
             return
         }
-
+        val establishmentId = establishment.id
+        // Проверяем статус до оптимистичного обновления
         val isCurrentlyFavorite = isFavorite(establishmentId)
+        Log.i("EstViewModel", "Текущий статус избранного: $isCurrentlyFavorite")
 
-        _favoriteEstablishmentIds.update { currentFavorites ->
-            if (isCurrentlyFavorite) currentFavorites - establishmentId else currentFavorites + establishmentId
+        val removedDto: EstablishmentFavoriteDto? = if (isCurrentlyFavorite) {
+            // 1. Запоминаем объект для отката, если удаление не удастся
+            _favoriteEstablishmentsList.value.find { it.id == establishmentId }
+        } else null
+
+        // 2. Оптимистичное обновление списка (меняем UI сразу)
+        _favoriteEstablishmentsList.update { current ->
+            if (isCurrentlyFavorite) {
+                Log.i("EstViewModel", "Оптимистичное УДАЛЕНИЕ: ID $establishmentId")
+                current.filter { it.id != establishmentId } // Оптимистичное УДАЛЕНИЕ
+            } else {
+                Log.i("EstViewModel", "Оптимистичное ДОБАВЛЕНИЕ: ID $establishmentId")
+                val newDto = EstablishmentFavoriteDto(
+                    establishment.id,
+                    establishment.name,
+                    establishment.address,
+                    establishment.rating,
+                    establishment.type,
+                    establishment.photoBase64s.firstOrNull()
+                )
+                current + newDto // Оптимистичное ДОБАВЛЕНИЕ
+            }
         }
 
-        // 2. Сетевой запрос в фоне
+        // 3. API-запрос и логика отката
         viewModelScope.launch(Dispatchers.IO) {
+            val wasFavorite = isCurrentlyFavorite // Запоминаем исходный статус для отката
             try {
-                val response = if (isCurrentlyFavorite) {
-                    apiService.removeFavoriteEstablishment(userId, establishmentId)
-                } else {
-                    apiService.addFavoriteEstablishment(userId, establishmentId)
-                }
-
-                if (!response.isSuccessful) {
-                    // Ошибка: откатываем состояние
-                    rollbackFavoriteState(establishmentId, isCurrentlyFavorite)
-                    Log.e("EstViewModel", "Ошибка API избранного: ${response.code()}")
+                if (wasFavorite) {
+                    // ⭐ КЛЮЧЕВОЙ ВЫЗОВ ДЛЯ УДАЛЕНИЯ
+                    apiService.removeFavoriteEstablishment(userId,establishmentId)
                     withContext(Dispatchers.Main) {
-                        _errorMessage.value = "Не удалось обновить избранное."
+                        Log.i("EstViewModel", "Удалено из избранного ID $establishmentId (API success)")
+                        _errorMessage.value = null
                     }
                 } else {
-                    Log.i("EstViewModel", "Избранное обновлено. Статус: ${if (isCurrentlyFavorite) "Удалено" else "Добавлено"}")
+                    // КЛЮЧЕВОЙ ВЫЗОВ ДЛЯ ДОБАВЛЕНИЯ
+                    apiService.addFavoriteEstablishment(userId,establishmentId)
+                    withContext(Dispatchers.Main) {
+                        Log.i("EstViewModel", "Добавлено в избранное ID $establishmentId (API success)")
+                        _errorMessage.value = null
+                    }
                 }
             } catch (e: Exception) {
-                rollbackFavoriteState(establishmentId, isCurrentlyFavorite)
-                Log.e("EstViewModel", "Сетевая ошибка избранного: ${e.message}")
                 withContext(Dispatchers.Main) {
-                    _errorMessage.value = "Ошибка сети. Изменения не сохранены."
+                    // ⭐ ЛОГИКА ОТКАТА (Rollback) при ошибке API
+                    val action = if (wasFavorite) "удаления" else "добавления"
+                    Log.e("EstViewModel", "Ошибка API при $action избранного (ID $establishmentId): ${e.message}")
+                    _errorMessage.value = "Ошибка сервера. Не удалось изменить избранное."
+
+                    _favoriteEstablishmentsList.update { current ->
+                        if (wasFavorite) { // Если пытались УДАЛИТЬ, но не удалось -> ВОССТАНОВИТЬ
+                            Log.d("EstViewModel", "Откат: Восстановление ID $establishmentId")
+                            removedDto?.let { current + it } ?: current
+                        } else { // Если пытались ДОБАВИТЬ, но не удалось -> УДАЛИТЬ оптимистично добавленный
+                            Log.d("EstViewModel", "Откат: Удаление ID $establishmentId")
+                            current.filter { it.id != establishmentId }
+                        }
+                    }
                 }
             }
         }
     }
 
-    private fun rollbackFavoriteState(establishmentId: Long, wasFavorite: Boolean) {
-        _favoriteEstablishmentIds.update { currentFavorites ->
-            if (wasFavorite) currentFavorites + establishmentId else currentFavorites - establishmentId
+    private fun rollbackFavoriteState(establishmentId: Long, wasFavorite: Boolean, removedDto: EstablishmentFavoriteDto?) {
+        _favoriteEstablishmentsList.update { current ->
+            if (wasFavorite && removedDto != null) {
+                current + removedDto
+            } else if (!wasFavorite) {
+                current.filter { it.id != establishmentId }
+            } else {
+                current
+            }
         }
     }
 
@@ -1420,4 +1473,9 @@ class EstablishmentViewModel @Inject constructor(
             }
         }
     }
+
+    fun checkIfFavorite(id: Long): Boolean {
+        return favoriteEstablishmentIds.value.contains(id)
+    }
+
 }
