@@ -49,8 +49,8 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
     // Coil для Compose
-    implementation("io.coil-kt:coil-compose:2.3.0") // рабочая версия
-    implementation("io.coil-kt:coil-base:2.3.0") // для core
+    implementation("io.coil-kt:coil-compose:2.3.0") 
+    implementation("io.coil-kt:coil-base:2.3.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
@@ -83,7 +83,5 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     //WebSocket
-
-
 }
 
