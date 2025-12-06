@@ -3,7 +3,6 @@ plugins {
     kotlin("android")
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -20,11 +19,7 @@ android {
     }
 
     buildFeatures { compose = true }
-//    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
-
-    composeCompiler {
-        enableStrongSkippingMode = true
-    }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -36,15 +31,14 @@ android {
 
 dependencies {
     val nav_version = "2.9.3"
-    val ktorVersion = "3.3.3"
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:$nav_version")
 
     // Hilt
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
-    implementation(libs.hilt.nav.compose)
+    implementation("com.google.dagger:hilt-android:2.48")
+    ksp("com.google.dagger:hilt-compiler:2.48")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Retrofit + JSON
     implementation("org.json:json:20240303")
@@ -65,6 +59,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     implementation("androidx.activity:activity-compose:1.9.0")
+    implementation(platform("androidx.compose:compose-bom:2025.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -74,6 +69,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -82,20 +78,12 @@ dependencies {
 
     // MAPS
     implementation("org.osmdroid:osmdroid-android:6.1.20")
-    implementation("com.github.MKergall:osmbonuspack:6.9.0")
+    implementation("com.github.MKergall:osmbonuspack:6.9.0")  // Было org.osmdroid:bonuspack:7.1.0
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
-        //BOM
-    implementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(platform(libs.androidx.compose.bom))
+    //WebSocket
 
-      //WebSocket
-    // HTTP
-    implementation("io.ktor:ktor-client-core:${ktorVersion}")
-    implementation("io.ktor:ktor-client-json:${ktorVersion}")
-    implementation("io.ktor:ktor-client-serialization:${ktorVersion}")
-    implementation("io.ktor:ktor-client-logging:${ktorVersion}")
 
 }
 
