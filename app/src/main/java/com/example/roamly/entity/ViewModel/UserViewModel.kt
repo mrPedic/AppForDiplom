@@ -26,8 +26,6 @@ class UserViewModel @Inject constructor(
 
     // --- State ---
 
-    // ⭐ ДЕЛЕГИРУЕМ: Состояние пользователя берем из UserDataSource
-    // UserDataSource сам загружает данные при инициализации
     val user = userDataSource.currentUser
 
     private val _isServerConnected = MutableStateFlow(false)
@@ -60,7 +58,6 @@ class UserViewModel @Inject constructor(
 
                 val registeredUser = newUser.copy(id = newId, role = Role.Registered, password = "")
 
-                // ⭐ ДЕЛЕГИРУЕМ: Сохраняем и обновляем состояние через DataSource
                 userDataSource.saveUserState(registeredUser)
 
                 onResult(registeredUser)
@@ -84,7 +81,6 @@ class UserViewModel @Inject constructor(
                 if (response != null) {
                     val loggedInUser = response.copy(password = "")
 
-                    // ⭐ ДЕЛЕГИРУЕМ: Сохраняем и обновляем состояние через DataSource
                     userDataSource.saveUserState(loggedInUser)
 
                     onResult(loggedInUser)
@@ -100,19 +96,16 @@ class UserViewModel @Inject constructor(
     }
 
     fun logout() {
-        // ⭐ ДЕЛЕГИРУЕМ: Сброс состояния и очистка SharedPreferences через DataSource
         userDataSource.clearUserState()
     }
 
     fun updateRole(newRole: Role) {
-        // ⭐ ДЕЛЕГИРУЕМ: Обновление состояния через DataSource
         // Предполагается, что UserDataSource имеет метод для обновления роли
         userDataSource.updateRole(newRole)
     }
 
     // --- State-derived getters ---
 
-    // ⭐ ДЕЛЕГИРУЕМ: Получаем ID из UserDataSource
     fun getId(): Long? = userDataSource.currentUserId
 
     // Остальные геттеры работают с Flow, который теперь является прокси DataSource

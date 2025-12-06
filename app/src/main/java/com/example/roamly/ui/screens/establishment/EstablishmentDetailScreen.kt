@@ -30,6 +30,7 @@ import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import java.time.format.DateTimeFormatter
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -81,6 +83,14 @@ fun EstablishmentDetailScreen(
     var selectedTab by remember { mutableIntStateOf(pagerState.currentPage) }
 
     val coroutineScope = rememberCoroutineScope()
+    var showMenuItemDetailDialog by remember { mutableStateOf(false) }
+    var selectedMenuItem: Any? by remember { mutableStateOf(null) }
+
+    val onMenuItemClick: (Any) -> Unit = { item ->
+        selectedMenuItem = item
+        showMenuItemDetailDialog = true
+    }
+
 
     // --- ЛОГИКА COLLAPSING HEADER ---
 
@@ -100,11 +110,10 @@ fun EstablishmentDetailScreen(
         }
     }
 
-    // ИСПРАВЛЕНИЕ: Вызываем ваш СУЩЕСТВУЮЩИЙ метод, который загружает favoriteEstablishmentsList.
-    // Это гарантирует, что favoriteEstablishmentIds (производный поток) будет заполнен.
-    LaunchedEffect(currentUserId) {
-        if (currentUserId > 0) {
-            viewModel.fetchFavoriteEstablishmentsList(currentUserId)
+    LaunchedEffect(establishmentId, currentUserId) { // <--- ИЗМЕНЕНИЕ
+        if (establishmentId > 0) {
+            viewModel.fetchEstablishmentById(establishmentId) // <--- ИЗМЕНЕНИЕ
+            viewModel.fetchMenuForEstablishment(establishmentId)
         }
     }
 
@@ -191,6 +200,7 @@ fun EstablishmentDetailScreen(
                         isMenuLoading = isMenuLoading,
                         operatingHoursMap = operatingHoursMap,
                         operatingStatus = operatingStatus,
+                        onMenuItemClick = onMenuItemClick
                     )
                 }
             }
@@ -213,6 +223,16 @@ fun EstablishmentDetailScreen(
                 contentColor = contentColor,
                 modifier = Modifier.zIndex(2f).align(Alignment.TopCenter),
                 establishment = establishment!!
+            )
+        }
+
+        if (showMenuItemDetailDialog && selectedMenuItem != null) {
+            MenuItemDetailDialog(
+                item = selectedMenuItem!!,
+                onDismiss = {
+                    showMenuItemDetailDialog = false
+                    selectedMenuItem = null
+                }
             )
         }
     }
@@ -278,7 +298,6 @@ fun OperatingHoursDisplay(operatingHours: Map<String, String>) {
     }
 }
 
-// --- ИСПРАВЛЕНИЕ: CUSTOM TOP BAR (Замена на Box) ---
 @Composable
 fun EstablishmentTopBar(
     navController: NavController,
@@ -354,11 +373,13 @@ fun EstablishmentTabContent(
     isMenuLoading: Boolean,
     operatingHoursMap: Map<String, String>,
     operatingStatus: OperatingStatus,
-    userViewModel: UserViewModel = hiltViewModel()
+    userViewModel: UserViewModel = hiltViewModel(),
+    onMenuItemClick: (Any) -> Unit
 ) {
     val currentUser by userViewModel.user.collectAsState()
     val currentUserId = currentUser.id ?: -1L
     val isOwner = establishment.createdUserId == currentUserId
+    val context = LocalContext.current
 
     when (page) {
         0 -> {
@@ -377,19 +398,24 @@ fun EstablishmentTabContent(
                 Text("Тип: ${convertTypeToWord(establishment.type)}")
 
                 Spacer(Modifier.height(16.dp))
+
                 Button(
                     onClick = {
-                        navController.navigate(
-                            BookingScreens.CreateBooking.createRoute(establishment.id)
-                        )
+                        val currentUserId = userViewModel.getId()
+                        if (currentUserId != null) {
+                            navController.navigate(
+                                BookingScreens.CreateBooking.createRoute(establishment.id)
+                            )
+                        } else {
+                            Toast.makeText(context, "Пожалуйста, авторизуйтесь для бронирования.", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Забронировать столик (Шаг 10 мин)")
+                    Text("Забронировать столик")
                 }
 
                 Spacer(Modifier.height(16.dp))
-                // Передаем уже вычисленный статус
                 OperatingStatusDisplayInternal(operatingStatus)
 
                 Spacer(Modifier.height(16.dp))
@@ -418,9 +444,10 @@ fun EstablishmentTabContent(
             } else {
                 MenuDisplayContent(
                     menu = menuState,
-                    isOwner = isOwner,
+                    isOwner = (establishment.createdUserId == userViewModel.getId()), // Или ваша логика isOwner
                     establishmentId = establishment.id,
-                    navController = navController
+                    navController = navController,
+                    onMenuItemClick = onMenuItemClick
                 )
             }
         }
@@ -830,12 +857,11 @@ fun MenuDisplayContent(
     menu: MenuOfEstablishment,
     isOwner: Boolean,
     establishmentId: Long,
-    navController: NavController
+    navController: NavController,
+    onMenuItemClick: (Any) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        // contentPadding убираем или уменьшаем, так как внешний Box уже имеет отступ.
-        // Оставим только вертикальный, чтобы разгрузить внешний Box.
         contentPadding = PaddingValues(top = 16.dp)
     ) {
         // --- 1. Заголовок ---
@@ -872,7 +898,7 @@ fun MenuDisplayContent(
         if (menu.foodGroups.isNotEmpty()) {
             item {
                 Text(
-                    text = "🍽️ Блюда",
+                    text = "Блюда",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp, start = 16.dp, end = 16.dp)
@@ -892,8 +918,11 @@ fun MenuDisplayContent(
                 } else {
                     LazyRow(contentPadding = PaddingValues(vertical = 4.dp)) {
                         items(group.items) { food ->
-                            FoodCard(food = food)
-                            Spacer(Modifier.width(16.dp)) // Отступ между горизонтальными карточками
+                            FoodCard(
+                                food = food,
+                                onClick = { onMenuItemClick(food) }
+                            )
+                            Spacer(Modifier.width(16.dp))
                         }
                     }
                 }
@@ -928,7 +957,10 @@ fun MenuDisplayContent(
                 } else {
                     LazyRow(contentPadding = PaddingValues(vertical = 4.dp)) {
                         items(group.items) { drink ->
-                            DrinkCard(drink = drink)
+                            DrinkCard(
+                                drink = drink,
+                                onClick = { onMenuItemClick(drink) }
+                            )
                             Spacer(Modifier.width(16.dp))
                         }
                     }

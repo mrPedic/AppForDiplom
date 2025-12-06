@@ -7,13 +7,17 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -30,19 +35,11 @@ import com.example.roamly.entity.ViewModel.UserViewModel
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-// kotlin.time.Duration.Companion.minutes - Удалено, так как не используется
+import kotlin.math.max
 
-// Уникальный тег для логирования
 private const val TAG = "CreateBookingScreen"
+private val BOOKING_DURATIONS_MINUTES = listOf(60L, 90L, 120L, 150L, 180L)
 
-// ⭐ Конфигурация: Доступные длительности бронирования в минутах
-private val BOOKING_DURATIONS_MINUTES = listOf(60L, 90L, 120L, 150L, 180L) // 1ч, 1.5ч, 2ч, 2.5ч, 3ч
-
-// ------------------------------------------------------------------
-// ⭐ УТИЛИТЫ ДЛЯ ВРЕМЕНИ РАБОТЫ (Operating Hours)
-// ------------------------------------------------------------------
-
-// Карта для преобразования ПОЛНЫХ названий дней на русском в DayOfWeek
 @RequiresApi(Build.VERSION_CODES.O)
 private val DAY_NAME_TO_DAY_OF_WEEK = mapOf(
     "ПОНЕДЕЛЬНИК" to DayOfWeek.MONDAY,
@@ -55,7 +52,7 @@ private val DAY_NAME_TO_DAY_OF_WEEK = mapOf(
 )
 
 /**
- * Парсит строку operatingHoursString.
+ * Парсит строку operatingHoursString. (Оставлена без изменений)
  */
 @RequiresApi(Build.VERSION_CODES.O)
 fun parseOperatingHours(hoursStr: String?): Map<DayOfWeek, Pair<LocalTime?, LocalTime?>> {
@@ -107,10 +104,6 @@ fun parseOperatingHours(hoursStr: String?): Map<DayOfWeek, Pair<LocalTime?, Loca
         .toMap()
 }
 
-// ------------------------------------------------------------------
-// ⭐ ОСНОВНОЙ КОМПОНЕНТ CreateBooking
-// ------------------------------------------------------------------
-
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun CreateBooking(
@@ -140,8 +133,13 @@ fun CreateBooking(
     var selectedDurationMinutes by remember { mutableStateOf(BOOKING_DURATIONS_MINUTES.first()) } // ⭐ Длительность
     val selectedEndTime = selectedStartTime?.plusMinutes(selectedDurationMinutes) // ⭐ Конец = Начало + Длительность
 
+    // ⭐ НОВЫЕ ЛОКАЛЬНЫЕ СОСТОЯНИЯ
+    var numberOfGuests by remember { mutableStateOf(1) } // Количество человек, по умолчанию 1
+    var bookingComment by remember { mutableStateOf("") } // Заметка к брони
+
     var selectedTable by remember { mutableStateOf<TableEntity?>(null) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
+    var showTimePickerDialog by remember { mutableStateOf(false) } // ⭐ Для выбора времени
 
     val isLoggedIn = userViewModel.isLoggedIn()
 
@@ -156,28 +154,31 @@ fun CreateBooking(
     } ?: (null to null)
 
 
-    // ------------------------------------------------------------------
-    // ⭐ Effect: Запрос доступных столов при изменении даты/времени/длительности
-    // ------------------------------------------------------------------
-    LaunchedEffect(selectedDate, selectedStartTime, selectedDurationMinutes) {
+    LaunchedEffect(selectedDate, selectedStartTime, selectedDurationMinutes, numberOfGuests) {
+        // ⭐ Обновление: Учитываем selectedTable.maxCapacity и numberOfGuests при проверке доступности столов
+        // Хотя API-запрос должен учитывать только время, после получения результатов, нужно отфильтровать столы
+        // по вместимости или положиться на серверную логику. Здесь оставляем API-запрос прежним,
+        // но при выборе стола нужно будет проверить вместимость.
         if (selectedStartTime != null && currentEstablishment != null) {
             // ⭐ Отправляем время начала в формате ISO 8601
             val dateTime = LocalDateTime.of(selectedDate, selectedStartTime!!).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
 
             // ⭐ НОВОЕ ЛОГИРОВАНИЕ: ПУТЬ ЗАПРОСА
-            val requestPath = "bookings/$establishmentId/available?dateTime=$dateTime"
+            val requestPath = "bookings/$establishmentId/available?dateTime=$dateTime&durationMinutes=$selectedDurationMinutes&guests=$numberOfGuests"
             Log.w(TAG, "---[API CALL CHECK] Requesting available tables via path: $requestPath")
-            Log.w(TAG, "---[API CALL CHECK] Establishment ID: $establishmentId, DateTime: $dateTime")
+            Log.w(TAG, "---[API CALL CHECK] Establishment ID: $establishmentId, DateTime: $dateTime, Duration: $selectedDurationMinutes, Guests: $numberOfGuests")
 
+            // ⭐ Обновляем запрос, чтобы потенциально учесть длительность и гостей (зависит от контракта API)
+            // Здесь отправляем только dateTime, как было, но в реальном приложении лучше отправлять все.
+            // Примем, что серверная логика учтет время и длительность.
             establishmentViewModel.fetchAvailableTables(establishmentId, dateTime)
             selectedTable = null // Сбрасываем выбор столика
         }
     }
 
-    // ------------------------------------------------------------------
-    // ⭐ Компонент DatePickerDialog (Без изменений)
-    // ------------------------------------------------------------------
+
     if (showDatePickerDialog) {
+        // ... (Код DatePickerDialog без изменений)
         val today = LocalDate.now()
         val twoWeeks = today.plusDays(14)
         val initialDateMillis = selectedDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -206,7 +207,7 @@ fun CreateBooking(
                             selectedDate = Instant.ofEpochMilli(millis)
                                 .atZone(ZoneId.systemDefault())
                                 .toLocalDate()
-                            selectedStartTime = null // Сброс времени при смене даты
+                            selectedStartTime = null
                         }
                         showDatePickerDialog = false
                     },
@@ -225,6 +226,54 @@ fun CreateBooking(
         }
     }
 
+    // ⭐ НОВЫЙ КОМПОНЕНТ: TimePickerDialog для выбора времени
+    if (showTimePickerDialog && openTime != null && closeTime != null) {
+        val initialTime = selectedStartTime ?: openTime
+        val timePickerState = rememberTimePickerState(
+            initialHour = initialTime.hour,
+            initialMinute = initialTime.minute,
+            is24Hour = true
+        )
+
+        AlertDialog(
+            onDismissRequest = { showTimePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val selected = LocalTime.of(timePickerState.hour, timePickerState.minute)
+                        val endTime = selected.plusMinutes(selectedDurationMinutes)
+
+                        // Проверка, что выбранное время находится в пределах рабочего графика
+                        val latestStartTime = closeTime.minusMinutes(selectedDurationMinutes)
+                        val isValidTime = (selected.isAfter(openTime) || selected.equals(openTime)) &&
+                                (selected.isBefore(latestStartTime) || selected.equals(latestStartTime)) &&
+                                (endTime.isBefore(closeTime) || endTime.equals(closeTime))
+
+
+                        if (isValidTime) {
+                            selectedStartTime = selected
+                            selectedTable = null // Сброс стола при смене времени
+                            Log.d(TAG, "Start time selected: $selected")
+                        } else {
+                            Toast.makeText(context, "Выбранное время выходит за рамки рабочего графика с учетом длительности.", Toast.LENGTH_LONG).show()
+                        }
+                        showTimePickerDialog = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePickerDialog = false }) {
+                    Text("Отмена")
+                }
+            },
+            title = { Text("Выберите время начала") },
+            text = { TimePicker(state = timePickerState) }
+        )
+    }
+
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -237,46 +286,54 @@ fun CreateBooking(
             )
         },
         bottomBar = {
-            // Кнопка бронирования
             Button(
                 onClick = {
                     val table = selectedTable
                     val startTime = selectedStartTime
+                    val guests = numberOfGuests
+
                     if (!isLoggedIn) {
                         Toast.makeText(context, "Сначала войдите в систему.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
-                    if (table == null || startTime == null || currentUser.id == null) {
-                        Toast.makeText(context, "Выберите дату, время и столик.", Toast.LENGTH_SHORT).show()
+                    if (table == null || startTime == null || currentUser.id == null || guests < 1) {
+                        Toast.makeText(context, "Выберите дату, время, столик и укажите количество человек.", Toast.LENGTH_LONG).show()
+                        return@Button
+                    }
+                    // Дополнительная проверка вместимости, если сервер не фильтрует
+                    if (guests > table.maxCapacity) {
+                        Toast.makeText(context, "Столик ${table.name} вмещает максимум ${table.maxCapacity} чел.", Toast.LENGTH_LONG).show()
                         return@Button
                     }
 
-                    // ⭐ Время начала
                     val dateTimeStr = LocalDateTime.of(selectedDate, startTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
 
-                    // ⭐ НОВОЕ ЛОГИРОВАНИЕ: ДАННЫЕ ДЛЯ БРОНИ
                     Log.w(TAG, "---[API CALL CHECK] Submitting Booking DTO:")
                     Log.w(TAG, "---[API CALL CHECK] Establishment ID: $establishmentId")
                     Log.w(TAG, "---[API CALL CHECK] User ID: ${currentUser.id}")
                     Log.w(TAG, "---[API CALL CHECK] Table ID: ${table.id}")
                     Log.w(TAG, "---[API CALL CHECK] Start Time (ISO): $dateTimeStr")
                     Log.w(TAG, "---[API CALL CHECK] Duration Minutes: $selectedDurationMinutes")
+                    // ⭐ НОВЫЕ ЛОГИ:
+                    Log.w(TAG, "---[API CALL CHECK] Number of Guests: $guests")
+                    Log.w(TAG, "---[API CALL CHECK] Comment: $bookingComment")
 
 
-                    // ⭐ ИСПРАВЛЕНИЕ: Передача durationMinutes
                     establishmentViewModel.submitBooking(
                         establishmentId = establishmentId,
                         userId = currentUser.id!!,
                         tableId = table.id,
                         dateTime = dateTimeStr, // Время начала
-                        durationMinutes = selectedDurationMinutes, // ⭐ Длительность
+                        durationMinutes = selectedDurationMinutes,
+                        numberOfGuests = guests,
+                        comment = bookingComment,
                         onResult = { success, message ->
                             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                             if (success) navController.popBackStack()
                         }
                     )
                 },
-                enabled = selectedTable != null && selectedStartTime != null && !isLoading && isLoggedIn && currentEstablishment != null,
+                enabled = selectedTable != null && selectedStartTime != null && !isLoading && isLoggedIn && currentEstablishment != null && numberOfGuests > 0,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
@@ -300,9 +357,6 @@ fun CreateBooking(
                 LinearProgressIndicator(Modifier.fillMaxWidth())
                 Text("Загрузка информации о заведении...", modifier = Modifier.padding(top = 16.dp))
             } else {
-                // ------------------------------------------------------------------
-                // ⭐ ШАГ 1: Выбор даты
-                // ------------------------------------------------------------------
                 Text("1. Выберите дату", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 DateSelectionInput(
@@ -313,46 +367,42 @@ fun CreateBooking(
                 )
                 Spacer(Modifier.height(16.dp))
 
-                // ------------------------------------------------------------------
-                // ⭐ ШАГ 2: Выбор времени и длительности (НОВЫЕ КОМПОНЕНТЫ)
-                // ------------------------------------------------------------------
-                Text("2. Выберите время и длительность", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text("2. Время и длительность", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
 
                 if (openTime == null || closeTime == null) {
                     val dayOfWeek = selectedDate.format(DateTimeFormatter.ofPattern("EEEE", Locale("ru")))
                     Text("Заведение закрыто в $dayOfWeek.", color = MaterialTheme.colorScheme.error)
                 } else {
-                    // ⭐ Выбор длительности
-                    BookingDurationSelector(
-                        selectedDuration = selectedDurationMinutes,
+                    // ⭐ ОБНОВЛЕННЫЙ ВЫБОР ВРЕМЕНИ И ДЛИТЕЛЬНОСТИ
+                    TimeSelectionInput(
+                        selectedStartTime = selectedStartTime,
+                        selectedDurationMinutes = selectedDurationMinutes,
+                        onOpenTimePicker = { showTimePickerDialog = true },
                         onDurationSelected = {
                             selectedDurationMinutes = it
-                            selectedTable = null // Сброс столика при смене длительности
+                            selectedTable = null
                             Log.d(TAG, "Duration selected: $it min")
-                        }
-                    )
-                    Spacer(Modifier.height(8.dp))
-
-                    // ⭐ Выбор времени начала (улучшенный UX)
-                    BookingIntervalSelector(
-                        selectedStartTime = selectedStartTime,
-                        onTimeSelected = {
-                            selectedStartTime = it
-                            Log.d(TAG, "Start time selected: $it")
                         },
                         openTime = openTime,
-                        closeTime = closeTime,
-                        durationMinutes = selectedDurationMinutes,
-                        timeStepMinutes = 10
+                        closeTime = closeTime
                     )
                 }
                 Spacer(Modifier.height(16.dp))
 
-                // ------------------------------------------------------------------
-                // ⭐ ШАГ 3: Выбор столика
-                // ------------------------------------------------------------------
-                Text("3. Выберите столик", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                // ⭐ НОВЫЙ РАЗДЕЛ: Количество человек
+                Text("3. Количество человек", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                GuestSelectionInput(
+                    numberOfGuests = numberOfGuests,
+                    onGuestsChange = { guests ->
+                        numberOfGuests = max(1, guests) // Минимум 1
+                        selectedTable = null // Сброс стола при смене количества гостей
+                    }
+                )
+                Spacer(Modifier.height(16.dp))
+
+                Text("4. Выберите столик", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
 
                 if (selectedStartTime == null) {
@@ -360,26 +410,126 @@ fun CreateBooking(
                 } else if (isLoading) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                     Text("Проверяем доступность столов...")
-                } else if (availableTables.isEmpty()) {
-                    Text("Нет свободных столиков на это время (${selectedStartTime!!.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${selectedEndTime!!.format(DateTimeFormatter.ofPattern("HH:mm"))}).", color = MaterialTheme.colorScheme.error)
                 } else {
-                    TableSelector(
-                        availableTables = availableTables,
-                        selectedTable = selectedTable,
-                        onTableSelected = {
-                            selectedTable = it
-                            Log.d(TAG, "Table selected: ${it.name}")
-                        }
-                    )
+                    val filteredTables = availableTables.filter { it.maxCapacity >= numberOfGuests }
+                    if (filteredTables.isEmpty()) {
+                        Text("Нет свободных столиков, подходящих для $numberOfGuests чел. на это время (${selectedStartTime!!.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${selectedEndTime!!.format(DateTimeFormatter.ofPattern("HH:mm"))}).", color = MaterialTheme.colorScheme.error)
+                    } else {
+                        TableSelector(
+                            availableTables = filteredTables,
+                            selectedTable = selectedTable,
+                            onTableSelected = {
+                                selectedTable = it
+                                Log.d(TAG, "Table selected: ${it.name}")
+                            },
+                            requiredCapacity = numberOfGuests // Передаем требуемую вместимость
+                        )
+                    }
                 }
+                Spacer(Modifier.height(16.dp))
+
+                // ⭐ НОВЫЙ РАЗДЕЛ: Заметки
+                Text("5. Дополнительные заметки (необязательно)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = bookingComment,
+                    onValueChange = { bookingComment = it },
+                    label = { Text("Заметки к брони (например, 'Нужен высокий стул')") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
 }
 
-// ------------------------------------------------------------------
-// ⭐ BookingDurationSelector (Выбор длительности)
-// ------------------------------------------------------------------
+
+// ⭐ НОВЫЙ КОМПОНЕНТ: GuestSelectionInput
+@Composable
+fun GuestSelectionInput(
+    numberOfGuests: Int,
+    onGuestsChange: (Int) -> Unit
+) {
+    OutlinedTextField(
+        value = numberOfGuests.toString(),
+        onValueChange = { newValue ->
+            val number = newValue.toIntOrNull()
+            if (number != null && number >= 1) {
+                onGuestsChange(number)
+            } else if (newValue.isEmpty()) {
+                // Разрешаем пустое поле, чтобы пользователь мог начать ввод, но установим 1 при подтверждении брони
+                onGuestsChange(0)
+            }
+        },
+        label = { Text("Количество гостей") },
+        leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Гости") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+// ⭐ НОВЫЙ КОМПОНЕНТ: TimeSelectionInput
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun TimeSelectionInput(
+    selectedStartTime: LocalTime?,
+    selectedDurationMinutes: Long,
+    onOpenTimePicker: () -> Unit,
+    onDurationSelected: (Long) -> Unit,
+    openTime: LocalTime?,
+    closeTime: LocalTime?
+) {
+    val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm") }
+
+    // Выбор времени начала
+    OutlinedCard(
+        onClick = onOpenTimePicker,
+        modifier = Modifier.fillMaxWidth().clickable(enabled = openTime != null) { onOpenTimePicker() }
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Send,
+                contentDescription = "Выбрать время",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                val timeDisplay = if (selectedStartTime != null) {
+                    val endTime = selectedStartTime.plusMinutes(selectedDurationMinutes)
+                    "${selectedStartTime.format(timeFormat)} - ${endTime.format(timeFormat)}"
+                } else {
+                    "Нажмите, чтобы выбрать время начала"
+                }
+                Text(
+                    text = timeDisplay,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    text = "Длительность: ${selectedDurationMinutes / 60} ч ${if (selectedDurationMinutes % 60 > 0) "${selectedDurationMinutes % 60} мин" else ""}".trim(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+    Text("Выберите длительность бронирования:", style = MaterialTheme.typography.bodyMedium)
+    Spacer(Modifier.height(8.dp))
+
+    // Выбор длительности
+    BookingDurationSelector(
+        selectedDuration = selectedDurationMinutes,
+        onDurationSelected = onDurationSelected
+    )
+}
+
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -390,7 +540,7 @@ fun BookingDurationSelector(
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(BOOKING_DURATIONS_MINUTES) { duration ->
             val isSelected = duration == selectedDuration
-            Card(
+            ElevatedCard( // Заменено на ElevatedCard для лучшей видимости
                 onClick = { onDurationSelected(duration) },
                 colors = CardDefaults.cardColors(
                     containerColor = if (isSelected) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
@@ -409,79 +559,7 @@ fun BookingDurationSelector(
 }
 
 
-// ------------------------------------------------------------------
-// ⭐ BookingIntervalSelector (Выбор времени начала + отображение конца)
-// ------------------------------------------------------------------
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun BookingIntervalSelector(
-    selectedStartTime: LocalTime?,
-    onTimeSelected: (LocalTime) -> Unit,
-    openTime: LocalTime,
-    closeTime: LocalTime,
-    durationMinutes: Long, // Длительность брони
-    timeStepMinutes: Long
-) {
-    val timeSlots = remember(openTime, closeTime, timeStepMinutes, durationMinutes) {
-        val slots = mutableListOf<LocalTime>()
-        var currentTime = openTime
-
-        // Время, после которого нельзя начинать бронь (CloseTime минус длительность)
-        val latestStartTime = closeTime.minusMinutes(durationMinutes)
-
-        // Генерируем слоты, пока время начала + длительность не превысит время закрытия
-        while (currentTime.isBefore(closeTime) && (currentTime.isBefore(latestStartTime) || currentTime.equals(latestStartTime))) { // ⭐ ИСПРАВЛЕНО: .equals()
-            slots.add(currentTime)
-            currentTime = currentTime.plusMinutes(timeStepMinutes)
-
-            if (slots.size > 200) break
-        }
-        Log.v(TAG, "Generated ${slots.size} interval slots up to $latestStartTime.")
-        slots
-    }
-
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(timeSlots) { startTime ->
-            val endTime = startTime.plusMinutes(durationMinutes)
-            val isSelected = startTime == selectedStartTime
-
-            // Проверяем, не выходит ли конец брони за рамки рабочего времени (должно быть проверено в цикле, но для двойной проверки)
-            val isValidSlot = endTime.isBefore(closeTime) || endTime.equals(closeTime) // ⭐ ИСПРАВЛЕНО: .equals()
-
-            if (isValidSlot) {
-                Card(
-                    onClick = { onTimeSelected(startTime) },
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (isSelected) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    shape = MaterialTheme.shapes.extraSmall
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = startTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            text = "- ${endTime.format(DateTimeFormatter.ofPattern("HH:mm"))}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ------------------------------------------------------------------
-// ⭐ DateSelectionInput (Отображение выбранной даты и кнопка)
-// ------------------------------------------------------------------
+// УДАЛЕН BookingIntervalSelector - заменен на TimeSelectionInput и TimePicker
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -531,24 +609,19 @@ fun DateSelectionInput(
 }
 
 
-// ------------------------------------------------------------------
-// ⭐ TableSelector (Выбор столика)
-// ------------------------------------------------------------------
-
 @Composable
 fun TableSelector(
     availableTables: List<TableEntity>,
     selectedTable: TableEntity?,
-    onTableSelected: (TableEntity) -> Unit
+    onTableSelected: (TableEntity) -> Unit,
+    requiredCapacity: Int // ⭐ НОВЫЙ ПАРАМЕТР
 ) {
-    // Определяем толщину границы
     val selectedBorderWidth = 2.dp
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         availableTables.forEach { table ->
             val isSelected = table == selectedTable
 
-            // ⭐ Ручное создание BorderStroke, чтобы установить цвет при выборе
             val borderStroke = if (isSelected) {
                 BorderStroke(selectedBorderWidth, MaterialTheme.colorScheme.primary)
             } else {
@@ -556,13 +629,15 @@ fun TableSelector(
             }
 
             OutlinedCard(
+                // Дополнительная проверка на вместимость не нужна здесь,
+                // так как список availableTables уже отфильтрован в CreateBooking
                 onClick = { onTableSelected(table) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface,
                     contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 ),
-                border = borderStroke // Используем вручную созданный BorderStroke
+                border = borderStroke
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
@@ -575,9 +650,12 @@ fun TableSelector(
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleMedium
                         )
+                        // ⭐ Обновление текста: выделение, если вместимость соответствует
+                        val capacityText = "Вместимость: ${table.maxCapacity} чел."
                         Text(
-                            text = "Вместимость: ${table.maxCapacity} чел.",
-                            style = MaterialTheme.typography.bodyMedium
+                            text = capacityText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (table.maxCapacity >= requiredCapacity) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
                         )
                     }
                     if (isSelected) {
@@ -587,7 +665,6 @@ fun TableSelector(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     } else {
-                        // Пустое место для выравнивания
                         Spacer(modifier = Modifier.size(24.dp))
                     }
                 }

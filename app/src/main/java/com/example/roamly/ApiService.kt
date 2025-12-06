@@ -5,8 +5,7 @@ import com.example.roamly.classes.cl_menu.DrinksGroup
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.FoodGroup
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
-import com.example.roamly.entity.BookingCreationDto
-import com.example.roamly.entity.BookingEntity
+import com.example.roamly.entity.DTO.BookingCreationDto
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
@@ -71,28 +70,30 @@ interface ApiService {
 
     @GET("establishments/search")
     suspend fun searchEstablishments(
-        @Query("query") query: String,
-        @Query("types") types: List<String>
+        @Query("query") query: String?,
+        @Query("types") types: List<String>?
     ): List<EstablishmentSearchResultDto>
 
 
     @GET("establishments/pending")
     suspend fun getPendingEstablishments(): List<EstablishmentDisplayDto>
 
-    @PUT("establishments/{id}/status")
+    @PUT("establishments/{id}")
     suspend fun updateEstablishmentStatus(
         @Path("id") id: Long,
         @Query("status") status: String
     ): EstablishmentDisplayDto
 
     @GET("establishments/{id}")
-    suspend fun getEstablishmentById(@Path("id") id: Long): EstablishmentDisplayDto
+    suspend fun getEstablishmentById(
+        @Path("id") id: Long,
+    ): EstablishmentDisplayDto
 
     @PUT("establishments/{id}")
     suspend fun updateEstablishment(
         @Path("id") id: Long,
-        @Body request: EstablishmentUpdateRequest // <-- Исправлено на DTO
-    ): Response<EstablishmentEntity> // <-- Исправлено на Response<T>
+        @Body request: EstablishmentUpdateRequest
+    ): Response<EstablishmentEntity>
 
       // ================================== //
      // ===== Все точки для столиков ===== //
@@ -120,7 +121,7 @@ interface ApiService {
     @POST("bookings")
     suspend fun createBooking(
         @Body booking: BookingCreationDto
-    ): BookingEntity
+    ): BookingCreationDto
 
     @GET("bookings/user/{userId}")
     suspend fun getUserBookings(
@@ -153,11 +154,9 @@ interface ApiService {
     @GET("menu/establishment/{establishmentId}")
     suspend fun getMenuByEstablishmentId(@Path("establishmentId") establishmentId: Long): MenuOfEstablishment
 
-    // ⭐ НОВЫЙ ЭНДПОИНТ ДЛЯ VM/РЕПОЗИТОРИЯ
     @GET("menu/establishment/{establishmentId}")
     suspend fun getMenuForEstablishment(@Path("establishmentId") establishmentId: Long): MenuOfEstablishment
 
-    // ⭐ НОВАЯ ТОЧКА: Комплексная обработка изменений (CRUD)
     @POST("menu/processChanges")
     suspend fun processMenuChanges(@Body menu: MenuOfEstablishment): MenuOfEstablishment
 

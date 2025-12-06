@@ -10,7 +10,7 @@ import com.example.roamly.ApiService
 import com.example.roamly.classes.cl_menu.Drink
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
-import com.example.roamly.entity.BookingCreationDto
+import com.example.roamly.entity.DTO.BookingCreationDto
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
@@ -26,6 +26,7 @@ import com.example.roamly.entity.toDisplayDto
 import com.example.roamly.manager.SearchHistoryManager
 import com.example.roamly.ui.screens.establishment.toJsonString
 import com.example.roamly.ui.screens.establishment.toMap
+import com.example.roamly.ui.screens.sealed.EstablishmentLoadState
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import retrofit2.Response
 import javax.inject.Inject
 
@@ -139,7 +141,6 @@ class EstablishmentViewModel @Inject constructor(
     // =========================================== //
 
     init {
-        // ⭐ 2. ОБЪЕДИНЕННЫЙ INIT БЛОК ДЛЯ ПОИСКА (ОДИН РАЗ)
         // (Удалены все конфликтующие/дублирующиеся init блоки)
 
         combine(_searchQueryFlow, _selectedTypesFlow) { query, types ->
@@ -156,7 +157,6 @@ class EstablishmentViewModel @Inject constructor(
                     Log.i("EstViewModel", "Запрос пуст, фильтры не выбраны.")
                 } else {
                     // Если запрос пуст, но есть фильтры, query будет "" (пустая строка)
-                    performSearch(query, types) // Вызов API
                 }
             }
             .launchIn(viewModelScope)
@@ -183,36 +183,7 @@ class EstablishmentViewModel @Inject constructor(
         _selectedTypesFlow.value = newTypes
     }
 
-    /**
-     * (Private) Фактическое выполнение API-запроса поиска с фильтрами.
-     */
-    private fun performSearch(query: String, types: Set<TypeOfEstablishment>) {
-        _isSearchLoading.value = true
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // Конвертируем Set<Enum> в List<String> для Retrofit
-                val typeStrings = types.map { it.name }
 
-                // ⭐ ВЫЗЫВАЕМ API С ФИЛЬТРАМИ
-                val results = apiService.searchEstablishments(query, typeStrings)
-
-                withContext(Dispatchers.Main) {
-                    _establishmentSearchResults.value = results
-                    Log.i("EstViewModel", "Найдено заведений по запросу '$query' с фильтрами [${typeStrings.joinToString()}]: ${results.size}")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    val msg = "Ошибка поиска заведений: ${e.message}"
-                    Log.e("EstViewModel", msg)
-                    _establishmentSearchResults.value = emptyList()
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    _isSearchLoading.value = false
-                }
-            }
-        }
-    }
 
 
     // ================================================= //
@@ -254,13 +225,6 @@ class EstablishmentViewModel @Inject constructor(
         _selectedEstablishment.value = null
         Log.d("EstViewModel", "Виджет деталей закрыт.")
     }
-
-
-    //авыэфлашлщвыфроашщплвфырпарощуцфвралвщдыфпарофывоалщзфыврапргвыфьшсщвцйтифгнам втыфшс твыфргаствлыщфраовырфшщгарвшыщгфаошвщыфрзха
-
-
-
-
 
     /**
      * Загружает список заведений, созданных указанным пользователем.
@@ -408,28 +372,43 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
+    private val _establishmentLoadState = MutableStateFlow<EstablishmentLoadState>(EstablishmentLoadState.Idle)
+    val establishmentLoadState: StateFlow<EstablishmentLoadState> = _establishmentLoadState.asStateFlow()
+
+    // (Предполагается, что у вас есть это поле для получения ID текущего пользователя)
+    private val _currentUserId = MutableStateFlow<Long?>(null)
+    val currentUserId: StateFlow<Long?> = _currentUserId.asStateFlow()
+
+    // EstablishmentViewModel.kt (Обновленная версия)
+
     /**
-     * Загружает данные заведения по его ID.
-     * @param id ID заведения.
+     * Получает данные заведения по ID.
+     * Обрабатывает HttpException (например, 404 Not Found) и сетевые ошибки.
      */
     fun fetchEstablishmentById(id: Long) {
-        _isLoading.value = true
-        _errorMessage.value = null
-        _currentEstablishment.value = null
-
+        // Используем Dispatchers.IO, как и в других методах
         viewModelScope.launch(Dispatchers.IO) {
+
+            _isLoading.value = true // ➡️ НАЧАЛО ЗАГРУЗКИ
+            Log.d("EstViewModel", "Начинаю загрузку заведения ID: $id")
+
             try {
-                val entity = apiService.getEstablishmentById(id)
+                // Загрузка данных
+                val establishmentDto = apiService.getEstablishmentById(id)
 
                 withContext(Dispatchers.Main) {
-                    _currentEstablishment.value = entity
-                    Log.i("EstViewModel", "Загружено заведение: ${entity.name}")
+                    // Обновление состояния при успехе
+                    _currentEstablishment.value = establishmentDto
+                    Log.i("EstViewModel", "Заведение ID $id успешно загружено.")
                 }
+
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    val msg = "Ошибка загрузки заведения $id: ${e.message}"
+                    // Обработка ошибки
+                    val msg = "Ошибка загрузки заведения ID $id: ${e.message}"
                     Log.e("EstViewModel", msg)
                     _errorMessage.value = "Не удалось загрузить данные заведения."
+                    _currentEstablishment.value = null // Сброс данных при ошибке
                 }
             } finally {
                 withContext(Dispatchers.Main) {
@@ -871,34 +850,34 @@ class EstablishmentViewModel @Inject constructor(
         userId: Long,
         tableId: Long,
         dateTime: String, // ISO 8601 (Время начала)
-        durationMinutes: Long, // ⭐ ДОБАВЛЕН НОВЫЙ ПАРАМЕТР: Длительность брони
+        durationMinutes: Long,
+        numberOfGuests: Int,
+        comment: String?,
         onResult: (Boolean, String?) -> Unit
     ) {
-        if (userId < 1 || tableId < 1) {
-            onResult(false, "Неверный ID пользователя или столика.")
+        if (userId < 1 || tableId < 1 || numberOfGuests < 1) {
+            onResult(false, "Неверный ID пользователя, столика или количество гостей.")
             return
         }
 
         _isBookingLoading.value = true
         _errorMessage.value = null
 
-        // ⭐ 1. СОЗДАНИЕ DTO ДЛЯ ОТПРАВКИ
-        // Используем BookingCreationDto (или аналогичный), чтобы включить длительность.
         val bookingDto = BookingCreationDto(
             establishmentId = establishmentId,
             userId = userId,
             tableId = tableId,
-            startTime = dateTime, // Передаем время начала
-            durationMinutes = durationMinutes // Передаем выбранную длительность
+            startTime = dateTime,
+            durationMinutes = durationMinutes,
+            numberOfGuests = numberOfGuests,
+            comment = comment
         )
 
-        // ЛОГИРОВАНИЕ ОТПРАВЛЯЕМЫХ ДАННЫХ
-        Log.d("BookingVM", "Отправка брони: Start=${bookingDto.startTime}, Duration=${bookingDto.durationMinutes}")
+        // ОБНОВЛЕННОЕ ЛОГИРОВАНИЕ ОТПРАВЛЯЕМЫХ ДАННЫХ
+        Log.d("BookingVM", "Отправка брони: Start=${bookingDto.startTime}, Duration=${bookingDto.durationMinutes}, Guests=${bookingDto.numberOfGuests}, Comment=${bookingDto.comment}")
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // ⭐ 2. ИСПОЛЬЗУЕМ DTO ВЫЗОВ В API
-                // Предполагаем, что apiService.createBooking теперь принимает BookingCreationDto
                 apiService.createBooking(bookingDto)
 
                 withContext(Dispatchers.Main) {
@@ -910,7 +889,7 @@ class EstablishmentViewModel @Inject constructor(
                     // Улучшенная обработка для вывода сообщения
                     val baseError = e.message ?: "Неизвестная ошибка"
                     val detailedError = if (baseError.contains("HTTP 400")) {
-                        baseError.substringAfter("HTTP 400 ").trim()
+                        "Ошибка (400): " + baseError.substringAfter("HTTP 400 ").trim()
                     } else {
                         "Ошибка при бронировании. Проверьте подключение или логи сервера."
                     }
@@ -968,29 +947,39 @@ class EstablishmentViewModel @Inject constructor(
     private val _menuErrorMessage = MutableStateFlow<String?>(null)
     val menuErrorMessage: StateFlow<String?> = _menuErrorMessage
 
+    private val _establishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
+    val establishment: StateFlow<EstablishmentDisplayDto?> = _establishment.asStateFlow()
+
+
+
     /**
      * Загружает меню с сервера.
      */
     fun fetchMenuForEstablishment(establishmentId: Long) {
-        if (_isMenuLoading.value) return
+        Log.d("MenuVM", "Начинаем загрузку меню для ID: $establishmentId")
 
-        _menuErrorMessage.value = null
         _isMenuLoading.value = true
+        _menuOfEstablishment.value = null // Очистка старых данных
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                Log.d("MenuVM", "Начинаем загрузку меню для ID: $establishmentId")
+                // Используем соответствующий метод из ApiService
                 val menu = apiService.getMenuForEstablishment(establishmentId)
-                Log.d("MenuVM", "Меню успешно загружено. Групп еды: ${menu.foodGroups.size}")
-                _menuOfEstablishment.value = menu
-            } catch (e: Exception) {
-                val message = "Ошибка загрузки меню: ${e.localizedMessage ?: "Неизвестная ошибка"}"
-                Log.e("MenuVM", message, e)
 
-                _menuErrorMessage.value = "Не удалось загрузить меню."
-                _menuOfEstablishment.value = null
+                withContext(Dispatchers.Main) {
+                    _menuOfEstablishment.value = menu
+                    Log.d("MenuVM", "Меню успешно загружено. Групп еды: ${menu.foodGroups.size}")
+                }
+            } catch (e: HttpException) {
+                val errorCode = e.code()
+                val errorMsg = e.response()?.errorBody()?.string() ?: "Ошибка $errorCode"
+                Log.e("MenuVM", "Ошибка загрузки меню: HTTP $errorCode. Сообщение: $errorMsg")
+            } catch (e: Exception) {
+                Log.e("MenuVM", "Ошибка подключения к серверу или парсинга меню: ${e.message}")
             } finally {
-                _isMenuLoading.value = false
+                withContext(Dispatchers.Main) {
+                    _isMenuLoading.value = false
+                }
             }
         }
     }
@@ -1477,5 +1466,4 @@ class EstablishmentViewModel @Inject constructor(
     fun checkIfFavorite(id: Long): Boolean {
         return favoriteEstablishmentIds.value.contains(id)
     }
-
 }
