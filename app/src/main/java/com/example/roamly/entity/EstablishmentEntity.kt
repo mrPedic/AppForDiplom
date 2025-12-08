@@ -48,7 +48,8 @@ enum class TypeOfEstablishment{
     PancakeHouse,
     IceCreamParlor,
     FoodTruck,
-    Gastropub
+    Gastropub,
+    Error
 }
 
 /**

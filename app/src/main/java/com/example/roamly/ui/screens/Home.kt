@@ -1,23 +1,22 @@
 package com.example.roamly.ui.screens
 
-import android.content.Context
-import android.util.Base64 // ⭐ Импорт для Base64
-import android.view.View
-import android.view.ViewGroup
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.* // ⭐ Импорт Box и fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -29,31 +28,28 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.PointBuilder
-import com.example.roamly.entity.DTO.EstablishmentDisplayDto
+import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.establishment.base64ToByteArray
@@ -66,7 +62,6 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import kotlin.apply
-
 @Composable
 fun HomeScreen(
     navController: NavController,
@@ -74,22 +69,32 @@ fun HomeScreen(
     onMapRefresh: () -> Unit
 ) {
     val bottomBarHeightWithPadding = 85.dp
-
+    val viewModel: EstablishmentViewModel = hiltViewModel()
+    var mapState by remember { mutableStateOf<MapView?>(null) }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.initializeLocation()
+    }
+    mapState?.let { map ->
+        LaunchedEffect(map) {
+            viewModel.mapView = map  // Установи ссылку на mapView
+        }
+        val pointBuilder = remember(map) { PointBuilder(map) }  // Если PointBuilder нужен
+        pointBuilder.BuildAllMarkers()  // Если маркеры строятся здесь
+    }
     Box {
-        // 1. Карта занимает весь экран
         OsmMapAndroidView(
             refreshTrigger = mapRefreshKey,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            onMapCreated = { map -> mapState = map }
         )
-
-        // 2. ⭐ НОВЫЕ: Плавающие кнопки управления (Align to TopEnd)
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 16.dp, end = 12.dp),
             horizontalAlignment = Alignment.End
         ) {
-            // Кнопка обновления карты (Вместо TopAppBar Action)
+// Кнопка обновления карты
             SmallFloatingActionButton(
                 onClick = onMapRefresh,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -99,243 +104,135 @@ fun HomeScreen(
                 Icon(Icons.Filled.Refresh, contentDescription = "Обновить карту")
             }
             Spacer(Modifier.height(8.dp))
-            // Кнопка для навигационного меню или профиля (Если нужно)
-            // SmallFloatingActionButton(
-            //    onClick = { /* Open drawer or navigate */ },
-            //    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            //    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-            //    modifier = Modifier.size(48.dp)
-            // ) {
-            //    Icon(Icons.Filled.Menu, contentDescription = "Меню")
-            // }
+// НОВАЯ КНОПКА: Моё местоположение
+            MyLocationButton(  // Без onClick
+                viewModel = viewModel
+            )
         }
-
-
-        // 3. Виджет деталей заведения (Align to BottomCenter)
-        EstablishmentDetailWidget(
-            navController = navController,
+// 3. Виджет деталей заведения (нижний)
+        val currentEstablishment by viewModel.currentEstablishment.collectAsState()
+        val scope = rememberCoroutineScope()
+        val isDetailWidgetVisible by viewModel.isDetailWidgetVisible.collectAsState()
+        AnimatedVisibility(
+            visible = isDetailWidgetVisible,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it }),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = bottomBarHeightWithPadding)
-        )
-    }
-}
-
-@Composable
-fun OsmMapAndroidView(modifier: Modifier = Modifier, refreshTrigger: Boolean) {
-    var mapState by remember { mutableStateOf<MapView?>(null) }
-
-    AndroidView(
-        modifier = modifier,
-        factory = { ctx ->
-            Configuration.getInstance().load(ctx, ctx.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
-
-            Configuration.getInstance().tileDownloadThreads = 8
-
-            val mapView = MapView(ctx).apply {
-                setTileSource(TileSourceFactory.MAPNIK)
-                setMultiTouchControls(true)
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                this.minZoomLevel = 6.0
-
-                // ⭐ АГРЕССИВНОЕ КЭШИРОВАНИЕ ДЛЯ ПЛАВНОСТИ (как в предыдущем шаге)
-                Configuration.getInstance().cacheMapTileOvershoot = 2048
-                Configuration.getInstance().cacheMapTileCount = 800
-
-                Configuration.getInstance().tileFileSystemCacheMaxBytes = 52L * 1024L * 1024L
-                Configuration.getInstance().tileFileSystemCacheTrimBytes = 40L * 1024L * 1024L
-
-                // ⭐ НОВОЕ: Установка режима рендеринга для предотвращения обрезки
-                // Повышает производительность и может решить проблемы с отображением границ.
-                // Не всегда доступно в старых версиях, но стоит попробовать.
-                // setHardwareAcceleration(true) // Это, как правило, делается на уровне Activity/Manifest
-
-                // ⭐ НОВОЕ: Увеличение буфера видимости
-                // Этот параметр, хоть и не является официальным API в Configuration,
-                // иногда помогает избежать преждевременной обрезки тайлов.
-                // В osmdroid нет прямого API для "искусственного увеличения экрана",
-                // но Overshoot — это самое близкое. Давайте еще раз проверим его.
-
-                val minskPoint = GeoPoint(53.9006, 27.5590)
-                controller.setZoom(14.0)
-                controller.setCenter(minskPoint)
-
-//                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
-
-                invalidate()
-            }
-            mapState = mapView
-            mapView
-        },
-        update = { view ->
-            if (refreshTrigger) {
-                view.invalidate()
-            }
-        }
-    )
-
-    mapState?.let { mapView ->
-        val pointBuilder = remember(mapView) { PointBuilder(mapView) }
-        pointBuilder.BuildAllMarkers()
-    }
-}
-
-
-// =================================================================
-// UI ВИДЖЕТА
-// =================================================================
-@Composable
-fun EstablishmentDetailWidget(
-    navController: NavController,
-    viewModel: EstablishmentViewModel = hiltViewModel(),
-    modifier: Modifier
-) {
-    val isVisible by viewModel.isDetailWidgetVisible.collectAsState()
-    val establishment by viewModel.selectedEstablishment.collectAsState()
-    val scope = rememberCoroutineScope()
-
-    val currentEstablishment = establishment ?: return
-
-    AnimatedVisibility(
-        visible = isVisible,
-        modifier = modifier,
-        enter = slideInVertically(initialOffsetY = { it }),
-        exit = slideOutVertically(targetOffsetY = { it })
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 16.dp),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh, // Цвет M3
-            tonalElevation = 6.dp,
-            shadowElevation = 6.dp
+                .padding(bottom = bottomBarHeightWithPadding + 16.dp)
+                .padding(horizontal = 16.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-
-                // 1. Заголовок и кнопка закрытия
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top // Выравнивание по верху
-                ) {
-                    // Группируем фото и название
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f) // Занимаем место, отодвигая кнопку
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-
-                        // ⭐ ИСПРАВЛЕНИЕ 1: Фото отображается, только если оно есть
-                        val photoBase64 = currentEstablishment.photoBase64s.firstOrNull()
-                        if (photoBase64 != null) {
-                            Image(
-                                painter = rememberAsyncImagePainter(
-                                    model = base64ToByteArray(photoBase64)
-                                ),
-                                contentDescription = currentEstablishment.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val imageBytes = base64ToByteArray(
+                                currentEstablishment?.photoBase64s?.firstOrNull() ?: "")
+                            if (imageBytes != null) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(imageBytes),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                            }
+                            Text(
+                                text = currentEstablishment?.name ?: "Error",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 2
                             )
-                            Spacer(Modifier.width(12.dp))
                         }
-
-                        Text(
-                            text = currentEstablishment.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 2
+                        IconButton(
+                            onClick = { viewModel.closeDetailWidget() },
+                            modifier = Modifier.size(24.dp) // Уменьшаем кнопку
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = "Закрыть")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val statusText = currentEstablishment?.operatingHoursString ?: "Нет данных"
+                        val isClosed = statusText.contains("Закрыто", ignoreCase = true)
+                        val statusColor = if (isClosed) MaterialTheme.colorScheme.error else Color(0xFF388E3C) // Зеленый
+                        val statusMsg = if (statusText == "Нет данных") "Нет данных" else if (isClosed) "Сейчас закрыто" else "Сейчас открыто"
+                        InfoRow(
+                            icon = Icons.Default.Check,
+                            text = statusMsg,
+                            color = statusColor
+                        )
+                        InfoRow(
+                            icon = Icons.Filled.LocationOn,
+                            text = currentEstablishment?.address ?: "Error"
+                        )
+                        InfoRow(
+                            icon = Icons.Default.Menu,
+                            text = convertTypeToWord(currentEstablishment?.type ?: TypeOfEstablishment.Error)
+                        )
+                        InfoRow(
+                            icon = Icons.Filled.Star,
+                            text = "Рейтинг: ${String.format("%.1f", currentEstablishment?.rating)}"
                         )
                     }
-
-                    IconButton(
-                        onClick = { viewModel.closeDetailWidget() },
-                        modifier = Modifier.size(24.dp) // Уменьшаем кнопку
-                    ) {
-                        Icon(Icons.Filled.Close, contentDescription = "Закрыть")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 2. ⭐ UI: Блок информации с иконками
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-
-                    // Логика статуса
-                    val statusText = currentEstablishment.operatingHoursString ?: "Нет данных"
-                    val isClosed = statusText.contains("Закрыто", ignoreCase = true)
-                    val statusColor = if (isClosed) MaterialTheme.colorScheme.error else Color(0xFF388E3C) // Зеленый
-                    val statusMsg = if (statusText == "Нет данных") "Нет данных" else if (isClosed) "Сейчас закрыто" else "Сейчас открыто"
-
-                    InfoRow(
-                        icon = Icons.Default.Check,
-                        text = statusMsg,
-                        color = statusColor
-                    )
-
-                    InfoRow(
-                        icon = Icons.Filled.LocationOn,
-                        text = currentEstablishment.address
-                    )
-                    InfoRow(
-                        icon = Icons.Default.Menu,
-                        text = convertTypeToWord(currentEstablishment.type)
-                    )
-                    InfoRow(
-                        icon = Icons.Filled.Star,
-                        text = "Рейтинг: ${String.format("%.1f", currentEstablishment.rating)}"
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 3. Кнопка перехода к деталям
-                Button(
-                    onClick = {
-                        val establishmentId = currentEstablishment.id
-                        viewModel.closeDetailWidget()
-
-                        // ⭐ ИСПРАВЛЕНИЕ: Комбинированная навигация (сначала переключение вкладки, затем детали)
-                        scope.launch {
-                            // 1. Ждем начала анимации закрытия виджета
-                            delay(300)
-
-                            // 2. Переключаемся на вкладку "Поиск" (или другую целевую вкладку)
-                            // Используем паттерн переключения вкладок
-                            navController.navigate(SealedButtonBar.Searching.route) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
+                    Spacer(modifier = Modifier.height(16.dp))
+// 3. Кнопка перехода к деталям
+                    Button(
+                        onClick = {
+                            val establishmentId = currentEstablishment?.id
+                            viewModel.closeDetailWidget()
+                            scope.launch {
+// 1. Ждем начала анимации закрытия виджета
+                                delay(300)
+// 2. Переключаемся на вкладку "Поиск" (или другую целевую вкладку)
+// Используем паттерн переключения вкладок
+                                navController.navigate(SealedButtonBar.Searching.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
+// 3. Сразу после переключения вкладки открываем экран деталей
+// (Навигация происходит уже в новом, активном стеке)
+                                navController.navigate(
+                                    EstablishmentScreens.EstablishmentDetail.createRoute(establishmentId)
+                                )
                             }
-
-                            // 3. Сразу после переключения вкладки открываем экран деталей
-                            // (Навигация происходит уже в новом, активном стеке)
-                            navController.navigate(
-                                EstablishmentScreens.EstablishmentDetail.createRoute(establishmentId)
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Смотреть детали")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Смотреть детали")
+                    }
                 }
             }
         }
     }
 }
-
 /**
- * Вспомогательный Composable для отображения строки "Иконка + Текст"
+
+Вспомогательный Composable для отображения строки "Иконка + Текст"
  */
 @Composable
 private fun InfoRow(
@@ -347,14 +244,88 @@ private fun InfoRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary, // Цвет иконки
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
         Spacer(Modifier.width(12.dp))
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = color // Цвет текста (особый для статуса)
+            color = color
         )
     }
+}
+
+@Composable
+fun MyLocationButton(
+    viewModel: EstablishmentViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier
+) {
+    val isTracking by viewModel.isLocationTracking.collectAsState()
+    val hasLocation by viewModel.hasUserLocation.collectAsState()
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            viewModel.toggleLocationTracking()
+        } else {
+// TODO: Показать Snackbar или диалог "Разрешения не даны"
+        }
+    }
+    val backgroundColor = when {
+        isTracking -> MaterialTheme.colorScheme.primary
+        hasLocation -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainer
+    }
+    val icon = when {
+        isTracking -> Icons.Filled.LocationOn
+        hasLocation -> Icons.Filled.Place
+        else -> Icons.Filled.LocationOn // Изменено на LocationOn для лучшей визуализации (серый цвет)
+    }
+    SmallFloatingActionButton(
+        onClick = {
+            if (viewModel.hasLocationPermission()) {
+                viewModel.toggleLocationTracking()
+            } else {
+                permissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            }
+        },
+        containerColor = backgroundColor,
+        contentColor = if (isTracking) Color.White else MaterialTheme.colorScheme.onSurface,
+        modifier = modifier.size(48.dp)
+    ) {
+        Icon(icon, contentDescription = "Моё местоположение")
+    }
+}
+@Composable
+fun OsmMapAndroidView(
+    refreshTrigger: Boolean,
+    modifier: Modifier = Modifier,
+    onMapCreated: (MapView) -> Unit = {}
+) {
+    AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
+            MapView(context).apply {
+                setTileSource(TileSourceFactory.MAPNIK)
+                setMultiTouchControls(true)
+                minZoomLevel = 5.0  // Лимит максимального удаления (минимальный зум)
+                controller.setZoom(15.0)
+                controller.setCenter(GeoPoint(53.9006, 27.5590)) // Центр Минска
+            }
+        },
+        update = { mapView ->
+            onMapCreated(mapView)
+            if (refreshTrigger) {
+                mapView.invalidate() // Обновление карты при refreshTrigger
+            }
+        }
+    )
 }

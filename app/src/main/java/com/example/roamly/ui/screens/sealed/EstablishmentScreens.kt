@@ -16,7 +16,7 @@ sealed class EstablishmentScreens(val route: String) {
     }
 
     object EstablishmentDetail : EstablishmentScreens("establishment/detail/{establishmentId}") {
-        fun createRoute(id: Long) = "establishment/detail/$id"
+        fun createRoute(id: Long?) = "establishment/detail/$id"
     }
 
     object ReviewCreation : EstablishmentScreens("establishment/review/{establishmentId}") {

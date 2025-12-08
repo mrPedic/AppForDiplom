@@ -46,6 +46,7 @@ dependencies {
 
     // Hilt (обязательно через version catalog!)
     implementation(libs.hilt.android)
+    implementation(libs.androidx.preference.ktx)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.nav.compose)
 

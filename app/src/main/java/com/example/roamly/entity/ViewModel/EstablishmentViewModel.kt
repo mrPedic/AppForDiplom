@@ -1,12 +1,22 @@
 package com.example.roamly.entity.ViewModel
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.Color
+import android.location.LocationManager
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.graphics.Paint
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
+import com.example.roamly.PureLocationManager
+import com.example.roamly.R
 import com.example.roamly.classes.cl_menu.Drink
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
@@ -29,6 +39,7 @@ import com.example.roamly.ui.screens.establishment.toMap
 import com.example.roamly.ui.screens.sealed.EstablishmentLoadState
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -44,6 +55,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
 import retrofit2.HttpException
 import retrofit2.Response
 import javax.inject.Inject
@@ -53,6 +67,7 @@ import javax.inject.Inject
 class EstablishmentViewModel @Inject constructor(
     private val apiService: ApiService,
     private val searchHistoryManager: SearchHistoryManager,
+    @ApplicationContext private val appContext: Context  // Добавь это
 ) : ViewModel() {
 
     // --- StateFlow для списка заведений пользователя ---
@@ -1465,5 +1480,111 @@ class EstablishmentViewModel @Inject constructor(
 
     fun checkIfFavorite(id: Long): Boolean {
         return favoriteEstablishmentIds.value.contains(id)
+    }
+
+    // ============================================= //
+// ===== ПОЛЯ И МЕТОДЫ ДЛЯ GPS (Location) ===== //
+// ============================================= //
+    private val _isLocationTracking = MutableStateFlow(false)
+    val isLocationTracking: StateFlow<Boolean> = _isLocationTracking.asStateFlow()
+    private val _hasUserLocation = MutableStateFlow(false)
+    val hasUserLocation: StateFlow<Boolean> = _hasUserLocation.asStateFlow()
+    private var locationManager: PureLocationManager? = null
+    private var userMarker: Marker? = null
+    var mapView: MapView? = null  // Ссылка на MapView (установи в HomeScreen)
+    fun initializeLocation() {
+        locationManager = PureLocationManager(appContext)
+    }
+    fun hasLocationPermission(): Boolean = locationManager?.hasLocationPermission() ?: false
+    fun toggleLocationTracking() {
+        if (_isLocationTracking.value) {
+// Выключаем (3-е нажатие)
+            stopLocationTracking()
+        } else if (_hasUserLocation.value) {
+// Центрируем (2-е нажатие)
+            centerOnUserLocation()
+        } else {
+// Включаем (1-е нажатие)
+            startLocationTracking()
+        }
+    }
+    private fun startLocationTracking() {
+        if (!locationManager!!.hasLocationPermission()) {
+            _errorMessage.value = "Нет разрешения на геолокацию. Включите в настройках."
+            return
+        }
+        if (!isGpsEnabled()) {
+            _errorMessage.value = "GPS выключен. Включите в настройках устройства."
+            return
+        }
+        _isLocationTracking.value = true
+        _hasUserLocation.value = false
+        locationManager!!.startLocationUpdates { location ->
+            _hasUserLocation.value = true
+            updateUserMarker(location)
+            if (_isLocationTracking.value) {
+                centerOnUserLocation()  // Автоцентрирование при обновлении
+            }
+        }
+// Первое местоположение
+        locationManager!!.getCurrentLocation { location ->
+            location?.let {
+                _hasUserLocation.value = true
+                updateUserMarker(it)
+                centerOnUserLocation()
+            }
+        }
+    }
+    private fun stopLocationTracking() {
+        locationManager?.stopLocationUpdates()
+        _isLocationTracking.value = false
+        _hasUserLocation.value = false
+        removeUserMarker()
+    }
+    private fun centerOnUserLocation() {
+        userMarker?.position?.let { geoPoint ->
+            mapView?.controller?.animateTo(geoPoint, 16.0, 1000L)  // Плавная анимация зума и перемещения (1 секунда)
+        }
+    }
+    private fun updateUserMarker(location: android.location.Location) {
+        val geoPoint = GeoPoint(location.latitude, location.longitude)
+        if (userMarker == null) {
+            userMarker = Marker(mapView).apply {
+                position = geoPoint
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                icon = ContextCompat.getDrawable(appContext, R.drawable.ic_my_location_blue)
+                    ?: createBlueDotIcon()
+                title = "Вы здесь"
+                mapView?.overlays?.add(this)
+            }
+        } else {
+            userMarker!!.position = geoPoint
+        }
+        mapView?.invalidate()
+    }
+    private fun removeUserMarker() {
+        userMarker?.let {
+            mapView?.overlays?.remove(it)
+            userMarker = null
+            mapView?.invalidate()
+        }
+    }
+    private fun createBlueDotIcon(): BitmapDrawable {
+        val size = 48
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = android.graphics.Paint().apply {
+            color = android.graphics.Color.BLUE
+            isAntiAlias = true
+        }
+        canvas.drawCircle(size / 2f, size / 2f, size / 3f, paint)
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, size / 6f, paint)
+        return BitmapDrawable(appContext.resources, bitmap)
+    }
+
+    fun isGpsEnabled(): Boolean {
+        return locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) ?: false ||
+                locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ?: false
     }
 }

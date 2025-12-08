@@ -50,7 +50,7 @@ fun NavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = SealedButtonBar.Home.route,
+        startDestination = SealedButtonBar.Profile.route,
         modifier = modifier
     ) {
         // --- Основные вкладки ---
