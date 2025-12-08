@@ -198,16 +198,14 @@ class PointBuilder(
             }
 
             title = establishment.name
-            // В subDescription используется только облегченный DTO
             subDescription = "Рейтинг: ${String.format("%.1f", establishment.rating)}\n" +
                     "Адрес: ${establishment.address}\n" +
                     "Часы: ${establishment.operatingHoursString ?: "Нет данных"}"
 
             setOnMarkerClickListener { m, _ ->
-                // ⭐ ГЛАВНОЕ ИСПРАВЛЕНИЕ:
-                // Вызываем VM для загрузки ПОЛНЫХ данных по ID
+                Log.d("PointBuilder", "Клик по маркеру ID ${establishment.id}")
                 viewModel.loadEstablishmentDetails(establishment.id)
-                m.closeInfoWindow() // Закрываем стандартное инфо-окно
+                m.closeInfoWindow()
                 true
             }
         }

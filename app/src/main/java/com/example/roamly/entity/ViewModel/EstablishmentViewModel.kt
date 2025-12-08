@@ -84,7 +84,12 @@ class EstablishmentViewModel @Inject constructor(
 
     // --- StateFlow для выбранного/редактируемого заведения ---
     private val _currentEstablishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
-    val currentEstablishment: StateFlow<EstablishmentDisplayDto?> = _currentEstablishment
+    val currentEstablishment: StateFlow<EstablishmentDisplayDto?> = _currentEstablishment.asStateFlow()
+
+    private val _isDetailWidgetVisible = MutableStateFlow(false)
+    val isDetailWidgetVisible: StateFlow<Boolean> = _isDetailWidgetVisible.asStateFlow()
+
+
 
     // --- StateFlow для неодобренных заведений (Admin) ---
     private val _pendingEstablishments =
@@ -111,10 +116,6 @@ class EstablishmentViewModel @Inject constructor(
     // Потоки для виджета деталей на карте
     private val _selectedEstablishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
     val selectedEstablishment: StateFlow<EstablishmentDisplayDto?> = _selectedEstablishment.asStateFlow()
-
-    private val _isDetailWidgetVisible = MutableStateFlow(false)
-    val isDetailWidgetVisible: StateFlow<Boolean> = _isDetailWidgetVisible.asStateFlow()
-
 
     // ===================================================== //
     // ===== ПОЛЯ ДЛЯ РАБОТЫ С БРОНИРОВАНИЕМ (Booking) ===== //
@@ -210,17 +211,13 @@ class EstablishmentViewModel @Inject constructor(
      */
     fun loadEstablishmentDetails(id: Long) {
         _isDetailWidgetVisible.value = false
-        _selectedEstablishment.value = null
-
-        // (Можно добавить _isDetailsLoading.value = true, если есть отдельный индикатор)
+        _currentEstablishment.value = null  // Изменено: используем _currentEstablishment
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Предполагаем, что apiService.getEstablishmentById возвращает EstablishmentDisplayDto
                 val details: EstablishmentDisplayDto = apiService.getEstablishmentById(id)
-
                 withContext(Dispatchers.Main) {
-                    _selectedEstablishment.value = details
+                    _currentEstablishment.value = details  // Изменено
                     _isDetailWidgetVisible.value = true
                     Log.d("EstViewModel", "Полные данные заведения ID $id загружены: ${details.name}")
                 }
@@ -232,12 +229,13 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
+
     /**
      * Закрывает виджет деталей на карте.
      */
     fun closeDetailWidget() {
         _isDetailWidgetVisible.value = false
-        _selectedEstablishment.value = null
+        _currentEstablishment.value = null  // Изменено: очищаем _currentEstablishment
         Log.d("EstViewModel", "Виджет деталей закрыт.")
     }
 
@@ -1543,9 +1541,11 @@ class EstablishmentViewModel @Inject constructor(
     }
     private fun centerOnUserLocation() {
         userMarker?.position?.let { geoPoint ->
-            mapView?.controller?.animateTo(geoPoint, 16.0, 1000L)  // Плавная анимация зума и перемещения (1 секунда)
+            val currentZoom = mapView?.zoomLevelDouble ?: 16.0  // Получаем текущий zoom или fallback на 16.0
+            mapView?.controller?.animateTo(geoPoint, currentZoom, 1000L)  // Используем текущий zoom для анимации
         }
     }
+
     private fun updateUserMarker(location: android.location.Location) {
         val geoPoint = GeoPoint(location.latitude, location.longitude)
         if (userMarker == null) {

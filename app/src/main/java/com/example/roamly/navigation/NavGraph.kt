@@ -50,7 +50,7 @@ fun NavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = SealedButtonBar.Profile.route,
+        startDestination = SealedButtonBar.Home.route,
         modifier = modifier
     ) {
         // --- Основные вкладки ---
@@ -116,7 +116,6 @@ fun NavGraph(
             arguments = listOf(navArgument("id") { type = NavType.LongType })
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getLong("id") ?: return@composable
-            // Предполагаем, что у вас есть композабл MenuEditScreen
             MenuEditScreen(navController, establishmentId = id)
         }
 
