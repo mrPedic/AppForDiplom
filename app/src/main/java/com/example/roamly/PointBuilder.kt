@@ -177,6 +177,8 @@ class PointBuilder(
         }
     }
 
+    private var lastClickTime = 0L
+
     /**
      * Создает один маркер osmdroid.
      * Принимает облегченный DTO (EstablishmentMarkerDto) и ViewModel.
@@ -203,8 +205,12 @@ class PointBuilder(
                     "Часы: ${establishment.operatingHoursString ?: "Нет данных"}"
 
             setOnMarkerClickListener { m, _ ->
-                Log.d("PointBuilder", "Клик по маркеру ID ${establishment.id}")
-                viewModel.loadEstablishmentDetails(establishment.id)
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastClickTime > 1000) {  // Debounce 1s
+                    lastClickTime = currentTime
+                    Log.d("PointBuilder", "Клик по маркеру ID ${establishment.id}")
+                    viewModel.loadEstablishmentDetails(establishment.id)
+                }
                 m.closeInfoWindow()
                 true
             }

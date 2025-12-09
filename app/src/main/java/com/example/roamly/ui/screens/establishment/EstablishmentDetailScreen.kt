@@ -42,15 +42,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.zIndex
-import com.example.roamly.classes.cl_menu.Drink
-import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.DTO.EstablishmentDisplayDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
@@ -60,6 +57,7 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.roundToInt
 
+
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun EstablishmentDetailScreen(
@@ -68,17 +66,13 @@ fun EstablishmentDetailScreen(
     viewModel: EstablishmentViewModel = hiltViewModel(),
     userViewModel: UserViewModel = hiltViewModel()
 ) {
-    val establishment by viewModel.currentEstablishment.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
+    val establishmentState by viewModel.establishmentDetailState.collectAsState()
     val menuState by viewModel.menuOfEstablishment.collectAsState()
     val isMenuLoading by viewModel.isMenuLoading.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
     val userState by userViewModel.user.collectAsState()
     val currentUserId = userState.id ?: -1L
 
-    val density = LocalDensity.current
-
-    val tabs = listOf("Описание", "Меню", "Карта", "Отзывы")
+    val tabs = listOf("Описание", "Меню", "Отзывы", "Карта")
     val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
     var selectedTab by remember { mutableIntStateOf(pagerState.currentPage) }
 
@@ -91,14 +85,15 @@ fun EstablishmentDetailScreen(
         showMenuItemDetailDialog = true
     }
 
-
     // --- ЛОГИКА COLLAPSING HEADER ---
 
     val headerHeight = 250.dp
     val headerHeightPx = with(LocalDensity.current) { headerHeight.toPx() }
-    val topBarHeightPx = with(LocalDensity.current) { 56.dp.toPx() } // <--- НОВАЯ ПЕРЕМЕННАЯ
+    val topBarHeight = 56.dp
+    val topBarHeightPx = with(LocalDensity.current) { topBarHeight.toPx() }
     var headerOffsetHeightPx by remember { mutableFloatStateOf(0f) }
 
+    // Исправленный NestedScrollConnection
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -110,59 +105,79 @@ fun EstablishmentDetailScreen(
         }
     }
 
-    LaunchedEffect(establishmentId, currentUserId) { // <--- ИЗМЕНЕНИЕ
+    LaunchedEffect(establishmentId, currentUserId) {
         if (establishmentId > 0) {
-            viewModel.fetchEstablishmentById(establishmentId) // <--- ИЗМЕНЕНИЕ
-            viewModel.fetchMenuForEstablishment(establishmentId)
+            viewModel.fetchEstablishmentDetails(establishmentId)
+            launch { viewModel.fetchMenuForEstablishment(establishmentId) }
+            if (currentUserId > 0) {
+                launch { viewModel.fetchFavoriteEstablishmentsList(currentUserId) }
+            }
         }
     }
 
-    LaunchedEffect(establishmentId) { viewModel.fetchEstablishmentById(establishmentId) }
-    LaunchedEffect(establishment) { establishment?.let { viewModel.fetchMenuForEstablishment(it.id) } }
-    LaunchedEffect(currentUserId) { if (currentUserId > 0) viewModel.fetchFavoriteEstablishmentsList(currentUserId) }
-    LaunchedEffect(selectedTab) { pagerState.scrollToPage(selectedTab) }
+    LaunchedEffect(selectedTab) { coroutineScope.launch { pagerState.scrollToPage(selectedTab) } }
     LaunchedEffect(pagerState.currentPage) {
         selectedTab = pagerState.currentPage
-        if (pagerState.currentPage == 3 && establishment != null) {
-            viewModel.fetchReviewsForEstablishment(establishment!!.id)
+        if (pagerState.currentPage == 2) {
+            viewModel.fetchReviewsForEstablishment(establishmentId)
+        }
+        if (pagerState.currentPage == 3) {
+            headerOffsetHeightPx = 0f
         }
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(nestedScrollConnection)
+        modifier = Modifier.fillMaxSize()
     ) {
-        val coroutineScope = rememberCoroutineScope()
-        val density = LocalDensity.current
-
-
-        val (operatingHoursMap, operatingStatus) = remember(establishment?.operatingHoursString) {
-            if (establishment?.operatingHoursString == null) {
-                // Возвращаем пустые значения на время загрузки
-                Pair(emptyMap<String, String>(), OperatingStatus(false, "Загрузка..."))
-            } else {
-                val map = convertHoursStringToMap(establishment!!.operatingHoursString)
-                val status = getOperatingStatus(establishment!!.operatingHoursString)
+        val (operatingHoursMap, operatingStatus) = remember(establishmentState) {
+            if (establishmentState is EstablishmentLoadState.Success) {
+                val hoursString = (establishmentState as EstablishmentLoadState.Success).data.operatingHoursString
+                val map = convertHoursStringToMap(hoursString)
+                val status = getOperatingStatus(hoursString)
                 Pair(map, status)
+            } else {
+                Pair(emptyMap<String, String>(), OperatingStatus(false, "Загрузка..."))
             }
         }
 
-        when {
-            isLoading && establishment == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            errorMessage != null -> Text("Ошибка: $errorMessage", color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
-            establishment != null -> {
+        when (val state = establishmentState) {
+            is EstablishmentLoadState.Idle -> {}
+            is EstablishmentLoadState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+            is EstablishmentLoadState.Error -> Text("Ошибка: ${state.message}", color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
+            is EstablishmentLoadState.Success -> {
+                val establishment = state.data  // Теперь establishment из state.data
 
-                // --- 1. Хедер (Фото + Табы) ---
+                // --- Контент (Pager) ---
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(0f)
+                ) { page ->
+                    EstablishmentTabContent(
+                        page = page,
+                        establishment = establishment,
+                        navController = navController,
+                        menuState = menuState,
+                        isMenuLoading = isMenuLoading,
+                        operatingHoursMap = operatingHoursMap,
+                        operatingStatus = operatingStatus,
+                        onMenuItemClick = onMenuItemClick,
+                        nestedScrollConnection = nestedScrollConnection,
+                        headerHeightPx = headerHeightPx,
+                    )
+                }
+
+                // --- Хедер (Фото + Табы) ---
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(headerHeight + 48.dp)
                         .offset { IntOffset(x = 0, y = headerOffsetHeightPx.roundToInt()) }
-                        .zIndex(1f) // Хедер должен быть выше контента (Pager), но ниже TopBar
+                        .zIndex(1f)
                 ) {
                     Column {
-                        EstablishmentHeaderImage(establishment!!, Modifier.height(headerHeight))
+                        EstablishmentHeaderImage(establishment, Modifier.height(headerHeight))
                         TabRow(
                             selectedTabIndex = selectedTab,
                             containerColor = MaterialTheme.colorScheme.surface,
@@ -174,7 +189,7 @@ fun EstablishmentDetailScreen(
                                     selected = selectedTab == index,
                                     onClick = {
                                         coroutineScope.launch {
-                                            pagerState.animateScrollToPage(index)
+                                            pagerState.scrollToPage(index)
                                         }
                                     },
                                     text = { Text(title) }
@@ -184,60 +199,156 @@ fun EstablishmentDetailScreen(
                     }
                 }
 
-                // --- 2. Контент (Pager) ---
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = headerHeight + 48.dp)
-                        .offset { IntOffset(x = 0, y = headerOffsetHeightPx.roundToInt()) }
-                ) { page ->
-                    EstablishmentTabContent(
-                        page = page,
-                        establishment = establishment!!,
-                        navController = navController,
-                        menuState = menuState,
-                        isMenuLoading = isMenuLoading,
-                        operatingHoursMap = operatingHoursMap,
-                        operatingStatus = operatingStatus,
-                        onMenuItemClick = onMenuItemClick
+                // --- TOP BAR ---
+                val scrollPercentage = (-headerOffsetHeightPx / (headerHeightPx - topBarHeightPx)).coerceIn(0f, 1f)
+                val topBarColor = MaterialTheme.colorScheme.surface.copy(alpha = scrollPercentage)
+                val contentColor = if (scrollPercentage > 0.5f) MaterialTheme.colorScheme.onSurface else Color.White
+
+                EstablishmentTopBar(
+                    navController = navController,
+                    establishmentName = establishment.name,
+                    establishmentId = establishment.id,
+                    userId = currentUserId,
+                    establishmentViewModel = viewModel,
+                    isOwner = establishment.createdUserId == currentUserId,
+                    containerColor = topBarColor,
+                    contentColor = contentColor,
+                    modifier = Modifier.zIndex(2f).align(Alignment.TopCenter),
+                    establishment = establishment
+                )
+
+                if (showMenuItemDetailDialog && selectedMenuItem != null) {
+                    MenuItemDetailDialog(
+                        item = selectedMenuItem!!,
+                        onDismiss = {
+                            showMenuItemDetailDialog = false
+                            selectedMenuItem = null
+                        }
                     )
                 }
             }
         }
+    }
+}
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun EstablishmentTabContent(
+    page: Int,
+    establishment: EstablishmentDisplayDto,
+    navController: NavController,
+    menuState: MenuOfEstablishment?,
+    isMenuLoading: Boolean,
+    operatingHoursMap: Map<String, String>,
+    operatingStatus: OperatingStatus,
+    onMenuItemClick: (Any) -> Unit,
+    nestedScrollConnection: NestedScrollConnection,
+    headerHeightPx: Float,
+) {
+    val currentUser by hiltViewModel<UserViewModel>().user.collectAsState()
+    val currentUserId = currentUser.id ?: -1L
+    val isOwner = establishment.createdUserId == currentUserId
+    val context = LocalContext.current
 
-        // --- 3. TOP BAR (Исправлено: всегда сверху) ---
-        if (establishment != null) {
-            val scrollPercentage = (-headerOffsetHeightPx / headerHeightPx).coerceIn(0f, 1f)
-            val topBarColor = MaterialTheme.colorScheme.surface.copy(alpha = scrollPercentage)
-            val contentColor = if (scrollPercentage > 0.5f) MaterialTheme.colorScheme.onSurface else Color.White
+    // Полный отступ для контента: Высота хедера + Высота табов
+    val headerFullHeightDp = with(LocalDensity.current) { headerHeightPx.toDp() } + 48.dp
 
-            EstablishmentTopBar(
+    when (page) {
+        0 -> {
+            // Описание
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(nestedScrollConnection)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+            ) {
+                Spacer(Modifier.height(headerFullHeightDp))
+
+                Text("Описание:", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text(establishment.description)
+                Spacer(Modifier.height(8.dp))
+                Text("Адрес: ${establishment.address}")
+                Text("Тип: ${convertTypeToWord(establishment.type)}")
+                Spacer(Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        if (currentUserId != -1L) {
+                            navController.navigate(BookingScreens.CreateBooking.createRoute(establishment.id))
+                        } else {
+                            Toast.makeText(context, "Пожалуйста, авторизуйтесь для бронирования.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Забронировать столик")
+                }
+
+                Spacer(Modifier.height(16.dp))
+                OperatingStatusDisplayInternal(operatingStatus)
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "Полное расписание:",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(Modifier.height(8.dp))
+                OperatingHoursDisplay(operatingHoursMap)
+                Spacer(Modifier.height(headerFullHeightDp))
+
+            }
+        }
+        1 -> Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(nestedScrollConnection)
+        ) {
+            if (isMenuLoading) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
+            } else if (menuState == null || (menuState.foodGroups.isEmpty() && menuState.drinksGroups.isEmpty())) {
+                Column(Modifier.align(Alignment.Center)) {
+                    Text("Меню отсутствует.", style = MaterialTheme.typography.bodyLarge)
+                }
+            } else {
+                MenuDisplayContent(
+                    menu = menuState,
+                    isOwner = isOwner,
+                    establishmentId = establishment.id,
+                    navController = navController,
+                    onMenuItemClick = onMenuItemClick,
+                    headerFullHeightDp = headerFullHeightDp
+                )
+            }
+        }
+        2 -> {
+            // Отзывы
+            ReviewTabContent(
+                establishment = establishment,
                 navController = navController,
-                establishmentName = establishment!!.name,
-                establishmentId = establishment!!.id,
-                userId = currentUserId,
-                establishmentViewModel = viewModel,
-                isOwner = establishment!!.createdUserId == currentUserId,
-                containerColor = topBarColor,
-                contentColor = contentColor,
-                modifier = Modifier.zIndex(2f).align(Alignment.TopCenter),
-                establishment = establishment!!
+                nestedScrollConnection = nestedScrollConnection,
+                headerFullHeightDp = headerFullHeightDp
             )
         }
-
-        if (showMenuItemDetailDialog && selectedMenuItem != null) {
-            MenuItemDetailDialog(
-                item = selectedMenuItem!!,
-                onDismiss = {
-                    showMenuItemDetailDialog = false
-                    selectedMenuItem = null
+        3 -> {
+            // КАРТА
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(nestedScrollConnection)
+            ) {
+                Spacer(Modifier.height(headerFullHeightDp))
+                Box(Modifier.fillMaxSize()) {
+                    EstablishmentMapTab(
+                        name = establishment.name,
+                        latitude = establishment.latitude,
+                        longitude = establishment.longitude
+                    )
                 }
-            )
+            }
         }
     }
 }
-
 @Composable
 fun EstablishmentHeaderImage(establishment: EstablishmentDisplayDto, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxWidth()) {
@@ -258,6 +369,112 @@ fun EstablishmentHeaderImage(establishment: EstablishmentDisplayDto, modifier: M
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary))
         }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
+    }
+}
+
+@Composable
+fun DescriptionTab(establishment: EstablishmentDisplayDto, navController: NavController, currentUserId: Long) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text(establishment.description.ifBlank { "Описание отсутствует" }, style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.height(16.dp))
+        Text("Адрес: ${establishment.address}")
+        Text("Тип: ${convertTypeToWord(establishment.type)}")
+        Spacer(Modifier.height(24.dp))
+
+        Button(
+            onClick = {
+                if (currentUserId > 0) {
+                    navController.navigate(BookingScreens.CreateBooking.createRoute(establishment.id))
+                } else {
+                    // Можно показать тост
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Забронировать столик")
+        }
+    }
+}
+
+@Composable
+fun MenuTab(menu: MenuOfEstablishment?, isLoading: Boolean) {
+    if (isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+    if (menu == null || (menu.foodGroups.isEmpty() && menu.drinksGroups.isEmpty())) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Меню отсутствует")
+        }
+        return
+    }
+
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        if (menu.foodGroups.isNotEmpty()) {
+            item {
+                Text("Блюда", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            }
+            items(menu.foodGroups) { group ->
+                Text(group.name ?: "Без названия", style = MaterialTheme.typography.titleMedium)
+                if (group.items.isEmpty()) {
+                    Text("Нет блюд", color = MaterialTheme.colorScheme.error)
+                } else {
+                    LazyRow(contentPadding = PaddingValues(vertical = 4.dp)) {
+                        items(group.items) { food ->
+                            FoodCard(food = food, onClick = {})
+                            Spacer(Modifier.width(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+            Text("Напитки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        }
+
+        if (menu.drinksGroups.isNotEmpty()) {
+            items(menu.drinksGroups) { group ->
+                Text(group.name ?: "Без названия", style = MaterialTheme.typography.titleMedium)
+                if (group.items.isEmpty()) {
+                    Text("Нет напитков", color = MaterialTheme.colorScheme.error)
+                } else {
+                    LazyRow(contentPadding = PaddingValues(vertical = 4.dp)) {
+                        items(group.items) { drink ->
+                            DrinkCard(drink = drink, onClick = {})
+                            Spacer(Modifier.width(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MapTab(establishment: EstablishmentDisplayDto) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Карта (в разработке)", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Composable
+fun ReviewsTab(establishmentId: Long, viewModel: EstablishmentViewModel) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Отзывы (в разработке)", style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -304,15 +521,16 @@ fun EstablishmentTopBar(
     establishmentName: String,
     establishmentId: Long,
     userId: Long,
-    establishment: EstablishmentDisplayDto,
     establishmentViewModel: EstablishmentViewModel,
     isOwner: Boolean,
     containerColor: Color,
     contentColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    establishment: EstablishmentDisplayDto
 ) {
     val favoriteIds by establishmentViewModel.favoriteEstablishmentIds.collectAsState()
     val isFavorite = establishmentViewModel.checkIfFavorite(establishmentId)
+    val context = LocalContext.current
 
     Box(
         modifier = modifier
@@ -331,9 +549,7 @@ fun EstablishmentTopBar(
         )
 
         Row(
-            modifier = Modifier
-                .fillMaxHeight()
-                .align(Alignment.CenterStart)
+            modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart)
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Назад", tint = contentColor)
@@ -341,10 +557,7 @@ fun EstablishmentTopBar(
         }
 
         Row(
-            modifier = Modifier
-                .fillMaxHeight()
-                .align(Alignment.CenterEnd)
-                .padding(end = 4.dp),
+            modifier = Modifier.fillMaxHeight().align(Alignment.CenterEnd).padding(end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isOwner) {
@@ -352,7 +565,14 @@ fun EstablishmentTopBar(
                     Icon(Icons.Filled.Edit, "Редактировать", tint = contentColor)
                 }
             }
-            IconButton(onClick = { establishmentViewModel.toggleFavorite(establishment, userId) }) {
+            IconButton(onClick = {
+                if (userId != -1L){
+                    establishmentViewModel.toggleFavorite(establishment, userId)
+                }
+                else{
+                    Toast.makeText(context, "Пожалуйста, авторизуйтесь для бронирования.", Toast.LENGTH_SHORT).show()
+                }
+            }) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = null,
@@ -363,126 +583,7 @@ fun EstablishmentTopBar(
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun EstablishmentTabContent(
-    page: Int,
-    establishment: EstablishmentDisplayDto,
-    navController: NavController,
-    menuState: MenuOfEstablishment?,
-    isMenuLoading: Boolean,
-    operatingHoursMap: Map<String, String>,
-    operatingStatus: OperatingStatus,
-    userViewModel: UserViewModel = hiltViewModel(),
-    onMenuItemClick: (Any) -> Unit
-) {
-    val currentUser by userViewModel.user.collectAsState()
-    val currentUserId = currentUser.id ?: -1L
-    val isOwner = establishment.createdUserId == currentUserId
-    val context = LocalContext.current
 
-    when (page) {
-        0 -> {
-            // Описание
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
-            ) {
-                Text("Описание:", fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text(establishment.description)
-                Spacer(Modifier.height(8.dp))
-                Text("Адрес: ${establishment.address}")
-                Text("Тип: ${convertTypeToWord(establishment.type)}")
-
-                Spacer(Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        val currentUserId = userViewModel.getId()
-                        if (currentUserId != null) {
-                            navController.navigate(
-                                BookingScreens.CreateBooking.createRoute(establishment.id)
-                            )
-                        } else {
-                            Toast.makeText(context, "Пожалуйста, авторизуйтесь для бронирования.", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Забронировать столик")
-                }
-
-                Spacer(Modifier.height(16.dp))
-                OperatingStatusDisplayInternal(operatingStatus)
-
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = "Полное расписание:",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(Modifier.height(8.dp))
-                // Передаем уже вычисленную карту
-                OperatingHoursDisplay(operatingHoursMap)
-            }
-        }
-        1 -> Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-        ) {
-            // Меню
-            if (isMenuLoading) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            } else if (menuState == null || (menuState.foodGroups.isEmpty() && menuState.drinksGroups.isEmpty())) {
-                Column(Modifier.align(Alignment.Center)) {
-                    Text("Меню отсутствует.", style = MaterialTheme.typography.bodyLarge)
-                }
-            } else {
-                MenuDisplayContent(
-                    menu = menuState,
-                    isOwner = (establishment.createdUserId == userViewModel.getId()), // Или ваша логика isOwner
-                    establishmentId = establishment.id,
-                    navController = navController,
-                    onMenuItemClick = onMenuItemClick
-                )
-            }
-        }
-        2 -> {
-            // Карта (статичная)
-            Box(modifier = Modifier.fillMaxSize()) {
-                EstablishmentMapTab(
-                    name = establishment.name,
-                    latitude = establishment.latitude,
-                    longitude = establishment.longitude
-                )
-
-                // Блокировка взаимодействия с картой
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Transparent)
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                                    event.changes.forEach { it.consume() }
-                                }
-                            }
-                        }
-                )
-            }
-        }
-        3 -> {
-            ReviewTabContent(establishment = establishment, navController = navController)
-        }
-    }
-}
-
-// Новая функция для отображения статуса (принимает готовый объект, чтобы не пересчитывать)
 @Composable
 fun OperatingStatusDisplayInternal(status: OperatingStatus) {
     val color = if (status.isOpen) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
@@ -515,23 +616,25 @@ fun OperatingStatusDisplayInternal(status: OperatingStatus) {
 fun ReviewTabContent(
     establishment: EstablishmentDisplayDto,
     navController: NavController,
-    userViewModel: UserViewModel = hiltViewModel(),
-    viewModel: EstablishmentViewModel = hiltViewModel()
+    nestedScrollConnection: NestedScrollConnection,
+    headerFullHeightDp: Dp
 ) {
+    val userViewModel: UserViewModel = hiltViewModel()
     val currentUser by userViewModel.user.collectAsState()
     val currentUserId = currentUser.id ?: -1L
     val isLoggedIn = userViewModel.isLoggedIn()
 
     val isOwner = establishment.createdUserId == currentUserId
 
+    val viewModel: EstablishmentViewModel = hiltViewModel()
     val reviews by viewModel.reviews.collectAsState()
     val isReviewsLoading by viewModel.isReviewsLoading.collectAsState()
 
     val canReview = isLoggedIn && !isOwner
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Spacer(Modifier.height(8.dp))
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(nestedScrollConnection)) {
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            Spacer(Modifier.height(headerFullHeightDp + 8.dp))
 
             when {
                 !isLoggedIn -> {
@@ -576,7 +679,6 @@ fun ReviewTabContent(
         if (canReview) {
             Button(
                 onClick = {
-
                     navController.navigate(EstablishmentScreens.ReviewCreation.createRoute(establishment.id))
                 },
                 modifier = Modifier
@@ -589,6 +691,7 @@ fun ReviewTabContent(
         }
     }
 }
+
 
 fun base64ToByteArray(base64String: String): ByteArray? {
     return try {
@@ -629,12 +732,11 @@ fun ReviewItemWithPhoto(review: ReviewEntity) {
                 imageBytes?.let { bytes ->
                     Spacer(Modifier.height(8.dp))
                     Image(
-                        // Coil может принимать массив байтов
                         painter = rememberAsyncImagePainter(model = bytes),
                         contentDescription = "Фото отзыва",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp) // Фиксированная высота для фото
+                            .height(200.dp)
                             .padding(horizontal = 12.dp)
                     )
                     Spacer(Modifier.height(8.dp))
@@ -858,23 +960,18 @@ fun MenuDisplayContent(
     isOwner: Boolean,
     establishmentId: Long,
     navController: NavController,
+    headerFullHeightDp: Dp, // НОВЫЙ ТИП
     onMenuItemClick: (Any) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 16.dp)
+        contentPadding = PaddingValues(
+            top = headerFullHeightDp + 16.dp, // Используем Dp для отступа
+            bottom = 16.dp,
+            start = 16.dp,
+            end = 16.dp
+        )
     ) {
-        // --- 1. Заголовок ---
-        item {
-            Text(
-                "Меню заведения",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp) // Горизонтальный отступ здесь
-            )
-            Spacer(Modifier.height(16.dp))
-        }
-
         // --- 2. Кнопка редактирования меню (только для владельца) ---
         if (isOwner) {
             item {
@@ -884,9 +981,7 @@ fun MenuDisplayContent(
                             EstablishmentScreens.MenuEdit.createRoute(establishmentId)
                         )
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp) // Горизонтальный отступ здесь
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Редактировать меню")
                 }
@@ -901,7 +996,7 @@ fun MenuDisplayContent(
                     text = "Блюда",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp, start = 16.dp, end = 16.dp)
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp) // Убрал лишние horizontal padding, т.к. они есть в contentPadding
                 )
             }
 
@@ -935,7 +1030,7 @@ fun MenuDisplayContent(
             HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "🍹 Напитки",
+                text = "Напитки",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -966,64 +1061,6 @@ fun MenuDisplayContent(
                     }
                 }
             }
-        }
-    }
-}
-
-// Вспомогательные Composable для отображения карточек (нужно доработать стиль)
-
-@Composable
-fun FoodCard(food: Food) {
-    Card(
-        modifier = Modifier.width(200.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = food.name ?: "Блюдо без имени",
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "${food.cost} р. | ${food.weight} г.",
-                style = MaterialTheme.typography.bodySmall
-            )
-            food.ingredients?.takeIf { it.isNotBlank() }?.let { ingredients ->
-                Text(
-                    text = ingredients,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun DrinkCard(drink: Drink) {
-    Card(
-        modifier = Modifier.width(180.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = drink.name ?: "Напиток без имени",
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(4.dp))
-            val optionsText = drink.options.joinToString("\n") {
-                "${it.sizeMl} мл / ${"%.2f".format(it.cost)} р."
-            }
-
-            Text(
-                text = optionsText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

@@ -25,7 +25,7 @@ import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.BookingDetailScreen
 import com.example.roamly.ui.screens.UserBookingsScreen
 import com.example.roamly.ui.screens.admin.PendingListScreen
-import com.example.roamly.ui.screens.booking.CreateBooking
+import com.example.roamly.ui.screens.booking.CreateBookingScreen
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentEditScreen
@@ -158,7 +158,7 @@ fun NavGraph(
             val establishmentId = backStackEntry.arguments?.getLong(BookingScreens.ESTABLISHMENT_ID_KEY)
 
             if (establishmentId != null) {
-                CreateBooking(
+                CreateBookingScreen(
                     navController = navController,
                     establishmentId = establishmentId
                 )

@@ -13,56 +13,38 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DividerDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.PointBuilder
+import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
 import com.example.roamly.ui.screens.establishment.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import kotlin.apply
+
 @Composable
 fun HomeScreen(
     navController: NavController,
@@ -72,30 +54,36 @@ fun HomeScreen(
     val bottomBarHeightWithPadding = 85.dp
     val viewModel: EstablishmentViewModel = hiltViewModel()
     var mapState by remember { mutableStateOf<MapView?>(null) }
-    val context = LocalContext.current
+
+    val loadState by viewModel.establishmentLoadState.collectAsState()
+    val isDetailWidgetVisible by viewModel.isDetailWidgetVisible.collectAsState()
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
         viewModel.initializeLocation()
     }
+
     mapState?.let { map ->
         LaunchedEffect(map) {
-            viewModel.mapView = map  // Установи ссылку на mapView
+            viewModel.mapView = map
         }
-        val pointBuilder = remember(map) { PointBuilder(map) }  // Если PointBuilder нужен
-        pointBuilder.BuildAllMarkers()  // Если маркеры строятся здесь
+        val pointBuilder = remember(map) { PointBuilder(map) }
+        pointBuilder.BuildAllMarkers()
     }
-    Box {
+
+    Box(modifier = Modifier.fillMaxSize()) {
         OsmMapAndroidView(
             refreshTrigger = mapRefreshKey,
             modifier = Modifier.fillMaxSize(),
             onMapCreated = { map -> mapState = map }
         )
+
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 16.dp, end = 12.dp),
             horizontalAlignment = Alignment.End
         ) {
-            // Кнопка обновления карты
             SmallFloatingActionButton(
                 onClick = onMapRefresh,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -105,164 +93,164 @@ fun HomeScreen(
                 Icon(Icons.Filled.Refresh, contentDescription = "Обновить карту")
             }
             Spacer(Modifier.height(8.dp))
-                // НОВАЯ КНОПКА: Моё местоположение
-            MyLocationButton(  // Без onClick
-                viewModel = viewModel
-            )
+            MyLocationButton(viewModel = viewModel)
         }
-            // 3. Виджет деталей заведения (нижний)
-        val currentEstablishment by viewModel.currentEstablishment.collectAsState()
-        val scope = rememberCoroutineScope()
-        val isDetailWidgetVisible by viewModel.isDetailWidgetVisible.collectAsState()
 
         AnimatedVisibility(
-            visible = isDetailWidgetVisible && currentEstablishment != null,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it }),
+            visible = isDetailWidgetVisible,
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = bottomBarHeightWithPadding + 16.dp)
                 .padding(horizontal = 16.dp)
         ) {
-            currentEstablishment?.let { establishment ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                val imageBytes = base64ToByteArray(
-                                    establishment.photoBase64s.firstOrNull() ?: "")
-                                if (imageBytes != null) {
-                                    Image(
-                                        painter = rememberAsyncImagePainter(imageBytes),
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    )
-                                    Spacer(Modifier.width(12.dp))
+            when (loadState) {
+                is EstablishmentLoadState.Idle -> Unit
+                is EstablishmentLoadState.Loading -> LoadingCard()
+                is EstablishmentLoadState.Error -> ErrorCard((loadState as EstablishmentLoadState.Error).message)
+                is EstablishmentLoadState.Success -> {
+                    val state = loadState as EstablishmentLoadState.Success
+                    DetailCard(
+                        establishment = state.data,
+                        isPhotoLoading = state.photosLoading,
+                        onClose = { viewModel.closeDetailWidget() },
+                        onViewDetails = {
+                            val id = state.data.id
+                            viewModel.closeDetailWidget()
+                            scope.launch {
+                                delay(300)
+                                navController.navigate(SealedButtonBar.Searching.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                Text(
-                                    text = establishment.name ?: "Error",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 2
-                                )
-                            }
-                            IconButton(
-                                onClick = { viewModel.closeDetailWidget() },
-                                modifier = Modifier.size(24.dp) // Уменьшаем кнопку
-                            ) {
-                                Icon(Icons.Filled.Close, contentDescription = "Закрыть")
+                                navController.navigate(EstablishmentScreens.EstablishmentDetail.createRoute(id))
                             }
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val statusText = establishment.operatingHoursString ?: "Нет данных"
-                            val isClosed = statusText.contains("Закрыто", ignoreCase = true)
-                            val statusColor = if (isClosed) MaterialTheme.colorScheme.error else Color(0xFF388E3C) // Зеленый
-                            val statusMsg = if (statusText == "Нет данных") "Нет данных" else if (isClosed) "Сейчас закрыто" else "Сейчас открыто"
-                            InfoRow(
-                                icon = Icons.Default.Check,
-                                text = statusMsg,
-                                color = statusColor
-                            )
-                            InfoRow(
-                                icon = Icons.Filled.LocationOn,
-                                text = establishment.address ?: "Error"
-                            )
-                            InfoRow(
-                                icon = Icons.Default.Menu,
-                                text = convertTypeToWord(establishment.type ?: TypeOfEstablishment.Error)
-                            )
-                            InfoRow(
-                                icon = Icons.Filled.Star,
-                                text = "Рейтинг: ${String.format("%.1f", establishment.rating)}"
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                            // 3. Кнопка перехода к деталям
-                        Button(
-                            onClick = {
-                                val establishmentId = currentEstablishment?.id // Может быть null
-
-                                // ⭐ Добавляем явную проверку на null
-                                if (establishmentId != null) {
-                                    viewModel.closeDetailWidget()
-                                    scope.launch {
-                                        delay(300)
-
-                                        // Переключение на вкладку "Searching"
-                                        navController.navigate(SealedButtonBar.Searching.route) {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-
-                                        // Навигация к деталям с гарантированно не-null ID
-                                        navController.navigate(
-                                            EstablishmentScreens.EstablishmentDetail.createRoute(establishmentId)
-                                        )
-                                    }
-                                } else {
-                                    // Опционально: обработать ошибку, например, вывести Toast "Данные не найдены"
-                                    Log.e("Home", "Ошибка: ID заведения для навигации оказался null.")
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Смотреть детали")
-                        }
-                    }
+                    )
                 }
             }
         }
     }
 }
 
-/**
-Вспомогательный Composable для отображения строки "Иконка + Текст"
- */
 @Composable
-private fun InfoRow(
-    icon: ImageVector,
-    text: String,
-    color: Color = MaterialTheme.colorScheme.onSurface
+private fun LoadingCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    }
+}
+
+@Composable
+private fun ErrorCard(message: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+            Spacer(Modifier.width(12.dp))
+            Text(text = message, color = MaterialTheme.colorScheme.onErrorContainer)
+        }
+    }
+}
+
+@Composable
+private fun DetailCard(
+    establishment: com.example.roamly.entity.DTO.EstablishmentDisplayDto,
+    isPhotoLoading: Boolean,
+    onClose: () -> Unit,
+    onViewDetails: () -> Unit
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = color
-        )
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isPhotoLoading) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        }
+                    } else {
+                        AsyncEstablishmentImage(
+                            photoBase64s = establishment.photoBase64s,
+                            placeholderColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
+
+                    Spacer(Modifier.width(12.dp))
+
+                    Text(
+                        text = establishment.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Filled.Close, contentDescription = "Закрыть")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val hours = establishment.operatingHoursString ?: "Нет данных"
+                val isClosed = hours.contains("Закрыто", ignoreCase = true)
+                val statusColor = if (isClosed) MaterialTheme.colorScheme.error else Color(0xFF388E3C)
+                val statusText = when {
+                    hours == "Нет данных" -> "Нет данных"
+                    isClosed -> "Сейчас закрыто"
+                    else -> "Сейчас открыто"
+                }
+
+                InfoRow(icon = Icons.Default.Check, text = statusText, color = statusColor)
+                InfoRow(icon = Icons.Filled.LocationOn, text = establishment.address)
+                InfoRow(icon = Icons.Default.Menu, text = convertTypeToWord(establishment.type))
+                InfoRow(icon = Icons.Filled.Star, text = "Рейтинг: ${String.format("%.1f", establishment.rating)}")
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Button(
+                onClick = onViewDetails,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Смотреть детали")
+            }
+        }
     }
 }
 
@@ -273,26 +261,29 @@ fun MyLocationButton(
 ) {
     val isTracking by viewModel.isLocationTracking.collectAsState()
     val hasLocation by viewModel.hasUserLocation.collectAsState()
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
             viewModel.toggleLocationTracking()
-        } else {
-// TODO: Показать Snackbar или диалог "Разрешения не даны"
         }
     }
+
     val backgroundColor = when {
         isTracking -> MaterialTheme.colorScheme.primary
         hasLocation -> MaterialTheme.colorScheme.secondaryContainer
         else -> MaterialTheme.colorScheme.surfaceContainer
     }
+
     val icon = when {
         isTracking -> Icons.Filled.LocationOn
         hasLocation -> Icons.Filled.Place
-        else -> Icons.Filled.LocationOn // Изменено на LocationOn для лучшей визуализации (серый цвет)
+        else -> Icons.Filled.LocationOn
     }
+
     SmallFloatingActionButton(
         onClick = {
             if (viewModel.hasLocationPermission()) {
@@ -313,6 +304,7 @@ fun MyLocationButton(
         Icon(icon, contentDescription = "Моё местоположение")
     }
 }
+
 @Composable
 fun OsmMapAndroidView(
     refreshTrigger: Boolean,
@@ -322,20 +314,83 @@ fun OsmMapAndroidView(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            Configuration.getInstance().load(context, androidx.preference.PreferenceManager.getDefaultSharedPreferences(context))
+            Configuration.getInstance().load(
+                context,
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+            )
             MapView(context).apply {
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
-                minZoomLevel = 5.0  // Лимит максимального удаления (минимальный зум)
+                minZoomLevel = 5.0
                 controller.setZoom(15.0)
-                controller.setCenter(GeoPoint(53.9006, 27.5590)) // Центр Минска
+                controller.setCenter(GeoPoint(53.9006, 27.5590))
             }
         },
         update = { mapView ->
             onMapCreated(mapView)
-            if (refreshTrigger) {
-                mapView.invalidate() // Обновление карты при refreshTrigger
-            }
+            if (refreshTrigger) mapView.invalidate()
         }
     )
+}
+
+@Composable
+fun AsyncEstablishmentImage(
+    photoBase64s: List<String>,
+    modifier: Modifier = Modifier,
+    placeholderColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    contentDescription: String? = null
+) {
+    var bytes by remember { mutableStateOf<ByteArray?>(null) }
+    val firstBase64 = photoBase64s.firstOrNull()
+
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(placeholderColor),
+        contentAlignment = Alignment.Center
+    ) {
+        LaunchedEffect(firstBase64) {
+            if (!firstBase64.isNullOrBlank()) {
+                bytes = withContext(Dispatchers.IO) {
+                    try {
+                        base64ToByteArray(firstBase64)
+                    } catch (e: Exception) {
+                        Log.e("AsyncImage", "Decode error: ${e.message}")
+                        null
+                    }
+                }
+            }
+        }
+
+        bytes?.let {
+            Image(
+                painter = rememberAsyncImagePainter(it),
+                contentDescription = contentDescription,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } ?: Icon(
+            imageVector = Icons.Default.AccountCircle,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, color: Color = MaterialTheme.colorScheme.onSurface) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(text = text, style = MaterialTheme.typography.bodyMedium, color = color)
+    }
 }

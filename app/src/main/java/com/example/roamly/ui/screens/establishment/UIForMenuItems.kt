@@ -33,40 +33,30 @@ import com.example.roamly.classes.cl_menu.MenuItem
 // 1. Карточки для ленты (LazyRow)
 // ==========================================
 
+
 @Composable
 fun FoodCard(food: Food, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .width(200.dp)
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        modifier = Modifier.width(200.dp),
+        onClick = onClick
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Название
             Text(
-                text = food.name ?: "Без названия",
+                text = food.name ?: "Блюдо без имени",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(4.dp))
-
-            // Цена и вес
             Text(
-                text = "${"%.0f".format(food.cost)} р. • ${food.weight} г",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
+                text = "${food.cost} р. | ${food.weight} г.",
+                style = MaterialTheme.typography.bodySmall
             )
-
-            // Ингредиенты (кратко)
-            food.ingredients?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(4.dp))
+            food.ingredients?.takeIf { it.isNotBlank() }?.let { ingredients ->
                 Text(
-                    text = it,
+                    text = ingredients,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.outline,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -78,47 +68,26 @@ fun FoodCard(food: Food, onClick: () -> Unit) {
 @Composable
 fun DrinkCard(drink: Drink, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .width(180.dp)
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        modifier = Modifier.width(180.dp),
+        onClick = onClick
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Название
             Text(
-                text = drink.name ?: "Без названия",
+                text = drink.name ?: "Напиток без имени",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(4.dp))
-
-            // Цены (от минимальной или диапазон)
-            if (drink.options.isNotEmpty()) {
-                val minPrice = drink.options.minOfOrNull { it.cost } ?: 0.0
-                Text(
-                    text = "от ${"%.0f".format(minPrice)} р.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                // Отображаем объемы
-                val sizes = drink.options.joinToString(", ") { "${it.sizeMl} мл" }
-                Text(
-                    text = sizes,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            } else {
-                Text(
-                    text = "Нет опций",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
+            val optionsText = drink.options.joinToString("\n") {
+                "${it.sizeMl} мл / ${"%.2f".format(it.cost)} р."
             }
+
+            Text(
+                text = optionsText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

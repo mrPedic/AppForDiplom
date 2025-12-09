@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
@@ -66,8 +67,8 @@ fun EstablishmentEditScreen(
     val editedPhotoBase64s by viewModel.editedPhotoBase64s.collectAsState()
     val editedOperatingHours by viewModel.editedOperatingHours.collectAsState()
 
-    // Collect currentEstablishment для отслеживания загрузки
-    val currentEstablishment by viewModel.currentEstablishment.collectAsState()
+    // Collect establishmentDetailState вместо currentEstablishment
+    val establishmentState by viewModel.establishmentDetailState.collectAsState()
 
     // Локальные состояния (только для UI, не edited data)
     val isLoading by viewModel.isLoading.collectAsState()
@@ -86,273 +87,233 @@ fun EstablishmentEditScreen(
     ) { uris ->
         val newBase64s = uris.mapNotNull { uriToBase64(context, it) }
         viewModel.updateEditedPhotos(editedPhotoBase64s + newBase64s)
-        newPhotoUris += uris // Для отображения
+        newPhotoUris += uris // Для отображения, если нужно, но поскольку используем Base64, опционально
     }
 
     // Загрузка данных (только fetch, init - ниже)
     LaunchedEffect(establishmentId) {
-        viewModel.fetchEstablishmentById(establishmentId)
+        viewModel.fetchEstablishmentDetails(establishmentId)
     }
 
-    // Инициализация edited состояний ПОСЛЕ успешной загрузки currentEstablishment
-    LaunchedEffect(currentEstablishment) {
-        if (currentEstablishment != null && editedName.isEmpty()) { // Проверка, чтобы init только раз
+    // Инициализация edited состояний ПОСЛЕ успешной загрузки establishmentState
+    LaunchedEffect(establishmentState) {
+        if (establishmentState is EstablishmentLoadState.Success && editedName.isEmpty()) { // Проверка, чтобы init только раз
             viewModel.initEditedStates()
-        }
-    }
-
-    // Обработка возврата с MapPicker
-    val navBackStackEntry = remember { navController.currentBackStackEntry }
-    LaunchedEffect(navBackStackEntry) {
-        val savedStateHandle = navBackStackEntry?.savedStateHandle
-        val newLat = savedStateHandle?.get<Double>(LATITUDE_KEY)
-        val newLon = savedStateHandle?.get<Double>(LONGITUDE_KEY)
-        if (newLat != null && newLon != null) {
-            Log.i("EditScreenMap", "Получены новые координаты: Lat: $newLat, Lon: $newLon")
-            viewModel.updateEditedLatitude(newLat)
-            viewModel.updateEditedLongitude(newLon)
-            savedStateHandle.remove<Double>(LATITUDE_KEY)
-            savedStateHandle.remove<Double>(LONGITUDE_KEY)
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Редактирование", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) },
+                title = { Text("Редактировать заведение") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Назад")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                actions = {
+                    Button(onClick = { viewModel.saveChanges(establishmentId, navController) }) {
+                        Text("Сохранить")
+                    }
+                }
             )
         }
     ) { paddingValues ->
-        Box(Modifier.fillMaxSize().padding(paddingValues)) {
-            if (isLoading) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            } else if (errorMessage != null) {
-                Text("Ошибка: $errorMessage", color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
-            } else {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Spacer(Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when (val state = establishmentState) {
+                is EstablishmentLoadState.Idle -> {}
+                is EstablishmentLoadState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                is EstablishmentLoadState.Error -> Text("Ошибка: ${state.message}", color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
+                is EstablishmentLoadState.Success -> {
+                    val establishment = state.data  // Теперь данные из state.data
 
-                    // СЕКЦИЯ ФОТОГРАФИЙ (используем editedPhotoBase64s + newPhotoUris для отображения)
-                    Column(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Фотографии", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("${editedPhotoBase64s.size} шт.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
+                    ) {
+                        // Название
+                        EditableField(
+                            label = "Название",
+                            value = editedName,
+                            onValueChange = { viewModel.updateEditedName(it) },
+                            isEditing = isNameEditing,
+                            onEditToggle = { isNameEditing = it },
+                            singleLine = true
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Описание
+                        EditableField(
+                            label = "Описание",
+                            value = editedDescription,
+                            onValueChange = { viewModel.updateEditedDescription(it) },
+                            isEditing = isDescriptionEditing,
+                            onEditToggle = { isDescriptionEditing = it },
+                            singleLine = false,
+                            minLines = 3
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Адрес
+                        EditableField(
+                            label = "Адрес",
+                            value = editedAddress,
+                            onValueChange = { viewModel.updateEditedAddress(it) },
+                            isEditing = isAddressEditing,
+                            onEditToggle = { isAddressEditing = it },
+                            singleLine = true
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Тип заведения
+                        Text("Тип заведения: ${convertTypeToWord(editedType)}")
+                        // Можно добавить Dropdown для изменения типа, если нужно
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Координаты
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.LocationOn, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Широта: $editedLatitude, Долгота: $editedLongitude")
+                            Spacer(Modifier.width(16.dp))
+                            Button(onClick = {
+                                // Навигатор к выбору на карте
+                            }) {
+                                Text("Выбрать на карте")
+                            }
                         }
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Фото
+                        Text("Фото:")
+                        LazyRow(
+                            modifier = Modifier.height(120.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(editedPhotoBase64s) { photo ->
+                                Box {
+                                    val bytes = decodeBase64ToBytes(photo)
+                                    if (bytes != null) {
+                                        Image(
+                                            painter = rememberAsyncImagePainter(bytes),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(120.dp)
+                                                .clip(RoundedCornerShape(8.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.removePhoto(editedPhotoBase64s.indexOf(photo)) },
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(24.dp)
+                                            .background(Color.Black.copy(0.5f), CircleShape)
+                                    ) {
+                                        Icon(Icons.Filled.Close, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
                             item {
                                 Box(
-                                    Modifier
-                                        .size(100.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .clickable { photoPickerLauncher.launch("image/*") }
-                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
+                                    modifier = Modifier
+                                        .size(120.dp)
+                                        .background(Color.LightGray)
+                                        .clickable { photoPickerLauncher.launch("image/*") },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Add, "Добавить фото", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                            items(editedPhotoBase64s) { base64 ->
-                                PhotoItem(model = decodeBase64ToBytes(base64)) { viewModel.updateEditedPhotos(editedPhotoBase64s - base64) }
-                            }
-                            items(newPhotoUris) { uri ->
-                                PhotoItem(model = uri) {
-                                    newPhotoUris = newPhotoUris - uri
-                                    viewModel.updateEditedPhotos(editedPhotoBase64s - uriToBase64(context, uri)!!)
+                                    Icon(Icons.Filled.Add, null, tint = Color.Gray)
                                 }
                             }
                         }
-                    }
 
-                    HorizontalDivider()
+                        Spacer(Modifier.height(16.dp))
 
-                    // ТЕКСТОВЫЕ ПОЛЯ (используем ViewModel)
-                    EditableField("Название", editedName, isNameEditing, { viewModel.updateEditedName(it) }, { isNameEditing = it })
-                    EditableField("Описание", editedDescription, isDescriptionEditing, { viewModel.updateEditedDescription(it) }, { isDescriptionEditing = it }, singleLine = false, minLines = 3)
-                    EditableField("Адрес", editedAddress, isAddressEditing, { viewModel.updateEditedAddress(it) }, { isAddressEditing = it })
-
-                    // МЕСТОПОЛОЖЕНИЕ (из ViewModel)
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), modifier = Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Местоположение", style = MaterialTheme.typography.labelMedium)
-                                Spacer(Modifier.height(4.dp))
-                                Text("${String.format("%.4f", editedLatitude)}, ${String.format("%.4f", editedLongitude)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                            }
-                            IconButton(onClick = { navController.navigate(EstablishmentScreens.MapPicker.route) }) {
-                                Icon(Icons.Filled.LocationOn, "Изменить на карте", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-
-                    // ТИП ЗАВЕДЕНИЯ
-                    var expanded by remember { mutableStateOf(false) }
-                    OutlinedTextField(
-                        readOnly = true,
-                        value = convertTypeToWord(editedType),
-                        onValueChange = {},
-                        label = { Text("Тип заведения") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.fillMaxWidth().clickable { expanded = true },
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline
+                        // Расписание
+                        ScheduleEditBlock(
+                            operatingHours = editedOperatingHours,
+                            onHoursChange = { viewModel.updateEditedOperatingHours(it) }
                         )
-                    )
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.fillMaxWidth(0.9f)) {
-                        TypeOfEstablishment.entries.forEach { option ->
-                            DropdownMenuItem(text = { Text(convertTypeToWord(option)) }, onClick = {
-                                viewModel.updateEditedType(option)
-                                expanded = false
-                            })
-                        }
                     }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    ScheduleEditBlock(editedOperatingHours) { viewModel.updateEditedOperatingHours(it) }
-
-                    // КНОПКА СОХРАНЕНИЯ
-                    Button(onClick = {
-                        viewModel.updateEstablishment(establishmentId) { success ->
-                            if (success) navController.popBackStack()
-                        }
-                    }, Modifier.fillMaxWidth().height(50.dp)) {
-                        Icon(Icons.Filled.Done, null, Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Сохранить изменения")
-                    }
-
-                    Spacer(Modifier.height(32.dp))
                 }
             }
         }
     }
 }
 
-// --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ И ФУНКЦИИ ---
 
-@Composable
-fun PhotoItem(
-    model: Any?, // Может быть Uri или ByteArray
-    onDelete: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(100.dp)
-            .clip(RoundedCornerShape(12.dp))
-    ) {
-        Image(
-            painter = rememberAsyncImagePainter(model = model),
-            contentDescription = "Фото заведения",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Кнопка удаления
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(4.dp)
-                .size(24.dp)
-                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                .clickable { onDelete() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Удалить",
-                tint = Color.White,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
-}
-
+// EditableField
 @Composable
 fun EditableField(
     label: String,
     value: String,
-    isEditing: Boolean,
     onValueChange: (String) -> Unit,
+    isEditing: Boolean,
     onEditToggle: (Boolean) -> Unit,
     singleLine: Boolean = true,
     minLines: Int = 1
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            if (!isEditing) {
-                IconButton(
-                    onClick = { onEditToggle(true) },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Create,
-                        contentDescription = "Редактировать",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                IconButton(
-                    onClick = { onEditToggle(false) },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Done,
-                        contentDescription = "Готово",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "$label:",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
 
         if (isEditing) {
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = singleLine,
-                minLines = minLines,
-                shape = RoundedCornerShape(8.dp)
-            )
+            IconButton(
+                onClick = { onEditToggle(false) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Done,
+                    contentDescription = "Готово",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         } else {
-            Text(
-                text = value.ifEmpty { "Не указано" },
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            IconButton(
+                onClick = { onEditToggle(true) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Create,
+                    contentDescription = "Редактировать",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
+    }
+
+    if (isEditing) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = singleLine,
+            minLines = minLines,
+            shape = RoundedCornerShape(8.dp)
+        )
+    } else {
+        Text(
+            text = value.ifEmpty { "Не указано" },
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 }
 

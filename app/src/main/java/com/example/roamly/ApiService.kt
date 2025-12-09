@@ -95,6 +95,11 @@ interface ApiService {
         @Body request: EstablishmentUpdateRequest
     ): Response<EstablishmentEntity>
 
+    @GET("establishments/{id}/photos")
+    suspend fun getEstablishmentPhotos(
+        @Path("id") id: Long
+    ): List<String>
+
       // ================================== //
      // ===== Все точки для столиков ===== //
     // ================================== //
