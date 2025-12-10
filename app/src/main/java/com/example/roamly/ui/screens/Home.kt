@@ -141,7 +141,7 @@ private fun LoadingCard() {
         modifier = Modifier
             .fillMaxWidth()
             .height(220.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(30.dp),
         elevation = CardDefaults.cardElevation(8.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -154,7 +154,7 @@ private fun LoadingCard() {
 private fun ErrorCard(message: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(30.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
     ) {
         Row(
@@ -179,7 +179,7 @@ private fun DetailCard(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(30.dp),
         elevation = CardDefaults.cardElevation(8.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

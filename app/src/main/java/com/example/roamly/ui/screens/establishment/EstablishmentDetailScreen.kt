@@ -649,10 +649,9 @@ fun ReviewTabContent(
 
             if (isReviewsLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            } else if (reviews.isEmpty()) {
+            } else if (reviews.isEmpty() && currentUserId != -1L) {
                 Text("Отзывов пока нет. Будьте первыми!", style = MaterialTheme.typography.bodySmall)
             } else {
-                Text("Список отзывов (${reviews.size}):", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
 
                 LazyColumn(
@@ -666,11 +665,7 @@ fun ReviewTabContent(
                         } else {
                             ReviewItemWithPhoto(review = review)
                         }
-                        HorizontalDivider(
-                            Modifier,
-                            DividerDefaults.Thickness,
-                            DividerDefaults.color
-                        )
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
                 }
             }
