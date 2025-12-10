@@ -390,7 +390,7 @@ fun MapSection(mapData: MapDTO) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(410.dp)
+                .height(450.dp)
                 .clip(RoundedCornerShape(12.dp)) // красивые углы (опционально)
         ) {
             // Сама карта
