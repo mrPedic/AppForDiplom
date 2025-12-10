@@ -3,17 +3,12 @@ package com.example.roamly.navigation
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.AdminPanelScreen
 import com.example.roamly.ui.screens.HomeScreen
 import com.example.roamly.ui.screens.SearchScreen
@@ -30,7 +25,6 @@ import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentEditScreen
 import com.example.roamly.ui.screens.establishment.MapPickerScreen
-// ⭐ ИМПОРТ ЗАГЛУШКИ ДЛЯ НОВОГО ЭКРАНА
 import com.example.roamly.ui.screens.establishment.MenuEditScreen
 import com.example.roamly.ui.screens.establishment.ReviewCreationScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
@@ -100,7 +94,7 @@ fun NavGraph(
             arguments = listOf(navArgument("establishmentId") { type = NavType.LongType })
         ) { backStackEntry ->
             val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: return@composable
-            EstablishmentDetailScreen(navController, establishmentId)
+            EstablishmentDetailScreen(navController =  navController, establishmentId =  establishmentId)
         }
 
         composable(

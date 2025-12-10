@@ -25,10 +25,13 @@ import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
 import com.example.roamly.entity.DTO.EstablishmentUpdateRequest
+import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.DTO.TableCreationDto
+import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.EstablishmentStatus
+import com.example.roamly.entity.LoadState
 import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.TableEntity
 import com.example.roamly.entity.TypeOfEstablishment
@@ -127,7 +130,7 @@ class EstablishmentViewModel @Inject constructor(
     private val _tables = MutableStateFlow<List<TableEntity>>(emptyList())
 
     // Список столов, доступных для бронирования на выбранную дату/время
-    private val _availableTables = MutableStateFlow<List<TableEntity>>(emptyList())
+    val _availableTables = MutableStateFlow<List<TableEntity>>(emptyList())
     val availableTables: StateFlow<List<TableEntity>> = _availableTables
 
     private val _isBookingLoading = MutableStateFlow(false)
@@ -1653,5 +1656,24 @@ class EstablishmentViewModel @Inject constructor(
                 locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ?: false
     }
 
-
+    fun createBooking(
+        booking: BookingCreationDto,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                withContext(Dispatchers.IO) {
+                    apiService.createBooking(booking)
+                }
+                onSuccess()
+            } catch (e: Exception) {
+                Log.e("EstViewModel", "Error creating booking: ${e.message}", e)
+                onError(e.message ?: "Unknown error")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
 }

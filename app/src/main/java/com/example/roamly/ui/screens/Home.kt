@@ -1,6 +1,7 @@
 package com.example.roamly.ui.screens
 
 import android.Manifest
+import android.util.Base64
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,10 +31,8 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.PointBuilder
 import com.example.roamly.entity.EstablishmentLoadState
-import com.example.roamly.entity.TypeOfEstablishment
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
-import com.example.roamly.ui.screens.establishment.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +43,9 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+
+
+fun base64ToByteArray(base64: String): ByteArray = Base64.decode(base64, Base64.DEFAULT)
 
 @Composable
 fun HomeScreen(

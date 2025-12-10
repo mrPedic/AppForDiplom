@@ -2,6 +2,8 @@
 
 package com.example.roamly.ui.screens.booking
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -17,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -90,6 +94,7 @@ fun CreateBookingScreen(
 ) {
     val context = LocalContext.current
     val establishmentState by viewModel.establishmentDetailState.collectAsState()
+    val availableTables by viewModel.availableTables.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val user by userViewModel.user.collectAsState()
@@ -104,6 +109,22 @@ fun CreateBookingScreen(
     // Загрузка заведения
     LaunchedEffect(establishmentId) {
         viewModel.fetchEstablishmentDetails(establishmentId)
+    }
+
+    // Загрузка доступных столов при изменении даты/времени
+    val operatingHours = (establishmentState as? EstablishmentLoadState.Success)?.data?.let {
+        parseOperatingHours(it.operatingHoursString)
+    } ?: emptyMap()
+
+    LaunchedEffect(selectedDate, selectedTime) {
+        val dayOfWeek = selectedDate.dayOfWeek
+        val (open, close) = operatingHours[dayOfWeek] ?: return@LaunchedEffect
+        if (open != null && close != null && selectedTime >= open && selectedTime < close) {
+            val dateTime = selectedDate.atTime(selectedTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            viewModel.fetchAvailableTables(establishmentId, dateTime)
+        } else {
+            viewModel._availableTables.value = emptyList() // Очистка, если день закрыт
+        }
     }
 
     Scaffold(
@@ -142,36 +163,30 @@ fun CreateBookingScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
-                            .padding(16.dp)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text(
                             text = establishment.name,
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(Modifier.height(8.dp))
                         Text("Адрес: ${establishment.address}", style = MaterialTheme.typography.bodyMedium)
 
-                        Spacer(Modifier.height(24.dp))
-
-                        // Дата
-                        DateSelector(
+                        // Дата (с диалогом-календарем)
+                        DateSelectionInput(
                             selectedDate = selectedDate,
-                            onDateSelected = { selectedDate = it },
-                            operatingHours = parseOperatingHours(establishment.operatingHoursString)
+                            onDateChange = { selectedDate = it },
+                            operatingHours = operatingHours
                         )
 
-                        Spacer(Modifier.height(16.dp))
-
-                        // Время
-                        TimeSelector(
+                        // Время (с диалогом-прокруткой)
+                        TimeSelectionInput(
                             selectedTime = selectedTime,
-                            onTimeSelected = { selectedTime = it },
+                            onTimeChange = { selectedTime = it },
                             selectedDate = selectedDate,
-                            operatingHours = parseOperatingHours(establishment.operatingHoursString)
+                            operatingHours = operatingHours
                         )
-
-                        Spacer(Modifier.height(16.dp))
 
                         // Количество гостей
                         GuestCountSelector(
@@ -179,44 +194,30 @@ fun CreateBookingScreen(
                             onGuestCountChange = { guestCount = it.coerceIn(1, 20) }
                         )
 
-                        Spacer(Modifier.height(16.dp))
-
-                        // Длительность
+                        // Длительность (отображается в часах)
                         DurationSelector(
                             selectedDuration = selectedDuration,
                             onDurationSelected = { selectedDuration = it }
                         )
 
-                        Spacer(Modifier.height(24.dp))
+                        // Доступные столики с сервера
+                        val filteredTables = availableTables.filter { it.maxCapacity >= guestCount }
 
-                        // Доступные столики (заглушка — в реальности нужно отдельный запрос)
-                        // Пока просто показываем пример
-                        val mockTables = listOf(
-                            TableEntity(id = 1, name = "Столик у окна", maxCapacity = 4, description = "", establishmentId = -1L),
-                            TableEntity(id = 2, name = "Большой столик", maxCapacity = 8, description = "", establishmentId = -1L),
-                            TableEntity(id = 3, name = "VIP-зал", maxCapacity = 12, description = "", establishmentId = -1L),
-                        )
-
-                        val availableTables = mockTables.filter { it.maxCapacity >= guestCount }
-
-                        if (availableTables.isEmpty()) {
+                        if (filteredTables.isEmpty()) {
                             Text(
-                                text = "Нет столиков на $guestCount человек(а)",
+                                text = "Нет доступных столиков на $guestCount человек(а)",
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         } else {
                             Text("Выберите столик:", fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(8.dp))
                             TableSelector(
-                                availableTables = availableTables,
+                                availableTables = filteredTables,
                                 selectedTable = selectedTable,
                                 onTableSelected = { selectedTable = it },
                                 requiredCapacity = guestCount
                             )
                         }
-
-                        Spacer(Modifier.height(32.dp))
 
                         // Кнопка бронирования
                         Button(
@@ -255,75 +256,98 @@ fun CreateBookingScreen(
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun DateSelector(
+fun DateSelectionInput(
     selectedDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit,
+    onDateChange: (LocalDate) -> Unit,
     operatingHours: Map<DayOfWeek, Pair<LocalTime?, LocalTime?>>
 ) {
-    val today = LocalDate.now()
-    val dates = (0L..30L).map { today.plusDays(it) }
+    val context = LocalContext.current
+    var showDialog by remember { mutableStateOf(false) }
+
+    if (showDialog) {
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val newDate = LocalDate.of(year, month + 1, dayOfMonth)
+                val dayOfWeek = newDate.dayOfWeek
+                if (operatingHours[dayOfWeek]?.first != null) {
+                    onDateChange(newDate)
+                } else {
+                    Toast.makeText(context, "Заведение закрыто в этот день", Toast.LENGTH_SHORT).show()
+                }
+            },
+            selectedDate.year,
+            selectedDate.monthValue - 1,
+            selectedDate.dayOfMonth
+        ).show()
+        showDialog = false
+    }
 
     Column {
         Text("Выберите дату:", fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(dates) { date ->
-                val dayOfWeek = date.dayOfWeek
-                val isClosed = operatingHours[dayOfWeek]?.first == null
-                val isSelected = date == selectedDate
-
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { if (!isClosed) onDateSelected(date) },
-                    label = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(date.dayOfMonth.toString(), fontWeight = FontWeight.Bold)
-                            Text(date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale("ru")))
-                        }
-                    },
-                    enabled = !isClosed,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = if (isClosed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
-                    )
+        OutlinedTextField(
+            value = selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Дата") },
+            trailingIcon = {
+                Icon(
+                    Icons.Default.DateRange,
+                    contentDescription = null,
+                    Modifier.clickable { showDialog = true }
                 )
-            }
-        }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun TimeSelector(
+fun TimeSelectionInput(
     selectedTime: LocalTime,
-    onTimeSelected: (LocalTime) -> Unit,
+    onTimeChange: (LocalTime) -> Unit,
     selectedDate: LocalDate,
     operatingHours: Map<DayOfWeek, Pair<LocalTime?, LocalTime?>>
 ) {
-    val dayOfWeek = selectedDate.dayOfWeek
-    val (openTime, closeTime) = operatingHours[dayOfWeek] ?: (null to null)
+    val context = LocalContext.current
+    var showDialog by remember { mutableStateOf(false) }
 
-    if (openTime == null || closeTime == null) {
-        Text("Заведение закрыто в этот день", color = MaterialTheme.colorScheme.error)
-        return
+    if (showDialog) {
+        TimePickerDialog(
+            context,
+            { _, hour, minute ->
+                val newTime = LocalTime.of(hour, minute)
+                val (open, close) = operatingHours[selectedDate.dayOfWeek] ?: (null to null)
+                if (open != null && close != null && newTime >= open && newTime < close) {
+                    onTimeChange(newTime)
+                } else {
+                    Toast.makeText(context, "Недоступное время", Toast.LENGTH_SHORT).show()
+                }
+            },
+            selectedTime.hour,
+            selectedTime.minute,
+            true // 24-часовой формат
+        ).show()
+        showDialog = false
     }
 
-    val times = generateSequence(openTime) { time ->
-        time.plusMinutes(30).takeIf { it < closeTime }
-    }.toList()
-
     Column {
-        Text("Выберите время:", fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(times) { time ->
-                val isSelected = time == selectedTime
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onTimeSelected(time) },
-                    label = { Text(time.format(DateTimeFormatter.ofPattern("HH:mm"))) }
+        Text("Выберите время начала:", fontWeight = FontWeight.SemiBold)
+        OutlinedTextField(
+            value = selectedTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Время") },
+            trailingIcon = {
+                Icon(
+                    Icons.Default.DateRange,
+                    contentDescription = null,
+                    Modifier.clickable { showDialog = true }
                 )
-            }
-        }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -334,15 +358,44 @@ fun DurationSelector(
 ) {
     Column {
         Text("Длительность:", fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(BOOKING_DURATIONS_MINUTES) { minutes ->
                 val isSelected = minutes == selectedDuration
                 FilterChip(
                     selected = isSelected,
                     onClick = { onDurationSelected(minutes) },
-                    label = { Text("${minutes}мин") }
+                    label = { Text(formatDuration(minutes)) }
                 )
+            }
+        }
+    }
+}
+
+private fun formatDuration(minutes: Long): String {
+    val hours = minutes / 60
+    val mins = minutes % 60
+    return if (mins > 0) "$hours ч $mins мин" else "$hours ч"
+}
+
+@Composable
+fun GuestCountSelector(
+    guestCount: Int,
+    onGuestCountChange: (Int) -> Unit
+) {
+    Column {
+        Text("Количество гостей:", fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { onGuestCountChange(guestCount - 1) }, enabled = guestCount > 1) {
+                Icon(Icons.Filled.KeyboardArrowLeft, "Меньше")
+            }
+            Text(
+                text = "$guestCount",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.width(60.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            IconButton(onClick = { onGuestCountChange(guestCount + 1) }) {
+                Icon(Icons.Filled.KeyboardArrowRight, "Больше")
             }
         }
     }
@@ -394,30 +447,6 @@ fun TableSelector(
         }
     }
 }
-@Composable
-fun GuestCountSelector(
-    guestCount: Int,
-    onGuestCountChange: (Int) -> Unit
-) {
-    Column {
-        Text("Количество гостей:", fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onGuestCountChange(guestCount - 1) }, enabled = guestCount > 1) {
-                Icon(Icons.Filled.Person, "Меньше")
-            }
-            Text(
-                text = "$guestCount",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.width(60.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            IconButton(onClick = { onGuestCountChange(guestCount + 1) }) {
-                Icon(Icons.Filled.Person, "Больше")
-            }
-        }
-    }
-}
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -437,65 +466,9 @@ fun BookingDurationSelector(
                 shape = MaterialTheme.shapes.extraSmall
             ) {
                 Text(
-                    text = "${duration / 60} ч ${if (duration % 60 > 0) "${duration % 60} мин" else ""}".trim(),
+                    text = formatDuration(duration),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
-}
-
-
-// УДАЛЕН BookingIntervalSelector - заменен на TimeSelectionInput и TimePicker
-
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun DateSelectionInput(
-    selectedDate: LocalDate,
-    onOpenPicker: () -> Unit,
-    openTime: LocalTime?,
-    closeTime: LocalTime?
-) {
-    val dateFormat =
-        remember { DateTimeFormatter.ofPattern("EEEE, dd MMMM", Locale("ru")) }
-    val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm") }
-
-    OutlinedCard(
-        onClick = onOpenPicker,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.DateRange,
-                contentDescription = "Выбрать дату",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = selectedDate.format(dateFormat)
-                        .replaceFirstChar { it.uppercase(Locale("ru")) },
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                val statusText = if (openTime != null && closeTime != null) {
-                    "Открыто: ${openTime.format(timeFormat)} - ${
-                        closeTime.format(
-                            timeFormat
-                        )
-                    }"
-                } else {
-                    "Закрыто"
-                }
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (openTime != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
                 )
             }
         }

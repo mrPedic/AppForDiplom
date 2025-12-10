@@ -11,7 +11,9 @@ import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
 import com.example.roamly.entity.DTO.EstablishmentUpdateRequest
+import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.DTO.TableCreationDto
+import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.TableEntity
@@ -74,6 +76,21 @@ interface ApiService {
         @Query("types") types: List<String>?
     ): List<EstablishmentSearchResultDto>
 
+    // New endpoints for separate loading
+    @GET("establishments/{id}/description")
+    suspend fun getDescription(@Path("id") id: Long): DescriptionDTO
+
+    @GET("establishments/{id}/map")
+    suspend fun getMapData(@Path("id") id: Long): MapDTO
+
+    @GET("establishments/{id}/photos")
+    suspend fun getPhotos(@Path("id") id: Long): List<String>
+
+    @GET("users/{userId}/favorites/check/{establishmentId}")
+    suspend fun checkFavorite(
+        @Path("userId") userId: Long,
+        @Path("establishmentId") establishmentId: Long
+    ): Boolean
 
     @GET("establishments/pending")
     suspend fun getPendingEstablishments(): List<EstablishmentDisplayDto>

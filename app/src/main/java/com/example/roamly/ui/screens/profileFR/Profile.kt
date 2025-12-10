@@ -49,7 +49,7 @@ import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
-import com.example.roamly.ui.screens.establishment.base64ToByteArray
+import com.example.roamly.ui.screens.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 
 @Composable
