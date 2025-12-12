@@ -72,7 +72,8 @@ fun MainScreen(
         EstablishmentScreens.ReviewCreation.route,
         BookingScreens.CreateBooking.route,
         EstablishmentScreens.EstablishmentEdit.route,
-        EstablishmentScreens.MapPicker.route
+        EstablishmentScreens.MapPicker.route,
+        AdminScreens.PendingList.route
     )
 
     val hideBackIcon = listOf(

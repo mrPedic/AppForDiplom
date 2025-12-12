@@ -1,6 +1,6 @@
 package com.example.roamly.entity
 
-import com.example.roamly.entity.DTO.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 
 sealed interface EstablishmentLoadState {
     object Idle : EstablishmentLoadState

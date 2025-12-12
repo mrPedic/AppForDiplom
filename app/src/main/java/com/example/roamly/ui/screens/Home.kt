@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -30,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.PointBuilder
+import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord
@@ -172,7 +172,7 @@ private fun ErrorCard(message: String) {
 
 @Composable
 private fun DetailCard(
-    establishment: com.example.roamly.entity.DTO.EstablishmentDisplayDto,
+    establishment: EstablishmentDisplayDto,
     isPhotoLoading: Boolean,
     onClose: () -> Unit,
     onViewDetails: () -> Unit

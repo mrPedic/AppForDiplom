@@ -1,7 +1,7 @@
 package com.example.roamly.entity
 
 import android.graphics.Color
-import com.example.roamly.entity.DTO.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 
 data class EstablishmentEntity(
     val id: Long,

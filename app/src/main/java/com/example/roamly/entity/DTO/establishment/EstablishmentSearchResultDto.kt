@@ -1,4 +1,4 @@
-package com.example.roamly.entity.DTO
+package com.example.roamly.entity.DTO.establishment
 
 /**
  * Облегченный DTO для отображения заведений в результатах поиска.

@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import com.example.roamly.ApiService
 import com.example.roamly.LocalDateTimeAdapter
+import com.example.roamly.factory.RetrofitFactory.BASE_URL
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.Module
@@ -21,9 +22,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-
-    // Moved from RetrofitFactory.kt
-    const val BASE_URL = "http://10.39.189.228:8080/"  // Add trailing '/' if your endpoints expect it; adjust as needed
 
     @RequiresApi(Build.VERSION_CODES.O)
     @Provides

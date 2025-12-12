@@ -1,4 +1,4 @@
-package com.example.roamly.entity.DTO
+package com.example.roamly.entity.DTO.booking
 
 data class BookingCreationDto(
     val establishmentId: Long,

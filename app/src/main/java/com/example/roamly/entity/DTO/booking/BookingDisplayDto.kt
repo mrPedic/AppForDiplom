@@ -1,4 +1,4 @@
-package com.example.roamly.entity.DTO
+package com.example.roamly.entity.DTO.booking
 
 import com.google.gson.annotations.JsonAdapter
 import com.google.gson.annotations.SerializedName

@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.data.source.UserDataSource // ⭐ Новый импорт
-import com.example.roamly.entity.DTO.BookingDisplayDto
+import com.example.roamly.entity.DTO.booking.BookingDisplayDto
 import com.example.roamly.factory.RetrofitFactory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers

@@ -1,4 +1,3 @@
-// EstablishmentDetailScreen.kt
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.roamly.ui.screens.establishment
@@ -19,19 +18,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material3.*
-import androidx.compose.material3.AlertDialogDefaults.containerColor
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -43,8 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.preference.PreferenceManager
 import coil.compose.rememberAsyncImagePainter
-import com.example.roamly.classes.cl_menu.Drink
-import com.example.roamly.classes.cl_menu.Food
+import coil.request.ImageRequest
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
@@ -52,6 +53,9 @@ import com.example.roamly.entity.LoadState
 import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.ViewModel.EstablishmentDetailViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.ui.screens.sealed.BookingScreens
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -73,9 +77,12 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
     val menuState by viewModel.menuState.collectAsState()
     val photosState by viewModel.photosState.collectAsState()
     val favoriteState by viewModel.favoriteState.collectAsState()
+    val establishmentState by viewModel.establishmentState.collectAsState()
 
     val user by userViewModel.user.collectAsState()
     val userId = user.id ?: 0L
+
+    val isCreator = (establishmentState as? LoadState.Success)?.data?.createdUserId == userId
 
     LaunchedEffect(Unit) {
         viewModel.fetchAllDetails(establishmentId, user.id)
@@ -92,10 +99,15 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
     val pagerState = rememberPagerState(pageCount = { 4 })
     val tabs = listOf("Описание", "Меню", "Отзывы", "Карта")
 
+    LaunchedEffect(Unit) {
+        scrollBehavior.state.heightOffset = 0f  // Ensure header is expanded initially
+    }
+
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 3) {
             scrollBehavior.state.heightOffset = 0f
         }
+        // Removed the line that collapses for other tabs; let scrolling handle collapse
     }
 
     Scaffold(
@@ -128,6 +140,17 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
                             )
                         }
                     }
+                    if (isCreator) {
+                        IconButton(onClick = {
+                            navController.navigate(EstablishmentScreens.EstablishmentEdit.route.replace("{id}", establishmentId.toString()))
+                        }) {
+                            Icon(
+                                Icons.Filled.Create,
+                                contentDescription = "Редактировать заведение",
+                                tint = LocalContentColor.current
+                            )
+                        }
+                    }
                 },
                 scrollBehavior = scrollBehavior,
                 windowInsets = WindowInsets(top = 0.dp),
@@ -142,38 +165,45 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding) // innerPadding теперь содержит только отступ от TopAppBar
+                .padding(innerPadding)
         ) {
-            // Фото-карусель
-            val collapsedFraction by animateFloatAsState(scrollBehavior.state.collapsedFraction)
+            val photoList = (photosState as? LoadState.Success)?.data ?: emptyList<ByteArray>()
 
-            (photosState as? LoadState.Success)?.data?.let { photos ->
-                if (photos.isNotEmpty()) {
-                    val decodedPhotos = remember(photos) { photos.map { Base64.decode(it, Base64.DEFAULT) } }
-                    val photoPagerState = rememberPagerState(pageCount = { photos.size })
+            val collapsedFraction = scrollBehavior.state.collapsedFraction
+            val animatedHeight by animateFloatAsState(targetValue = 250f * (1f - collapsedFraction))
+            val animatedAlpha by animateFloatAsState(targetValue = 1f - collapsedFraction)
 
-                    Box(
+            if (photoList.isNotEmpty() && animatedHeight > 1f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(250.dp)
+                        .clipToBounds()
+                ) {
+                    val imagePagerState = rememberPagerState(pageCount = { photoList.size })
+                    HorizontalPager(
+                        state = imagePagerState,
                         modifier = Modifier
-                            .height(280.dp * (1f - collapsedFraction))
                             .fillMaxWidth()
-                    ) {
-                        HorizontalPager(state = photoPagerState) { page ->
-                            Image(
-                                painter = rememberAsyncImagePainter(decodedPhotos[page]),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
+                            .height(animatedHeight.dp)
+                            .graphicsLayer { alpha = animatedAlpha.coerceIn(0f, 1f) }
+                            .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    ) { page ->
+                        Image(
+                            painter = rememberAsyncImagePainter(
+                                ImageRequest.Builder(LocalContext.current)
+                                    .data(photoList[page])
+                                    .crossfade(true)
+//                                    .placeholder(R.drawable.placeholder_image)
+//                                    .error(R.drawable.error_image)
+                                    .build()
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                 }
-            } ?: Box(
-                modifier = Modifier
-                    .height(280.dp * (1f - collapsedFraction))
-                    .background(Color.LightGray)
-                    .fillMaxWidth()
-            ) {
-                Text("Нет фото", modifier = Modifier.align(Alignment.Center))
             }
 
             TabRow(selectedTabIndex = pagerState.currentPage) {
@@ -186,93 +216,154 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
                 }
             }
 
-            // Остальной код HorizontalPager остаётся без изменений
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = true,
+                flingBehavior = PagerDefaults.flingBehavior(state = pagerState)
             ) { page ->
-                val listState = rememberLazyListState()
-                LaunchedEffect(page) { listState.animateScrollToItem(0) }
-
-                val enableNestedScroll = page != 3
-
                 when (page) {
-                    0 -> LazyContent(
-                        state = listState,
+                    0 -> DescriptionTab(
+                        descriptionState = descriptionState,
+                        onRetry = { viewModel.retryDescription(establishmentId) },
+                        establishmentId = establishmentId,
+                        navController = navController,
+                        scrollBehavior = scrollBehavior
+                    )
+                    1 -> MenuTab(
+                        menuState = menuState,
+                        onRetry = { viewModel.retryMenu(establishmentId) },
                         scrollBehavior = scrollBehavior,
-                        enableNestedScroll = enableNestedScroll
-                    ) {
-                        item {
-                            when (descriptionState) {
-                                is LoadState.Loading -> Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator()
-                                }
-                                is LoadState.Success -> DescriptionSection((descriptionState as LoadState.Success).data)
-                                is LoadState.Error -> ErrorItem((descriptionState as LoadState.Error).message) {
-                                    viewModel.retryDescription(establishmentId)
-                                }
-                            }
-                        }
-                    }
-
-                    1 -> LazyContent(
-                        state = listState,
-                        scrollBehavior = scrollBehavior,
-                        enableNestedScroll = enableNestedScroll
-                    ) {
-                        item {
-                            when (menuState) {
-                                is LoadState.Loading -> Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator()
-                                }
-                                is LoadState.Success -> MenuSection((menuState as LoadState.Success).data)
-                                is LoadState.Error -> ErrorItem((menuState as LoadState.Error).message) {
-                                    viewModel.retryMenu(establishmentId)
-                                }
-                            }
-                        }
-                    }
-
-                    2 -> LazyContent(
-                        state = listState,
-                        scrollBehavior = scrollBehavior,
-                        enableNestedScroll = enableNestedScroll
-                    ) {
-                        item {
-                            when (reviewsState) {
-                                is LoadState.Loading -> Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator()
-                                }
-                                is LoadState.Success -> ReviewsSection((reviewsState as LoadState.Success).data)
-                                is LoadState.Error -> ErrorItem((reviewsState as LoadState.Error).message) {
-                                    viewModel.retryReviews(establishmentId)
-                                }
-                            }
-                        }
-                    }
-
-                    3 -> Column(modifier = Modifier.padding(8.dp)) {
-                        when (mapState) {
-                            is LoadState.Loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                            is LoadState.Success -> MapSection((mapState as LoadState.Success).data)
-                            is LoadState.Error -> ErrorItem((mapState as LoadState.Error).message) {
-                                viewModel.retryMap(establishmentId)
-                            }
-                        }
-                    }
+                        isCreator = isCreator,
+                        establishmentId = establishmentId,
+                        navController = navController
+                    )
+                    2 -> ReviewsTab(
+                        reviewsState = reviewsState,
+                        onRetry = { viewModel.retryReviews(establishmentId) },
+                        scrollBehavior = scrollBehavior
+                    )
+                    3 -> MapTab(
+                        mapState = mapState,
+                        onRetry = { viewModel.retryMap(establishmentId) },
+                        scrollBehavior = scrollBehavior
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DescriptionTab(
+    descriptionState: LoadState<DescriptionDTO>,
+    onRetry: () -> Unit,
+    establishmentId: Long,
+    navController: NavController,
+    scrollBehavior: TopAppBarScrollBehavior
+) {
+    val state = rememberLazyListState()
+    LazyContent(state, scrollBehavior, true) {
+        item {
+            when (descriptionState) {
+                is LoadState.Loading -> DelayedLoadingIndicator(150)
+                is LoadState.Error -> ErrorItem(descriptionState.message, onRetry)
+                is LoadState.Success -> DescriptionSection(descriptionState.data)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = { navController.navigate(BookingScreens.CreateBooking.route.replace("{${BookingScreens.ESTABLISHMENT_ID_KEY}}", establishmentId.toString())) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.DateRange, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Забронировать столик")
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuTab(
+    menuState: LoadState<MenuOfEstablishment>,
+    onRetry: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
+    isCreator: Boolean,
+    establishmentId: Long,
+    navController: NavController
+) {
+    val state = rememberLazyListState()
+    LazyContent(state, scrollBehavior, true) {
+        item {
+            when (menuState) {
+                is LoadState.Loading -> DelayedLoadingIndicator(150)
+                is LoadState.Error -> ErrorItem(menuState.message, onRetry)
+                is LoadState.Success -> {
+                    if (isCreator) {
+                        Button(
+                            onClick = {
+                                navController.navigate(EstablishmentScreens.MenuEdit.route.replace("{id}", establishmentId.toString()))
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                        ) {
+                            Text("Редактировать меню")
+                        }
+                    }
+                    MenuSection(menuState.data)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewsTab(
+    reviewsState: LoadState<List<ReviewEntity>>,
+    onRetry: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior
+) {
+    val state = rememberLazyListState()
+    LazyContent(state, scrollBehavior, true) {
+        item {
+            when (reviewsState) {
+                is LoadState.Loading -> DelayedLoadingIndicator(150)
+                is LoadState.Error -> ErrorItem(reviewsState.message, onRetry)
+                is LoadState.Success -> ReviewsSection(reviewsState.data)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapTab(
+    mapState: LoadState<MapDTO>,
+    onRetry: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior
+) {
+    val state = rememberLazyListState()
+    LazyContent(state, scrollBehavior, enableNestedScroll = false) {
+        item {
+            when (mapState) {
+                is LoadState.Loading -> DelayedLoadingIndicator(150)
+                is LoadState.Error -> ErrorItem(mapState.message, onRetry)
+                is LoadState.Success -> MapSection(mapState.data)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DelayedLoadingIndicator(delayMillis: Long = 150L) {
+    var showIndicator by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(delayMillis)
+        showIndicator = true
+    }
+
+    if (showIndicator) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
         }
     }
 }
@@ -383,7 +474,7 @@ fun MapSection(mapData: MapDTO) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(380.dp)
+            .height(450.dp)
             .clipToBounds()
             .clip(RoundedCornerShape(12.dp))
     ) {

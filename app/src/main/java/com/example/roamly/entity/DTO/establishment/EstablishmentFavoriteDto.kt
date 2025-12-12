@@ -1,4 +1,4 @@
-package com.example.roamly.entity.DTO
+package com.example.roamly.entity.DTO.establishment
 
 import com.example.roamly.entity.TypeOfEstablishment
 

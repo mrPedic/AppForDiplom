@@ -5,14 +5,15 @@ import com.example.roamly.classes.cl_menu.DrinksGroup
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.FoodGroup
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
-import com.example.roamly.entity.DTO.BookingCreationDto
-import com.example.roamly.entity.DTO.EstablishmentDisplayDto
-import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
-import com.example.roamly.entity.DTO.EstablishmentMarkerDto
-import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
-import com.example.roamly.entity.DTO.EstablishmentUpdateRequest
+import com.example.roamly.entity.DTO.booking.BookingCreationDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentMarkerDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentSearchResultDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentUpdateRequest
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.DTO.TableCreationDto
+import com.example.roamly.entity.DTO.booking.BookingDisplayDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.ReviewEntity
@@ -148,7 +149,7 @@ interface ApiService {
     @GET("bookings/user/{userId}")
     suspend fun getUserBookings(
         @Path("userId") userId: Long
-    ): List<com.example.roamly.entity.DTO.BookingDisplayDto>
+    ): List<BookingDisplayDto>
 
     @DELETE("bookings/{bookingId}")
     suspend fun cancelBooking(@Path("bookingId") bookingId: Long): Response<Unit>

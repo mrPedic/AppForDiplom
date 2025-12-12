@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentSearchResultDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.entity.TypeOfEstablishment

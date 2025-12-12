@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -19,19 +20,16 @@ import com.example.roamly.R
 import com.example.roamly.classes.cl_menu.Drink
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
-import com.example.roamly.entity.DTO.BookingCreationDto
-import com.example.roamly.entity.DTO.EstablishmentDisplayDto
-import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
-import com.example.roamly.entity.DTO.EstablishmentMarkerDto
-import com.example.roamly.entity.DTO.EstablishmentSearchResultDto
-import com.example.roamly.entity.DTO.EstablishmentUpdateRequest
-import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
+import com.example.roamly.entity.DTO.booking.BookingCreationDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentMarkerDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentSearchResultDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentUpdateRequest
 import com.example.roamly.entity.DTO.TableCreationDto
-import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.EstablishmentStatus
-import com.example.roamly.entity.LoadState
 import com.example.roamly.entity.ReviewEntity
 import com.example.roamly.entity.TableEntity
 import com.example.roamly.entity.TypeOfEstablishment
@@ -39,6 +37,7 @@ import com.example.roamly.entity.toDisplayDto
 import com.example.roamly.manager.SearchHistoryManager
 import com.example.roamly.ui.screens.establishment.toJsonString
 import com.example.roamly.ui.screens.establishment.toMap
+import com.example.roamly.ui.screens.establishment.uriToBase64
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -1407,18 +1406,15 @@ class EstablishmentViewModel @Inject constructor(
     private val _editedOperatingHours = MutableStateFlow<Map<String, String>>(emptyMap())
     val editedOperatingHours: StateFlow<Map<String, String>> = _editedOperatingHours.asStateFlow()
 
-    fun initEditedStates() {
-        val state = _establishmentDetailState.value
-        if (state is EstablishmentLoadState.Success) {
-            _editedName.value = state.data.name
-            _editedDescription.value = state.data.description
-            _editedAddress.value = state.data.address
-            _editedType.value = state.data.type
-            _editedLatitude.value = state.data.latitude
-            _editedLongitude.value = state.data.longitude
-            _editedPhotoBase64s.value = state.data.photoBase64s
-            _editedOperatingHours.value = state.data.operatingHoursString.toMap()
-        }
+    fun initEditedStates(displayDto: EstablishmentDisplayDto) {
+        updateEditedName(displayDto.name)
+        updateEditedDescription(displayDto.description)
+        updateEditedAddress(displayDto.address)
+        updateEditedLatitude(displayDto.latitude)
+        updateEditedLongitude(displayDto.longitude)
+        updateEditedType(displayDto.type)
+        updateEditedPhotos(displayDto.photoBase64s)
+        updateEditedOperatingHours(displayDto.operatingHoursString.toMap())
     }
 
     fun updateEditedName(newName: String) {
@@ -1671,6 +1667,89 @@ class EstablishmentViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("EstViewModel", "Error creating booking: ${e.message}", e)
                 onError(e.message ?: "Unknown error")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun fetchEstablishmentDetail(establishmentId: Long) {
+        viewModelScope.launch {
+            _establishmentDetailState.value = EstablishmentLoadState.Loading
+            try {
+                val dto = withContext(Dispatchers.IO) {
+                    apiService.getEstablishmentById(establishmentId)
+                }
+                _establishmentDetailState.value = EstablishmentLoadState.Success(dto)
+            } catch (e: Exception) {
+                _establishmentDetailState.value = EstablishmentLoadState.Error(e.message ?: "Unknown error")
+                Log.e("EstablishmentViewModel", "Error fetching establishment detail: ${e.message}", e)
+            }
+        }
+    }
+
+    // В файле EstablishmentViewModel.kt добавьте/измените следующие части:
+
+    // Измените _editedPhotoBase64s на _editedPhotos
+    private val _editedPhotos = MutableStateFlow<List<Any>>(emptyList()) // Any: String (Base64) или Uri
+    val editedPhotos: StateFlow<List<Any>> = _editedPhotos.asStateFlow()
+
+// В initEditedStates (предполагая, что он существует и устанавливает фото из dto.photos: List<String>)
+    // Новый метод для добавления фото
+    fun addNewPhotos(uris: List<Uri>) {
+        _editedPhotos.update { it + uris }
+        viewModelScope.launch(Dispatchers.IO) {
+            uris.forEach { uri ->
+                val base64 = uriToBase64(appContext, uri) ?: return@forEach
+                withContext(Dispatchers.Main) {
+                    _editedPhotos.update { current ->
+                        current.map { if (it === uri) base64 else it }
+                    }
+                }
+            }
+        }
+    }
+
+    // Измените removeEditedPhoto (теперь для editedPhotos)
+    fun removeEditedPhoto(index: Int) {
+        _editedPhotos.update { currentList ->
+            currentList.toMutableList().apply {
+                if (index in indices) removeAt(index)
+            }
+        }
+    }
+
+    // В saveEditedEstablishment измените на:
+    fun saveEditedEstablishment(establishmentId: Long, navController: NavController) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            try {
+                val photoBase64s = editedPhotos.value.map { photo ->
+                    when (photo) {
+                        is String -> photo
+                        is Uri -> uriToBase64(appContext, photo) ?: "" // Синхронно, но в launch (можно обернуть в withContext(IO))
+                        else -> ""
+                    }
+                }
+                val request = EstablishmentUpdateRequest(
+                    name = _editedName.value,
+                    description = _editedDescription.value,
+                    address = _editedAddress.value,
+                    latitude = _editedLatitude.value,
+                    longitude = _editedLongitude.value,
+                    type = _editedType.value,
+                    operatingHoursString = _editedOperatingHours.value.toJsonString(),
+                    photoBase64s = photoBase64s
+                )
+                withContext(Dispatchers.IO) {
+                    apiService.updateEstablishment(establishmentId, request)
+                }
+                // Успех - возвращаемся назад
+                navController.popBackStack()
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unknown error"
+                Log.e("EstablishmentViewModel", "Error saving edited establishment: ${e.message}", e)
             } finally {
                 _isLoading.value = false
             }

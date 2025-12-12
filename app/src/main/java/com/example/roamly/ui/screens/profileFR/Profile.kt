@@ -45,7 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.rememberAsyncImagePainter
-import com.example.roamly.entity.DTO.EstablishmentFavoriteDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToWord

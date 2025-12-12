@@ -21,7 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.roamly.entity.DTO.EstablishmentMarkerDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentMarkerDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.convertTypeToColor
 import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer

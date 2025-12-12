@@ -1,10 +1,12 @@
 package com.example.roamly.entity.ViewModel
 
+import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
+import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.LoadState
@@ -37,11 +39,14 @@ class EstablishmentDetailViewModel @Inject constructor(
     private val _menuState = MutableStateFlow<LoadState<MenuOfEstablishment>>(LoadState.Loading)
     val menuState: StateFlow<LoadState<MenuOfEstablishment>> = _menuState.asStateFlow()
 
-    private val _photosState = MutableStateFlow<LoadState<List<String>>>(LoadState.Loading)
-    val photosState: StateFlow<LoadState<List<String>>> = _photosState.asStateFlow()
+    private val _photosState = MutableStateFlow<LoadState<List<ByteArray>>>(LoadState.Loading)
+    val photosState: StateFlow<LoadState<List<ByteArray>>> = _photosState.asStateFlow()
 
     private val _favoriteState = MutableStateFlow<LoadState<Boolean>>(LoadState.Loading)
     val favoriteState: StateFlow<LoadState<Boolean>> = _favoriteState.asStateFlow()
+
+    private val _establishmentState = MutableStateFlow<LoadState<EstablishmentDisplayDto>>(LoadState.Loading)
+    val establishmentState: StateFlow<LoadState<EstablishmentDisplayDto>> = _establishmentState.asStateFlow()
 
     fun fetchAllDetails(establishmentId: Long, userId: Long? = null) {
         viewModelScope.launch {
@@ -51,6 +56,7 @@ class EstablishmentDetailViewModel @Inject constructor(
                 async { fetchMap(establishmentId) }
                 async { fetchMenu(establishmentId) }
                 async { fetchPhotos(establishmentId) }
+                async { fetchEstablishment(establishmentId) }
                 if (userId != null) {
                     async { fetchFavorite(establishmentId, userId) }
                 }
@@ -117,10 +123,13 @@ class EstablishmentDetailViewModel @Inject constructor(
     private suspend fun fetchPhotos(establishmentId: Long) {
         Log.d("EstablishmentDetailViewModel", "Starting fetchPhotos for ID: $establishmentId")
         try {
-            val photos = withContext(Dispatchers.IO) {
+            val photosBase64 = withContext(Dispatchers.IO) {
                 apiService.getPhotos(establishmentId)
             }
-            _photosState.value = LoadState.Success(photos)
+            val preloadedPhotos = photosBase64.map { base64 ->
+                Base64.decode(base64, Base64.DEFAULT)
+            }
+            _photosState.value = LoadState.Success(preloadedPhotos)
             Log.d("EstablishmentDetailViewModel", "Finished fetchPhotos successfully")
         } catch (e: Exception) {
             _photosState.value = LoadState.Error(e.message ?: "Unknown error")
@@ -142,6 +151,20 @@ class EstablishmentDetailViewModel @Inject constructor(
         }
     }
 
+    private suspend fun fetchEstablishment(establishmentId: Long) {
+        Log.d("EstablishmentDetailViewModel", "Starting fetchEstablishment for ID: $establishmentId")
+        try {
+            val establishment = withContext(Dispatchers.IO) {
+                apiService.getEstablishmentById(establishmentId)
+            }
+            _establishmentState.value = LoadState.Success(establishment)
+            Log.d("EstablishmentDetailViewModel", "Finished fetchEstablishment successfully")
+        } catch (e: Exception) {
+            _establishmentState.value = LoadState.Error(e.message ?: "Unknown error")
+            Log.e("EstablishmentDetailViewModel", "Finished fetchEstablishment with error: ${e.message}", e)
+        }
+    }
+
     // Retry methods
     fun retryDescription(establishmentId: Long) = viewModelScope.launch { fetchDescription(establishmentId) }
     fun retryReviews(establishmentId: Long) = viewModelScope.launch { fetchReviews(establishmentId) }
@@ -149,6 +172,7 @@ class EstablishmentDetailViewModel @Inject constructor(
     fun retryMenu(establishmentId: Long) = viewModelScope.launch { fetchMenu(establishmentId) }
     fun retryPhotos(establishmentId: Long) = viewModelScope.launch { fetchPhotos(establishmentId) }
     fun retryFavorite(establishmentId: Long, userId: Long) = viewModelScope.launch { fetchFavorite(establishmentId, userId) }
+    fun retryEstablishment(establishmentId: Long) = viewModelScope.launch { fetchEstablishment(establishmentId) }
 
     // Additional methods for favorite toggling (from original)
     fun addFavoriteEstablishment(userId: Long, establishmentId: Long) {
@@ -164,6 +188,8 @@ class EstablishmentDetailViewModel @Inject constructor(
             }
         }
     }
+
+
 
     fun removeFavoriteEstablishment(userId: Long, establishmentId: Long) {
         viewModelScope.launch {
