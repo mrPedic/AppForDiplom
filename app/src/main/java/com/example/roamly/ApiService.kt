@@ -131,8 +131,8 @@ interface ApiService {
     @GET("tables/establishment/{establishmentId}")
     suspend fun getTablesByEstablishmentId(@Path("establishmentId") establishmentId: Long): List<TableEntity>
 
-      // =============================== //
-     // ===== Все точки для брони ===== //
+    // =============================== //
+    // ===== Все точки для брони ===== //
     // =============================== //
 
     @GET("bookings/{establishmentId}/available")
@@ -144,7 +144,7 @@ interface ApiService {
     @POST("bookings")
     suspend fun createBooking(
         @Body booking: BookingCreationDto
-    ): BookingCreationDto
+    ): Response<Unit>  // Изменено на Response<Unit>, т.к. сервер возвращает 201 Created без тела (или с BookingEntity, но для простоты)
 
     @GET("bookings/user/{userId}")
     suspend fun getUserBookings(
@@ -221,4 +221,5 @@ interface ApiService {
     // Удаление блюда/напитка
     @DELETE("menu/item/{itemId}")
     suspend fun deleteItem(@Path("itemId") itemId: Long, @Query("isFood") isFood: Boolean): Response<Unit>
+
 }

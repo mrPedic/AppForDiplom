@@ -1,3 +1,4 @@
+// BookingDetailScreen.kt - Updated with dialog and cancellation handling
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.roamly.ui.screens
@@ -56,11 +57,9 @@ fun BookingDetailScreen(
     LaunchedEffect(cancellationStatus) {
         when (cancellationStatus) {
             true -> {
-
                 navController.previousBackStackEntry
                     ?.savedStateHandle?.set("booking_cancellation_result", "success")
                 navController.popBackStack()
-
             }
             false -> {
                 // Ошибка отмены
@@ -96,10 +95,10 @@ fun BookingDetailScreen(
 
                     Button(
                         onClick = { showCancelDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text("Отменить бронирование", color = Color.White)
                     }
@@ -107,26 +106,26 @@ fun BookingDetailScreen(
             }
         )
 
-        // ⭐ 1. ДИАЛОГ ПОДТВЕРЖДЕНИЯ
+        // ⭐ ДИАЛОГ ПОДТВЕРЖДЕНИЯ ОТМЕНЫ
         if (showCancelDialog) {
             AlertDialog(
                 onDismissRequest = { showCancelDialog = false },
                 title = { Text("Подтвердите отмену") },
-                text = { Text("Вы уверены, что хотите отменить бронирование № ${booking.id} в ${booking.establishmentName}?") },
+                text = { Text("Вы уверены, что хотите отменить это бронирование?") },
                 confirmButton = {
-                    Button(
+                    TextButton(
                         onClick = {
-                            bookingViewModel.cancelBooking(bookingId) // Вызов ViewModel
+                            bookingViewModel.cancelBooking(bookingId)
                             showCancelDialog = false
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text("Отменить")
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showCancelDialog = false }) {
-                        Text("Не отменять")
+                        Text("Закрыть")
                     }
                 }
             )
@@ -134,23 +133,14 @@ fun BookingDetailScreen(
     }
 }
 
-// ------------------------------------------------------------------
-// ⭐ Вспомогательные Composable
-// ------------------------------------------------------------------
-
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun BookingInfoSection(booking: BookingDisplayDto) {
     val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm") }
-    val dateFormat = remember { DateTimeFormatter.ofPattern("EEEE, dd MMMM", Locale("ru")) }
+    val dateFormat = remember { DateTimeFormatter.ofPattern("dd MMMM, EEE", Locale("ru")) }
     val endTime = booking.startTime.plus(booking.durationMinutes, ChronoUnit.MINUTES)
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Text(
-            text = "Бронирование # ${booking.id}",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
         Spacer(Modifier.height(8.dp))
 
         Row(

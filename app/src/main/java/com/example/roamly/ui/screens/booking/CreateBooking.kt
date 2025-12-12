@@ -1,3 +1,4 @@
+// CreateBooking.kt - Updated with new BookingViewModel
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.roamly.ui.screens.booking
@@ -33,19 +34,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.TableEntity
-import com.example.roamly.entity.ViewModel.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.max
 
 private const val TAG = "CreateBookingScreen"
-private val BOOKING_DURATIONS_MINUTES = listOf(60L, 90L, 120L, 150L, 180L)
+private val BOOKING_DURATIONS_MINUTES = listOf(30L, 60L, 90L, 120L, 150L, 180L)
 
 @RequiresApi(Build.VERSION_CODES.O)
 private val DAY_NAME_TO_DAY_OF_WEEK = mapOf(
@@ -89,26 +90,27 @@ fun parseOperatingHours(hoursStr: String?): Map<DayOfWeek, Pair<LocalTime?, Loca
 fun CreateBookingScreen(
     navController: NavController,
     establishmentId: Long,
-    viewModel: EstablishmentViewModel = hiltViewModel(),
+    bookingViewModel: BookingViewModel = hiltViewModel(),
     userViewModel: UserViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val establishmentState by viewModel.establishmentDetailState.collectAsState()
-    val availableTables by viewModel.availableTables.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
+    val establishmentState by bookingViewModel.establishmentDetailState.collectAsState()
+    val availableTables by bookingViewModel.availableTables.collectAsState()
+    val isLoading by bookingViewModel.isLoading.collectAsState()
+    val errorMessage by bookingViewModel.errorMessage.collectAsState()
     val user by userViewModel.user.collectAsState()
 
     // Локальные состояния
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedTime by remember { mutableStateOf(LocalTime.of(18, 0)) }
     var selectedDuration by remember { mutableStateOf(120L) }
-    var guestCount by remember { mutableStateOf(2) }
+    var numPeople by remember { mutableStateOf(2) }
     var selectedTable by remember { mutableStateOf<TableEntity?>(null) }
+    var notes by remember { mutableStateOf("") }
 
     // Загрузка заведения
     LaunchedEffect(establishmentId) {
-        viewModel.fetchEstablishmentDetails(establishmentId)
+        bookingViewModel.fetchEstablishmentDetails(establishmentId)
     }
 
     // Загрузка доступных столов при изменении даты/времени
@@ -121,9 +123,9 @@ fun CreateBookingScreen(
         val (open, close) = operatingHours[dayOfWeek] ?: return@LaunchedEffect
         if (open != null && close != null && selectedTime >= open && selectedTime < close) {
             val dateTime = selectedDate.atTime(selectedTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-            viewModel.fetchAvailableTables(establishmentId, dateTime)
+            bookingViewModel.fetchAvailableTables(establishmentId, dateTime)
         } else {
-            viewModel._availableTables.value = emptyList() // Очистка, если день закрыт
+            bookingViewModel._availableTables.value = emptyList()
         }
     }
 
@@ -149,16 +151,8 @@ fun CreateBookingScreen(
                 is EstablishmentLoadState.Loading -> {
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
-                is EstablishmentLoadState.Error -> {
-                    Text(
-                        text = "Ошибка: ${state.message}",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
                 is EstablishmentLoadState.Success -> {
                     val establishment = state.data
-
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -166,89 +160,64 @@ fun CreateBookingScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            text = establishment.name,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text("Адрес: ${establishment.address}", style = MaterialTheme.typography.bodyMedium)
+                        Text(establishment.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text(establishment.address, style = MaterialTheme.typography.bodyLarge)
 
-                        // Дата (с диалогом-календарем)
-                        DateSelectionInput(
-                            selectedDate = selectedDate,
-                            onDateChange = { selectedDate = it },
-                            operatingHours = operatingHours
-                        )
+                        DateSelector(selectedDate) { newDate -> selectedDate = newDate }
+                        TimeSelector(selectedTime, operatingHours, selectedDate) { newTime -> selectedTime = newTime }
+                        BookingDurationSelector(selectedDuration) { newDuration -> selectedDuration = newDuration }
+                        GuestCountSelector(numPeople) { newCount -> numPeople = newCount }
 
-                        // Время (с диалогом-прокруткой)
-                        TimeSelectionInput(
-                            selectedTime = selectedTime,
-                            onTimeChange = { selectedTime = it },
-                            selectedDate = selectedDate,
-                            operatingHours = operatingHours
-                        )
-
-                        // Количество гостей
-                        GuestCountSelector(
-                            guestCount = guestCount,
-                            onGuestCountChange = { guestCount = it.coerceIn(1, 20) }
-                        )
-
-                        // Длительность (отображается в часах)
-                        DurationSelector(
-                            selectedDuration = selectedDuration,
-                            onDurationSelected = { selectedDuration = it }
-                        )
-
-                        // Доступные столики с сервера
-                        val filteredTables = availableTables.filter { it.maxCapacity >= guestCount }
-
-                        if (filteredTables.isEmpty()) {
-                            Text(
-                                text = "Нет доступных столиков на $guestCount человек(а)",
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                        Text("Доступные столы:", fontWeight = FontWeight.SemiBold)
+                        if (availableTables.isEmpty()) {
+                            Text("Нет доступных столов на выбранное время", color = Color.Red)
                         } else {
-                            Text("Выберите столик:", fontWeight = FontWeight.SemiBold)
-                            TableSelector(
-                                availableTables = filteredTables,
-                                selectedTable = selectedTable,
-                                onTableSelected = { selectedTable = it },
-                                requiredCapacity = guestCount
-                            )
+                            TableSelector(availableTables, selectedTable, numPeople) { table -> selectedTable = table }
                         }
 
-                        // Кнопка бронирования
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = { Text("Комментарий") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
                         Button(
                             onClick = {
-                                if (user.id == null) {
-                                    Toast.makeText(context, "Войдите в аккаунт", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                if (selectedTable == null) {
-                                    Toast.makeText(context, "Выберите столик", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-
-                                // Здесь будет реальный вызов API
-                                Toast.makeText(context, "Бронь отправлена!", Toast.LENGTH_LONG).show()
-                                navController.popBackStack()
+                                selectedTable?.let { table ->
+                                    val userId = user.id ?: return@let
+                                    val startTimeStr = selectedDate.atTime(selectedTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                    val dto = BookingCreationDto(
+                                        establishmentId = establishmentId,
+                                        userId = userId,
+                                        tableId = table.id,
+                                        startTime = startTimeStr,
+                                        durationMinutes = selectedDuration,
+                                        numPeople = numPeople,
+                                        notes = notes.takeIf { it.isNotBlank() }
+                                    )
+                                    bookingViewModel.createBooking(dto) { success ->
+                                        if (success) {
+                                            Toast.makeText(context, "Бронирование создано!", Toast.LENGTH_SHORT).show()
+                                            navController.popBackStack()
+                                        } else {
+                                            Toast.makeText(context, "Ошибка создания бронирования", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } ?: Toast.makeText(context, "Выберите стол", Toast.LENGTH_SHORT).show()
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = selectedTable != null && user.id != null
+                            enabled = selectedTable != null && !isLoading,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Filled.Send, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Забронировать")
+                            if (isLoading) CircularProgressIndicator(color = Color.White) else Text("Забронировать")
                         }
+
+                        errorMessage?.let { Text(it, color = Color.Red) }
                     }
                 }
-            }
-
-            // Глобальный индикатор загрузки
-            if (isLoading) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
+                is EstablishmentLoadState.Error -> {
+                    Text("Ошибка: ${state.message}", color = Color.Red, modifier = Modifier.align(Alignment.Center))
+                }
             }
         }
     }
@@ -256,10 +225,9 @@ fun CreateBookingScreen(
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun DateSelectionInput(
+fun DateSelector(
     selectedDate: LocalDate,
-    onDateChange: (LocalDate) -> Unit,
-    operatingHours: Map<DayOfWeek, Pair<LocalTime?, LocalTime?>>
+    onDateSelected: (LocalDate) -> Unit
 ) {
     val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
@@ -268,47 +236,38 @@ fun DateSelectionInput(
         DatePickerDialog(
             context,
             { _, year, month, dayOfMonth ->
-                val newDate = LocalDate.of(year, month + 1, dayOfMonth)
-                val dayOfWeek = newDate.dayOfWeek
-                if (operatingHours[dayOfWeek]?.first != null) {
-                    onDateChange(newDate)
-                } else {
-                    Toast.makeText(context, "Заведение закрыто в этот день", Toast.LENGTH_SHORT).show()
-                }
+                onDateSelected(LocalDate.of(year, month + 1, dayOfMonth))
+                showDialog = false
             },
             selectedDate.year,
             selectedDate.monthValue - 1,
             selectedDate.dayOfMonth
         ).show()
-        showDialog = false
     }
 
-    Column {
-        Text("Выберите дату:", fontWeight = FontWeight.SemiBold)
-        OutlinedTextField(
-            value = selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Дата") },
-            trailingIcon = {
-                Icon(
-                    Icons.Default.DateRange,
-                    contentDescription = null,
-                    Modifier.clickable { showDialog = true }
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
+    OutlinedTextField(
+        value = selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+        onValueChange = {},
+        label = { Text("Дата") },
+        readOnly = true,
+        trailingIcon = {
+            Icon(
+                Icons.Default.DateRange,
+                contentDescription = null,
+                Modifier.clickable { showDialog = true }
+            )
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun TimeSelectionInput(
+fun TimeSelector(
     selectedTime: LocalTime,
-    onTimeChange: (LocalTime) -> Unit,
+    operatingHours: Map<DayOfWeek, Pair<LocalTime?, LocalTime?>>,
     selectedDate: LocalDate,
-    operatingHours: Map<DayOfWeek, Pair<LocalTime?, LocalTime?>>
+    onTimeSelected: (LocalTime) -> Unit
 ) {
     val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
@@ -316,39 +275,31 @@ fun TimeSelectionInput(
     if (showDialog) {
         TimePickerDialog(
             context,
-            { _, hour, minute ->
-                val newTime = LocalTime.of(hour, minute)
-                val (open, close) = operatingHours[selectedDate.dayOfWeek] ?: (null to null)
-                if (open != null && close != null && newTime >= open && newTime < close) {
-                    onTimeChange(newTime)
-                } else {
-                    Toast.makeText(context, "Недоступное время", Toast.LENGTH_SHORT).show()
-                }
+            { _, hourOfDay, minute ->
+                val newTime = LocalTime.of(hourOfDay, minute)
+                onTimeSelected(newTime)
+                showDialog = false
             },
             selectedTime.hour,
             selectedTime.minute,
-            true // 24-часовой формат
+            true
         ).show()
-        showDialog = false
     }
 
-    Column {
-        Text("Выберите время начала:", fontWeight = FontWeight.SemiBold)
-        OutlinedTextField(
-            value = selectedTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Время") },
-            trailingIcon = {
-                Icon(
-                    Icons.Default.DateRange,
-                    contentDescription = null,
-                    Modifier.clickable { showDialog = true }
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
+    OutlinedTextField(
+        value = selectedTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+        onValueChange = {},
+        label = { Text("Время") },
+        readOnly = true,
+        trailingIcon = {
+            Icon(
+                Icons.Default.DateRange,
+                contentDescription = null,
+                Modifier.clickable { showDialog = true }
+            )
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
@@ -374,27 +325,32 @@ fun DurationSelector(
 private fun formatDuration(minutes: Long): String {
     val hours = minutes / 60
     val mins = minutes % 60
-    return if (mins > 0) "$hours ч $mins мин" else "$hours ч"
+    return when{
+        mins > 0 && hours > 0 ->  "$hours ч $mins мин"
+        mins > 0 && hours == 0L -> "$mins мин"
+        mins == 0L && hours > 0 -> "$hours ч "
+        else -> "Error"
+    }
 }
 
 @Composable
 fun GuestCountSelector(
-    guestCount: Int,
+    numPeople: Int,
     onGuestCountChange: (Int) -> Unit
 ) {
     Column {
         Text("Количество гостей:", fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onGuestCountChange(guestCount - 1) }, enabled = guestCount > 1) {
+            IconButton(onClick = { onGuestCountChange(numPeople - 1) }, enabled = numPeople > 1) {
                 Icon(Icons.Filled.KeyboardArrowLeft, "Меньше")
             }
             Text(
-                text = "$guestCount",
+                text = "$numPeople",
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.width(60.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            IconButton(onClick = { onGuestCountChange(guestCount + 1) }) {
+            IconButton(onClick = { onGuestCountChange(numPeople + 1) }) {
                 Icon(Icons.Filled.KeyboardArrowRight, "Больше")
             }
         }
@@ -405,8 +361,8 @@ fun GuestCountSelector(
 fun TableSelector(
     availableTables: List<TableEntity>,
     selectedTable: TableEntity?,
-    onTableSelected: (TableEntity) -> Unit,
-    requiredCapacity: Int
+    requiredCapacity: Int,
+    onTableSelected: (TableEntity) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         availableTables.forEach { table ->
@@ -457,7 +413,7 @@ fun BookingDurationSelector(
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(BOOKING_DURATIONS_MINUTES) { duration ->
             val isSelected = duration == selectedDuration
-            ElevatedCard( // Заменено на ElevatedCard для лучшей видимости
+            ElevatedCard(
                 onClick = { onDurationSelected(duration) },
                 colors = CardDefaults.cardColors(
                     containerColor = if (isSelected) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
