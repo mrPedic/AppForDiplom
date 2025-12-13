@@ -50,7 +50,7 @@ import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.LoadState
-import com.example.roamly.entity.ReviewEntity
+import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.entity.ViewModel.EstablishmentDetailViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens

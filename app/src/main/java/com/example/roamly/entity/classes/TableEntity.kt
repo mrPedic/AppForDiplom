@@ -1,4 +1,4 @@
-package com.example.roamly.entity
+package com.example.roamly.entity.classes
 
 data class TableEntity(
     val id: Long,

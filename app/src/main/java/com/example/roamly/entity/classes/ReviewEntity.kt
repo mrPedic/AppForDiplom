@@ -1,6 +1,4 @@
-package com.example.roamly.entity
-
-import com.google.gson.annotations.SerializedName
+package com.example.roamly.entity.classes
 
 /**
  * Сущность для отправки нового отзыва на сервер.

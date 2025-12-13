@@ -16,4 +16,5 @@ sealed class BookingScreens(val route : String) {
         fun createRoute(id: Long) = "booking/detail/$id"
     }
 
+
 }

@@ -1,6 +1,6 @@
 package com.example.roamly.entity.DTO.establishment
 
-import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.entity.classes.TypeOfEstablishment
 
 /**
  * Облегченный DTO для отображения заведений на карте (маркеры).

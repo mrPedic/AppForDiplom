@@ -1,4 +1,4 @@
-package com.example.roamly.entity
+package com.example.roamly.entity.classes
 
 import android.graphics.Color
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto

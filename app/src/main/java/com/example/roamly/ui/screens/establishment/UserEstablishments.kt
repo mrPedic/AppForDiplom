@@ -4,6 +4,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
-import com.example.roamly.entity.EstablishmentStatus
+import com.example.roamly.entity.classes.EstablishmentStatus
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
@@ -24,18 +27,14 @@ import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 fun UserEstablishmentsScreen(
     navController: NavController,
     userViewModel: UserViewModel = hiltViewModel(), // Используем hiltViewModel по умолчанию, если не передан
-    // Предполагается, что EstablishmentViewModel поддерживает StateFlow для списка
     viewModel: EstablishmentViewModel = hiltViewModel()
 ) {
-    // ⭐ ИСПРАВЛЕНО: Собираем StateFlow<User> в Compose-состояние
     val user by userViewModel.user.collectAsState()
 
-    // ВАЖНО: Предполагается, что EstablishmentViewModel имеет поля:
     val establishments by viewModel.userEstablishments.collectAsState(initial = emptyList())
     val isLoading by viewModel.isLoading.collectAsState(initial = false)
     val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
-    // ⭐ ИСПРАВЛЕНО: Получаем ID пользователя из собранного состояния
     val userId = user.id
 
     // Запуск загрузки данных при входе на экран
@@ -45,58 +44,140 @@ fun UserEstablishmentsScreen(
             viewModel.fetchEstablishmentsByUserId(it)
         }
     }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        when {
-            isLoading -> {
-                // Индикатор загрузки
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
-                )
+
+    // Новое: Состояние для поиска и фильтрации
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedStatusFilters by remember { mutableStateOf(setOf<EstablishmentStatus>()) } // Фильтры по статусу
+    var showFilterDialog by remember { mutableStateOf(false) }
+
+    // Фильтрованные и отфильтрованные по поиску заведения
+    val filteredEstablishments = establishments
+        .filter { est ->
+            (selectedStatusFilters.isEmpty() || est.status in selectedStatusFilters) &&
+                    (searchQuery.isEmpty() ||
+                            est.name.contains(searchQuery, ignoreCase = true) ||
+                            est.address.contains(searchQuery, ignoreCase = true))
+        }
+
+    // Диалог для выбора фильтров
+    if (showFilterDialog) {
+        FilterDialog(
+            currentSelections = selectedStatusFilters,
+            onDismiss = { showFilterDialog = false },
+            onConfirm = { newSelections ->
+                selectedStatusFilters = newSelections
+                showFilterDialog = false
             }
-            errorMessage != null -> {
-                // Сообщение об ошибке
-                Text(
-                    text = "Ошибка загрузки: $errorMessage",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(16.dp)
-                )
-                // Кнопка для повторной попытки
-                Button(
-                    onClick = { userId?.let { viewModel.fetchEstablishmentsByUserId(it) } },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp)
-                ) {
-                    Text("Повторить")
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Мои заведения") },
+                actions = {
+                    IconButton(onClick = { showFilterDialog = true }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Фильтры")
+                    }
                 }
-            }
-            establishments.isEmpty() && !isLoading -> { // Добавлена проверка !isLoading для избежания мерцания
-                // Пустой список
-                Text(
-                    text = "У вас пока нет созданных заведений.",
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.titleMedium
+            )
+        },
+        bottomBar = {
+            BottomButtons(navController = navController)
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            Column {
+                // Поле поиска
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Поиск по имени или адресу") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Поиск") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    singleLine = true
                 )
-            }
-            else -> {
-                // Отображение списка
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(establishments) { establishment ->
-                        // ⭐ ПЕРЕДАЕМ ССЫЛКУ НА VM В EstablishmentItem
-                        EstablishmentItem(
-                            establishment = establishment,
-                            viewModel = viewModel,
-                            navController = navController
+
+                when {
+                    isLoading -> {
+                        // Индикатор загрузки
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
+                    }
+                    errorMessage != null -> {
+                        // Сообщение об ошибке
+                        Text(
+                            text = "Ошибка загрузки: $errorMessage",
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(16.dp)
+                        )
+                        // Кнопка для повторной попытки
+                        Button(
+                            onClick = { userId?.let { viewModel.fetchEstablishmentsByUserId(it) } },
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(24.dp)
+                        ) {
+                            Text("Повторить")
+                        }
+                    }
+                    filteredEstablishments.isEmpty() && !isLoading -> { // Добавлена проверка !isLoading для избежания мерцания
+                        // Пустой список
+                        Text(
+                            text = "У вас пока нет созданных заведений или ничего не найдено.",
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    else -> {
+                        // Отображение списка
+                        LazyColumn(
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(filteredEstablishments) { establishment ->
+                                // ⭐ ПЕРЕДАЕМ ССЫЛКУ НА VM В EstablishmentItem
+                                EstablishmentItem(
+                                    establishment = establishment,
+                                    viewModel = viewModel,
+                                    navController = navController
+                                )
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun BottomButtons(navController: NavController) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        Button(onClick = {
+            // Переход на экран одобрения броней (предполагаем, что есть маршрут EstablishmentScreens.ApproveBookings)
+            navController.navigate(EstablishmentScreens.ApproveBookings.route)
+        }) {
+            Text("Одобрение броней")
+        }
+
+        Button(onClick = {
+            // TODO: Реализовать кнопку для просмотра броней
+            // navController.navigate(EstablishmentScreens.ViewBookings.route)
+        }) {
+            Text("Просмотр броней")
         }
     }
 }
@@ -180,6 +261,7 @@ fun EstablishmentItem(
         }
     }
 }
+
 /**
  * Вспомогательная функция для форматирования статуса (для UI).
  */
@@ -204,4 +286,80 @@ private fun getStatusColor(status: EstablishmentStatus): Color {
         EstablishmentStatus.REJECTED -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.error
     }
+}
+
+/**
+ * Диалог для выбора фильтров по статусу
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterDialog(
+    currentSelections: Set<EstablishmentStatus>,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<EstablishmentStatus>) -> Unit
+) {
+    // Временное состояние для выбора в диалоге
+    var tempSelections by remember { mutableStateOf(currentSelections) }
+    val allStatuses = remember { EstablishmentStatus.entries.toTypedArray() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Фильтр по статусу") },
+        text = {
+            Column {
+                // Кнопки "Выбрать все" / "Очистить"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TextButton(onClick = { tempSelections = allStatuses.toSet() }) {
+                        Text("Выбрать все")
+                    }
+                    TextButton(onClick = { tempSelections = emptySet() }) {
+                        Text("Очистить")
+                    }
+                }
+                HorizontalDivider()
+                // Список статусов с чекбоксами
+                LazyColumn(modifier = Modifier.padding(top = 8.dp)) {
+                    items(allStatuses) { status ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    tempSelections = if (status in tempSelections) {
+                                        tempSelections - status
+                                    } else {
+                                        tempSelections + status
+                                    }
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = status in tempSelections,
+                                onCheckedChange = { isChecked ->
+                                    tempSelections = if (isChecked) {
+                                        tempSelections + status
+                                    } else {
+                                        tempSelections - status
+                                    }
+                                }
+                            )
+                            Text(formatStatus(status), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(tempSelections) }) {
+                Text("Применить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
 }

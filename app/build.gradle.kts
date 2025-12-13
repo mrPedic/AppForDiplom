@@ -79,4 +79,6 @@ dependencies {
 
     //for HttpLoggingInterceptor
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 }

@@ -10,7 +10,7 @@ import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.LoadState
-import com.example.roamly.entity.ReviewEntity
+import com.example.roamly.entity.classes.ReviewEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async

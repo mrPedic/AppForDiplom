@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
-import com.example.roamly.entity.EstablishmentStatus // Импорт статуса
+import com.example.roamly.entity.classes.EstablishmentStatus // Импорт статуса
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 
 @Composable

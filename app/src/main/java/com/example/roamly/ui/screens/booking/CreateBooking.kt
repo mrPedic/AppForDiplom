@@ -1,4 +1,3 @@
-// CreateBooking.kt - Updated with new BookingViewModel
 @file:OptIn(ExperimentalMaterial3Api::class)
 
 package com.example.roamly.ui.screens.booking
@@ -6,7 +5,6 @@ package com.example.roamly.ui.screens.booking
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.os.Build
-import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
@@ -22,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,14 +33,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.EstablishmentLoadState
-import com.example.roamly.entity.TableEntity
+import com.example.roamly.entity.classes.TableEntity
 import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.max
 
 private const val TAG = "CreateBookingScreen"
 private val BOOKING_DURATIONS_MINUTES = listOf(30L, 60L, 90L, 120L, 150L, 180L)
@@ -90,30 +86,31 @@ fun parseOperatingHours(hoursStr: String?): Map<DayOfWeek, Pair<LocalTime?, Loca
 fun CreateBookingScreen(
     navController: NavController,
     establishmentId: Long,
-    bookingViewModel: BookingViewModel = hiltViewModel(),
+    viewModel: BookingViewModel = hiltViewModel(),
     userViewModel: UserViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val establishmentState by bookingViewModel.establishmentDetailState.collectAsState()
-    val availableTables by bookingViewModel.availableTables.collectAsState()
-    val isLoading by bookingViewModel.isLoading.collectAsState()
-    val errorMessage by bookingViewModel.errorMessage.collectAsState()
     val user by userViewModel.user.collectAsState()
 
-    // Локальные состояния
+    // Состояния формы
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedTime by remember { mutableStateOf(LocalTime.of(18, 0)) }
-    var selectedDuration by remember { mutableStateOf(120L) }
-    var numPeople by remember { mutableStateOf(2) }
+    var selectedTime by remember { mutableStateOf(LocalTime.now().plusHours(1).withMinute(0)) }
+    var selectedDuration by remember { mutableStateOf(90L) }
     var selectedTable by remember { mutableStateOf<TableEntity?>(null) }
+    var numberOfGuests by remember { mutableStateOf(2) }
+    var guestContact by remember { mutableStateOf("") } // Изменено: guestPhone -> guestContact
     var notes by remember { mutableStateOf("") }
 
-    // Загрузка заведения
-    LaunchedEffect(establishmentId) {
-        bookingViewModel.fetchEstablishmentDetails(establishmentId)
+    val establishmentState by viewModel.establishmentDetailState.collectAsState()
+    val availableTables by viewModel.availableTables.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.errorMessage.collectAsState()
+
+    // Загружаем данные заведения и столики
+    LaunchedEffect(Unit) {
+        viewModel.fetchEstablishmentDetails(establishmentId)
     }
 
-    // Загрузка доступных столов при изменении даты/времени
     val operatingHours = (establishmentState as? EstablishmentLoadState.Success)?.data?.let {
         parseOperatingHours(it.operatingHoursString)
     } ?: emptyMap()
@@ -122,16 +119,17 @@ fun CreateBookingScreen(
         val dayOfWeek = selectedDate.dayOfWeek
         val (open, close) = operatingHours[dayOfWeek] ?: return@LaunchedEffect
         if (open != null && close != null && selectedTime >= open && selectedTime < close) {
-            val dateTime = selectedDate.atTime(selectedTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-            bookingViewModel.fetchAvailableTables(establishmentId, dateTime)
+            val dateTime = LocalDateTime.of(selectedDate, selectedTime)
+            val iso = dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            viewModel.fetchAvailableTables(establishmentId, iso)
         } else {
-            bookingViewModel._availableTables.value = emptyList()
+            viewModel._availableTables.value = emptyList()
         }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("Бронирование") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
@@ -140,85 +138,112 @@ fun CreateBookingScreen(
                 }
             )
         }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (val state = establishmentState) {
-                is EstablishmentLoadState.Idle -> {}
-                is EstablishmentLoadState.Loading -> {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                }
-                is EstablishmentLoadState.Success -> {
-                    val establishment = state.data
-                    Column(
+    ) { padding ->
+        if (isLoading && establishmentState is EstablishmentLoadState.Idle) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+            return@Scaffold
+        }
+
+        when (establishmentState) {
+            is EstablishmentLoadState.Success -> {
+                val establishment = (establishmentState as EstablishmentLoadState.Success).data
+
+                Column(
+                    modifier = Modifier
+                        .padding(padding)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(establishment.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(establishment.address, style = MaterialTheme.typography.bodyLarge)
+                    DateSelector(selectedDate) { newDate -> selectedDate = newDate }
+                    TimeSelector(selectedTime, operatingHours, selectedDate) { newTime -> selectedTime = newTime }
+                    BookingDurationSelector(selectedDuration) { newDuration -> selectedDuration = newDuration }
+                    GuestCountSelector(numberOfGuests) { newCount -> numberOfGuests = newCount }
+                    Text("Доступные столы:", fontWeight = FontWeight.SemiBold)
+                    if (availableTables.isEmpty()) {
+                        Text("Нет доступных столов на выбранное время", color = Color.Red)
+                    } else {
+                        TableSelector(availableTables, selectedTable, numberOfGuests) { table -> selectedTable = table }
+                    }
+
+                    // Измененное поле: Как с вами связаться
+                    OutlinedTextField(
+                        value = guestContact,
+                        onValueChange = { guestContact = it },
+                        label = { Text("Как с вами связаться (номер телефона, как обращаться)") },
                         modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text(establishment.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                        Text(establishment.address, style = MaterialTheme.typography.bodyLarge)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                    )
 
-                        DateSelector(selectedDate) { newDate -> selectedDate = newDate }
-                        TimeSelector(selectedTime, operatingHours, selectedDate) { newTime -> selectedTime = newTime }
-                        BookingDurationSelector(selectedDuration) { newDuration -> selectedDuration = newDuration }
-                        GuestCountSelector(numPeople) { newCount -> numPeople = newCount }
+                    // Поле для заметок
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text("Заметки (по желанию)") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        minLines = 3
+                    )
 
-                        Text("Доступные столы:", fontWeight = FontWeight.SemiBold)
-                        if (availableTables.isEmpty()) {
-                            Text("Нет доступных столов на выбранное время", color = Color.Red)
-                        } else {
-                            TableSelector(availableTables, selectedTable, numPeople) { table -> selectedTable = table }
-                        }
+                    Spacer(Modifier.height(24.dp))
 
-                        OutlinedTextField(
-                            value = notes,
-                            onValueChange = { notes = it },
-                            label = { Text("Комментарий") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Button(
-                            onClick = {
-                                selectedTable?.let { table ->
-                                    val userId = user.id ?: return@let
-                                    val startTimeStr = selectedDate.atTime(selectedTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                                    val dto = BookingCreationDto(
-                                        establishmentId = establishmentId,
-                                        userId = userId,
-                                        tableId = table.id,
-                                        startTime = startTimeStr,
-                                        durationMinutes = selectedDuration,
-                                        numPeople = numPeople,
-                                        notes = notes.takeIf { it.isNotBlank() }
-                                    )
-                                    bookingViewModel.createBooking(dto) { success ->
-                                        if (success) {
-                                            Toast.makeText(context, "Бронирование создано!", Toast.LENGTH_SHORT).show()
-                                            navController.popBackStack()
-                                        } else {
-                                            Toast.makeText(context, "Ошибка создания бронирования", Toast.LENGTH_SHORT).show()
-                                        }
+                    // Кнопка бронирования
+                    Button(
+                        onClick = {
+                            selectedTable?.let { table ->
+                                val userId = user?.id ?: return@let
+                                val startTimeStr = LocalDateTime.of(selectedDate, selectedTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                val dto = BookingCreationDto(
+                                    establishmentId = establishmentId,
+                                    userId = userId,
+                                    tableId = table.id,
+                                    startTime = startTimeStr,
+                                    durationMinutes = selectedDuration,
+                                    numPeople = numberOfGuests,
+                                    notes = notes.takeIf { it.isNotBlank() },
+                                    guestPhone = guestContact  // Теперь это может быть любой текст, сервер примет String
+                                )
+                                viewModel.createBooking(dto) { success ->
+                                    if (success) {
+                                        Toast.makeText(context, "Бронирование создано!", Toast.LENGTH_SHORT).show()
+                                        navController.popBackStack()
+                                    } else {
+                                        Toast.makeText(context, "Ошибка создания бронирования", Toast.LENGTH_SHORT).show()
                                     }
-                                } ?: Toast.makeText(context, "Выберите стол", Toast.LENGTH_SHORT).show()
-                            },
-                            enabled = selectedTable != null && !isLoading,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (isLoading) CircularProgressIndicator(color = Color.White) else Text("Забронировать")
-                        }
-
-                        errorMessage?.let { Text(it, color = Color.Red) }
+                                }
+                            } ?: Toast.makeText(context, "Выберите стол", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        enabled = selectedTable != null && !isLoading
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Забронировать")
                     }
                 }
-                is EstablishmentLoadState.Error -> {
-                    Text("Ошибка: ${state.message}", color = Color.Red, modifier = Modifier.align(Alignment.Center))
+            }
+            is EstablishmentLoadState.Error -> {
+                Box(Modifier.fillMaxSize()) {
+                    Text("Ошибка: ${(establishmentState as EstablishmentLoadState.Error).message}", Modifier.align(Alignment.Center))
                 }
             }
+            else -> {}
+        }
+
+        error?.let {
+            AlertDialog(
+                onDismissRequest = { viewModel.clearError() },
+                title = { Text("Ошибка") },
+                text = { Text(it) },
+                confirmButton = { Button(onClick = { viewModel.clearError() }) { Text("OK") } }
+            )
         }
     }
 }

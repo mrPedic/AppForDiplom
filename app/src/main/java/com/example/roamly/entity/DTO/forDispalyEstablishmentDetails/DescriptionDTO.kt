@@ -1,6 +1,6 @@
 package com.example.roamly.entity.DTO.forDispalyEstablishmentDetails
 
-import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.entity.classes.TypeOfEstablishment
 
 data class DescriptionDTO(
     val name: String,

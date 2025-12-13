@@ -23,4 +23,5 @@ sealed class EstablishmentScreens(val route: String) {
         const val ESTABLISHMENT_ID_KEY = "establishmentId"
         fun createRoute(establishmentId: Long): String = "establishment/review/$establishmentId"
     }
-}
+
+    object ApproveBookings : EstablishmentScreens("establishment/approve_bookings")}

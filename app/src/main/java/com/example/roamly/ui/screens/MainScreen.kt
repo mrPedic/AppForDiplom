@@ -47,10 +47,13 @@ import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
+import com.example.roamly.ui.theme.AppThemeConfig
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MainScreen(
+    currentTheme: AppThemeConfig,
+    onThemeChange: (AppThemeConfig) -> Unit,
     navController: NavHostController = rememberNavController(),
     userViewModel: UserViewModel = hiltViewModel(),
     establishmentViewModel: EstablishmentViewModel = hiltViewModel()

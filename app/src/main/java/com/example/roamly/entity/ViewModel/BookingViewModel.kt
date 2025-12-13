@@ -1,4 +1,4 @@
-// BookingViewModel.kt - Updated with new methods and states
+// BookingViewModel.kt — финальная рабочая версия
 package com.example.roamly.entity.ViewModel
 
 import androidx.lifecycle.ViewModel
@@ -6,9 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import com.example.roamly.entity.DTO.booking.BookingDisplayDto
-import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.booking.OwnerBookingDisplayDto
 import com.example.roamly.entity.EstablishmentLoadState
-import com.example.roamly.entity.TableEntity
+import com.example.roamly.entity.classes.TableEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,57 +24,67 @@ class BookingViewModel @Inject constructor(
     private val apiService: ApiService
 ) : ViewModel() {
 
+    // Состояние загрузки деталей заведения
     private val _establishmentDetailState = MutableStateFlow<EstablishmentLoadState>(EstablishmentLoadState.Idle)
     val establishmentDetailState: StateFlow<EstablishmentLoadState> = _establishmentDetailState.asStateFlow()
 
+    // Доступные столики для выбранного времени
     internal val _availableTables = MutableStateFlow<List<TableEntity>>(emptyList())
     val availableTables: StateFlow<List<TableEntity>> = _availableTables.asStateFlow()
 
+    // Список броней текущего пользователя
     private val _bookings = MutableStateFlow<List<BookingDisplayDto>>(emptyList())
     val bookings: StateFlow<List<BookingDisplayDto>> = _bookings.asStateFlow()
 
+    // Состояние создания/отмены брони
     private val _cancellationStatus = MutableStateFlow<Boolean?>(null)
     val cancellationStatus: StateFlow<Boolean?> = _cancellationStatus.asStateFlow()
 
+    // === НОВОЕ: для владельца заведения ===
+    private val _ownerPendingBookings = MutableStateFlow<List<OwnerBookingDisplayDto>>(emptyList())
+    val ownerPendingBookings: StateFlow<List<OwnerBookingDisplayDto>> = _ownerPendingBookings.asStateFlow()
+
+    // Общие состояния
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    // Загрузка деталей заведения
     fun fetchEstablishmentDetails(establishmentId: Long) {
         viewModelScope.launch {
             _isLoading.value = true
+            _errorMessage.value = null
             try {
-                val dto = withContext(Dispatchers.IO) {
+                val establishment = withContext(Dispatchers.IO) {
                     apiService.getEstablishmentById(establishmentId)
                 }
-                _establishmentDetailState.value = EstablishmentLoadState.Success(dto)
+                _establishmentDetailState.value = EstablishmentLoadState.Success(establishment)
             } catch (e: Exception) {
-                _establishmentDetailState.value = EstablishmentLoadState.Error(e.message ?: "Unknown error")
-                _errorMessage.value = e.message ?: "Unknown error"
+                _errorMessage.value = "Ошибка загрузки заведения: ${e.message}"
+                _establishmentDetailState.value = EstablishmentLoadState.Error(e.message ?: "Неизвестная ошибка")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    fun fetchAvailableTables(establishmentId: Long, dateTime: String) {
+    // Загрузка доступных столиков
+    fun fetchAvailableTables(establishmentId: Long, startTimeIso: String) {
         viewModelScope.launch {
-            _isLoading.value = true
             try {
                 val tables = withContext(Dispatchers.IO) {
-                    apiService.getAvailableTables(establishmentId, dateTime)
+                    apiService.getAvailableTables(establishmentId, startTimeIso)
                 }
                 _availableTables.value = tables
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error"
-            } finally {
-                _isLoading.value = false
+                _errorMessage.value = "Не удалось загрузить столики: ${e.message}"
             }
         }
     }
 
+    // Создание брони
     fun createBooking(booking: BookingCreationDto, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -84,7 +94,7 @@ class BookingViewModel @Inject constructor(
                 }
                 onResult(true)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error"
+                _errorMessage.value = "Ошибка создания брони: ${e.message}"
                 onResult(false)
             } finally {
                 _isLoading.value = false
@@ -92,6 +102,7 @@ class BookingViewModel @Inject constructor(
         }
     }
 
+    // Загрузка броней пользователя
     fun fetchUserBookings(userId: Long) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -101,17 +112,14 @@ class BookingViewModel @Inject constructor(
                 }
                 _bookings.value = userBookings
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error"
+                _errorMessage.value = "Ошибка загрузки броней: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    fun getBookingById(bookingId: Long): BookingDisplayDto? {
-        return _bookings.value.find { it.id == bookingId }
-    }
-
+    // Отмена брони
     fun cancelBooking(bookingId: Long) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -123,7 +131,7 @@ class BookingViewModel @Inject constructor(
                 _bookings.update { it.filter { booking -> booking.id != bookingId } }
             } catch (e: Exception) {
                 _cancellationStatus.value = false
-                _errorMessage.value = e.message ?: "Unknown error"
+                _errorMessage.value = e.message ?: "Ошибка отмены"
             } finally {
                 _isLoading.value = false
             }
@@ -132,5 +140,52 @@ class BookingViewModel @Inject constructor(
 
     fun clearCancellationStatus() {
         _cancellationStatus.value = null
+    }
+
+    // === МЕТОДЫ ДЛЯ ВЛАДЕЛЬЦА ЗАВЕДЕНИЯ ===
+
+    fun fetchPendingBookingsForOwner(ownerId: Long) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            try {
+                val bookings = withContext(Dispatchers.IO) {
+                    apiService.getPendingBookingsForOwner(ownerId)
+                }
+                _ownerPendingBookings.value = bookings
+            } catch (e: Exception) {
+                _errorMessage.value = "Не удалось загрузить брони: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun approveBooking(bookingId: Long, ownerId: Long) {
+        updateBookingStatus(bookingId, "CONFIRMED", ownerId)
+    }
+
+    fun rejectBooking(bookingId: Long, ownerId: Long) {
+        updateBookingStatus(bookingId, "REJECTED", ownerId)
+    }
+
+    private fun updateBookingStatus(bookingId: Long, status: String, ownerId: Long) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    apiService.updateBookingStatus(bookingId, status, ownerId)
+                }
+                // Удаляем из списка — больше не pending
+                _ownerPendingBookings.update { list ->
+                    list.filterNot { it.id == bookingId }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Не удалось изменить статус: ${e.message}"
+            }
+        }
+    }
+
+    fun clearError() {
+        _errorMessage.value = null
     }
 }

@@ -53,13 +53,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.DTO.TableCreationDto
-import com.example.roamly.entity.EstablishmentStatus
+import com.example.roamly.entity.classes.EstablishmentStatus
 import com.example.roamly.entity.TableEditorList
 import com.example.roamly.entity.TableUIModel
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
-import com.example.roamly.entity.TypeOfEstablishment // Предполагаем, что этот импорт теперь доступен
+import com.example.roamly.entity.classes.TypeOfEstablishment // Предполагаем, что этот импорт теперь доступен
 import com.example.roamly.entity.ViewModel.UserViewModel
-import com.example.roamly.entity.convertTypeToWord
+import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory

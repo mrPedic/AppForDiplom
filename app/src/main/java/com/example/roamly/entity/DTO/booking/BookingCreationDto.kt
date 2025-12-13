@@ -1,3 +1,4 @@
+// BookingCreationDto.kt
 package com.example.roamly.entity.DTO.booking
 
 import com.google.gson.annotations.SerializedName
@@ -6,8 +7,12 @@ data class BookingCreationDto(
     val establishmentId: Long,
     val userId: Long,
     val tableId: Long,
-    val startTime: String,  // Формат: "YYYY-MM-DDTHH:MM:SS" (ISO_LOCAL_DATE_TIME)
+    val startTime: String,           // ISO: "2025-04-05T18:30:00"
     val durationMinutes: Long,
-    val numPeople: Int,     // Унифицировано с сервером (было numberOfGuests)
-    val notes: String? = null  // Унифицировано с сервером (было comment)
+    val numPeople: Int,
+    val notes: String? = null,
+
+    // Новое поле — телефон, который гость указывает при бронировании
+    @SerializedName("guestPhone")
+    val guestPhone: String
 )

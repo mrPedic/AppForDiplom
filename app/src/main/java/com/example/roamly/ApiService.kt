@@ -14,10 +14,11 @@ import com.example.roamly.entity.DTO.establishment.EstablishmentUpdateRequest
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.DTO.booking.BookingDisplayDto
+import com.example.roamly.entity.DTO.booking.OwnerBookingDisplayDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
-import com.example.roamly.entity.EstablishmentEntity
-import com.example.roamly.entity.ReviewEntity
-import com.example.roamly.entity.TableEntity
+import com.example.roamly.entity.classes.EstablishmentEntity
+import com.example.roamly.entity.classes.ReviewEntity
+import com.example.roamly.entity.classes.TableEntity
 import com.example.roamly.entity.User
 import retrofit2.Response
 import retrofit2.http.Body
@@ -222,4 +223,16 @@ interface ApiService {
     @DELETE("menu/item/{itemId}")
     suspend fun deleteItem(@Path("itemId") itemId: Long, @Query("isFood") isFood: Boolean): Response<Unit>
 
+
+
+
+    @GET("bookings/owner/{ownerId}/pending")
+    suspend fun getPendingBookingsForOwner(@Path("ownerId") ownerId: Long): List<OwnerBookingDisplayDto>
+
+    @PUT("bookings/{bookingId}/status")
+    suspend fun updateBookingStatus(
+        @Path("bookingId") bookingId: Long,
+        @Query("status") status: String,
+        @Query("ownerId") ownerId: Long
+    ): Response<Unit>
 }

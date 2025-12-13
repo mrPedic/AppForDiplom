@@ -18,8 +18,8 @@ import androidx.navigation.NavController
 import com.example.roamly.entity.DTO.establishment.EstablishmentSearchResultDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
-import com.example.roamly.entity.TypeOfEstablishment
-import com.example.roamly.entity.convertTypeToWord
+import com.example.roamly.entity.classes.TypeOfEstablishment
+import com.example.roamly.entity.classes.convertTypeToWord
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Color 
 import androidx.compose.ui.text.font.FontWeight

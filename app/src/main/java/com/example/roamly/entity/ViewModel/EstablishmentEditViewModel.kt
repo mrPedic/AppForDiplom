@@ -8,7 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentUpdateRequest
-import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.entity.classes.TypeOfEstablishment
 import com.example.roamly.ui.screens.establishment.toJsonString
 import com.example.roamly.ui.screens.establishment.toMap
 import com.example.roamly.ui.screens.establishment.uriToBase64

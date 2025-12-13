@@ -42,9 +42,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
-import com.example.roamly.entity.TypeOfEstablishment
+import com.example.roamly.entity.classes.TypeOfEstablishment
 import com.example.roamly.entity.ViewModel.EstablishmentEditViewModel
-import com.example.roamly.entity.convertTypeToWord
+import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken

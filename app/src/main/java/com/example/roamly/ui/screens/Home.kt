@@ -32,7 +32,7 @@ import com.example.roamly.PointBuilder
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
-import com.example.roamly.entity.convertTypeToWord
+import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import kotlinx.coroutines.Dispatchers

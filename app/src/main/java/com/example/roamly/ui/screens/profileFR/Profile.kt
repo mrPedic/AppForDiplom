@@ -48,7 +48,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
-import com.example.roamly.entity.convertTypeToWord
+import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 

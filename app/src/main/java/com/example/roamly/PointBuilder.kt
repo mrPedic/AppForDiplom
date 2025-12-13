@@ -23,7 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.roamly.entity.DTO.establishment.EstablishmentMarkerDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
-import com.example.roamly.entity.convertTypeToColor
+import com.example.roamly.entity.classes.convertTypeToColor
 import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer
 import org.osmdroid.bonuspack.clustering.StaticCluster
 import org.osmdroid.util.GeoPoint
