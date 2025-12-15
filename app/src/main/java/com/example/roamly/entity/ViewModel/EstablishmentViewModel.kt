@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.location.LocationManager
-import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -13,19 +12,16 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavController
 import com.example.roamly.ApiService
 import com.example.roamly.PureLocationManager
 import com.example.roamly.R
 import com.example.roamly.classes.cl_menu.Drink
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
-import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentSearchResultDto
-import com.example.roamly.entity.DTO.establishment.EstablishmentUpdateRequest
 import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.classes.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentLoadState
@@ -33,29 +29,20 @@ import com.example.roamly.entity.classes.EstablishmentStatus
 import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.entity.classes.TableEntity
 import com.example.roamly.entity.classes.TypeOfEstablishment
-import com.example.roamly.entity.classes.toDisplayDto
 import com.example.roamly.manager.SearchHistoryManager
-import com.example.roamly.ui.screens.establishment.toJsonString
-import com.example.roamly.ui.screens.establishment.toMap
-import com.example.roamly.ui.screens.establishment.uriToBase64
 import com.example.roamly.ui.screens.sealed.SaveStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -63,7 +50,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import retrofit2.HttpException
-import retrofit2.Response
 import javax.inject.Inject
 
 
@@ -86,9 +72,6 @@ class EstablishmentViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    // --- StateFlow для выбранного/редактируемого заведения ---
-    private val _establishmentDetailState = MutableStateFlow<EstablishmentLoadState>(EstablishmentLoadState.Idle)
-    val establishmentDetailState: StateFlow<EstablishmentLoadState> = _establishmentDetailState.asStateFlow()
 
 
     private val _isDetailWidgetVisible = MutableStateFlow(false)
@@ -106,10 +89,8 @@ class EstablishmentViewModel @Inject constructor(
     // ================================================ //
 
     private val _reviews = MutableStateFlow<List<ReviewEntity>>(emptyList())
-    val reviews: StateFlow<List<ReviewEntity>> = _reviews
 
     private val _isReviewsLoading = MutableStateFlow(false)
-    val isReviewsLoading: StateFlow<Boolean> = _isReviewsLoading
 
     // =========================================== //
     // ===== ПОЛЯ ДЛЯ РАБОТЫ С КАРТОЙ (Map) ===== //
@@ -119,27 +100,19 @@ class EstablishmentViewModel @Inject constructor(
     val establishmentMarkers: StateFlow<List<EstablishmentMarkerDto>> = _establishmentMarkers
 
     // Потоки для виджета деталей на карте
-    private val _selectedEstablishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
-    val selectedEstablishment: StateFlow<EstablishmentDisplayDto?> = _selectedEstablishment.asStateFlow()
 
     // ===================================================== //
     // ===== ПОЛЯ ДЛЯ РАБОТЫ С БРОНИРОВАНИЕМ (Booking) ===== //
     // ===================================================== //
 
-    private val _tables = MutableStateFlow<List<TableEntity>>(emptyList())
 
     // Список столов, доступных для бронирования на выбранную дату/время
-    val _availableTables = MutableStateFlow<List<TableEntity>>(emptyList())
-    val availableTables: StateFlow<List<TableEntity>> = _availableTables
 
-    private val _isBookingLoading = MutableStateFlow(false)
-    val isBookingLoading: StateFlow<Boolean> = _isBookingLoading
 
     // ============================================== //
     // ===== ПОЛЯ ДЛЯ РАБОТЫ С ПОИСКОМ (Search) ===== //
     // ============================================== //
 
-    // ⭐ 1. ОПРЕДЕЛЯЕМ ПОЛЯ ДЛЯ ПОИСКА (ОДИН РАЗ)
 
     // Поток для текстового запроса
     private val _searchQueryFlow = MutableStateFlow("")
@@ -296,35 +269,6 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
-    fun fetchAllEstablishments() {
-        if (_isLoading.value) return
-
-        _isLoading.value = true
-        _errorMessage.value = null
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val list = apiService.getAllEstablishments()
-
-                withContext(Dispatchers.Main) {
-                    _userEstablishments.value = list
-                    Log.i("EstViewModel", "Загружено всех заведений: ${list.size}")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    val msg = "Ошибка загрузки всех заведений: ${e.message}"
-                    Log.e("EstViewModel", msg)
-                    _errorMessage.value = "Не удалось загрузить заведения."
-                    _userEstablishments.value = emptyList()
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    _isLoading.value = false
-                }
-            }
-        }
-    }
-
     fun fetchPendingEstablishments() {
         if (_isLoading.value) return
 
@@ -411,138 +355,6 @@ class EstablishmentViewModel @Inject constructor(
 
     private val _establishmentLoadState = MutableStateFlow<EstablishmentLoadState>(EstablishmentLoadState.Idle)
     val establishmentLoadState: StateFlow<EstablishmentLoadState> = _establishmentLoadState.asStateFlow()
-
-    private val _currentUserId = MutableStateFlow<Long?>(null)
-    val currentUserId: StateFlow<Long?> = _currentUserId.asStateFlow()
-
-    // EstablishmentViewModel.kt (Обновленная версия)
-
-    /**
-     * Получает данные заведения по ID.
-     * Обрабатывает HttpException (например, 404 Not Found) и сетевые ошибки.
-     */
-    fun fetchEstablishmentDetails(id: Long) {
-        viewModelScope.launch {
-            _establishmentDetailState.value = EstablishmentLoadState.Loading
-            _isLoading.value = true  // Общая загрузка (если нужно)
-            _errorMessage.value = null
-
-            try {
-                coroutineScope {
-                    val detailsDeferred = async(Dispatchers.IO) {
-                        apiService.getEstablishmentById(id)
-                    }
-                    val photosDeferred = async(Dispatchers.IO) {
-                        apiService.getEstablishmentPhotos(id)
-                    }
-
-                    val details = detailsDeferred.await()
-                    val photos = photosDeferred.await()
-
-                    _establishmentDetailState.value = EstablishmentLoadState.Success(
-                        data = details.copy(photoBase64s = photos),  // Копируем с фото
-                        photos = photos,
-                        photosLoading = false
-                    )
-                }
-            } catch (e: Exception) {
-                _establishmentDetailState.value = EstablishmentLoadState.Error("Ошибка загрузки: ${e.message}")
-                _errorMessage.value = "Ошибка: ${e.message}"
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    /**
-     * Отправляет запрос на сервер для обновления существующего заведения.
-     */
-    @RequiresApi(Build.VERSION_CODES.O)
-    fun updateEstablishment(
-        establishmentId: Long,
-        name: String,
-        description: String,
-        address: String,
-        latitude: Double,
-        longitude: Double,
-        type: TypeOfEstablishment,
-        photoBase64s: List<String> = emptyList(),
-        operatingHoursString: String? = null,
-        onResult: (Boolean) -> Unit
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
-
-            // 1. Создаем DTO для отправки (вместо Entity)
-            val updateRequest = EstablishmentUpdateRequest(
-                name = name,
-                description = description,
-                address = address,
-                latitude = latitude,
-                longitude = longitude,
-                type = type,
-                photoBase64s = photoBase64s,
-                operatingHoursString = operatingHoursString
-            )
-
-            Log.i("EstUpdateVM", "Отправка обновления ID: $establishmentId. Lat: $latitude, Lon: $longitude. Тип: $type. Фото: ${photoBase64s.size} шт.")
-
-            try {
-                // 2. Вызываем API, ожидая Response<EstablishmentEntity>
-                val response: Response<EstablishmentEntity> = apiService.updateEstablishment(
-                    establishmentId,
-                    updateRequest
-                )
-
-                if (response.isSuccessful) {
-                    val updatedEntity = response.body()
-
-                    withContext(Dispatchers.Main) {
-                        if (updatedEntity != null) {
-                            val updatedDisplayDto = updatedEntity.toDisplayDto()
-
-                            Log.i("EstUpdateVM", "Заведение ${updatedDisplayDto.name} успешно обновлено.")
-
-                            // Присваиваем ожидаемый StateFlow тип
-                            _selectedEstablishment.value = updatedDisplayDto
-                            _errorMessage.value = null
-                            onResult(true)
-                        } else {
-                            // Редкий случай: 200 OK, но тело пустое
-                            _errorMessage.value = "Ошибка: Сервер вернул пустой ответ при успехе."
-                            onResult(false)
-                        }
-                    }
-                } else {
-                    val errorBody = response.errorBody()?.string()
-                    val serverErrorMsg = if (errorBody != null) {
-                        "Ошибка (Code ${response.code()}): $errorBody"
-                    } else {
-                        "Ошибка сервера (Code ${response.code()})"
-                    }
-
-                    Log.e("EstUpdateVM", serverErrorMsg)
-
-                    withContext(Dispatchers.Main) {
-                        val displayError = if (serverErrorMsg.contains("error\":")) {
-                            serverErrorMsg.substringAfter("\"error\":\"").substringBefore("\"")
-                        } else {
-                            "Не удалось обновить. Код ошибки: ${response.code()}"
-                        }
-                        _errorMessage.value = displayError
-                        onResult(false)
-                    }
-                }
-
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Log.e("EstUpdateVM", "Сетевая ошибка обновления: ${e.message}")
-                    _errorMessage.value = "Ошибка сети. Проверьте соединение. ${e.message}"
-                    onResult(false)
-                }
-            }
-        }
-    }
-
 
     /**
      * Отправляет запрос на сервер для создания нового заведения.
@@ -809,39 +621,6 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Загружает все столики для указанного заведения.
-     * @param establishmentId ID заведения.
-     */
-    fun fetchTablesByEstablishmentId(establishmentId: Long) {
-        if (_isBookingLoading.value) return
-
-        _isBookingLoading.value = true
-        _errorMessage.value = null // Используем общий errorMessage
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // ⭐ Предполагаем, что в ApiService есть этот метод
-                val list = apiService.getTablesByEstablishmentId(establishmentId)
-
-                withContext(Dispatchers.Main) {
-                    _tables.value = list
-                    Log.i("BookingVM", "Загружено столов для $establishmentId: ${list.size}")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Log.e("BookingVM", "Ошибка загрузки столов: ${e.message}")
-                    _errorMessage.value = "Не удалось загрузить столики."
-                    _tables.value = emptyList()
-                }
-            } finally {
-                withContext(Dispatchers.Main) {
-                    _isBookingLoading.value = false
-                }
-            }
-        }
-    }
-
     // --- Списки для отслеживания удалений ---
     private val deletedFoodGroupIds = mutableStateListOf<Long>()
     private val deletedFoodItemIds = mutableStateListOf<Long>()
@@ -862,9 +641,6 @@ class EstablishmentViewModel @Inject constructor(
 
     private val _menuOfEstablishment = MutableStateFlow<MenuOfEstablishment?>(null)
     val menuOfEstablishment: StateFlow<MenuOfEstablishment?> = _menuOfEstablishment
-
-    private val _menuErrorMessage = MutableStateFlow<String?>(null)
-    val menuErrorMessage: StateFlow<String?> = _menuErrorMessage
 
     private val _establishment = MutableStateFlow<EstablishmentDisplayDto?>(null)
     val establishment: StateFlow<EstablishmentDisplayDto?> = _establishment.asStateFlow()
@@ -1153,25 +929,6 @@ class EstablishmentViewModel @Inject constructor(
 
     private val _favoriteEstablishmentsList = MutableStateFlow<List<EstablishmentFavoriteDto>>(emptyList())
     val favoriteEstablishmentsList: StateFlow<List<EstablishmentFavoriteDto>> = _favoriteEstablishmentsList.asStateFlow()
-
-    // ----------------------------------------------------------------------
-    /**
-     * ✅ ИСПРАВЛЕННАЯ ЛОГИКА: Реактивно извлекает ID из полного списка избранных заведений.
-     * Этот StateFlow будет автоматически обновляться, когда обновится favoriteEstablishmentsList.
-     * Именно здесь происходит "проверка на наличие ID в списке" для UI.
-     */
-    val favoriteEstablishmentIds: StateFlow<Set<Long>> = favoriteEstablishmentsList
-        .map { list ->
-            // Преобразуем List<EstablishmentDisplayDto> в Set<Long> с ID заведений.
-            list.map { it.id }.toSet()
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptySet()
-        )
-    // ----------------------------------------------------------------------
-
     /**
      * Загружает список избранных заведений (DTO) для профиля.
      */
@@ -1188,271 +945,6 @@ class EstablishmentViewModel @Inject constructor(
                 Log.e("EstViewModel", "Ошибка загрузки списка избранного: ${e.message}")
             }
         }
-    }
-
-    /**
-     * Проверяет, является ли заведение избранным (локальная проверка).
-     */
-    fun isFavorite(establishmentId: Long): Boolean {
-        Log.d("EstViewModel", "$Long")
-        return favoriteEstablishmentIds.value.contains(establishmentId)
-    }
-
-    // EstablishmentViewModel.kt
-
-    /**
-     * Переключает состояние избранного и вызывает API-запрос.
-     * @param establishment EstablishmentDisplayDto заведения для оптимистического обновления
-     * @param userId ID текущего пользователя (передается из UI)
-     */
-    fun toggleFavorite(establishment: EstablishmentDisplayDto, userId: Long) {
-        if (userId < 1) {
-            Log.e("EstViewModel", "Пользователь не авторизован (ID: $userId).")
-            _errorMessage.value = "Для добавления в избранное нужно авторизоваться."
-            return
-        }
-        val establishmentId = establishment.id
-        // Проверяем статус до оптимистичного обновления
-        val isCurrentlyFavorite = isFavorite(establishmentId)
-        Log.i("EstViewModel", "Текущий статус избранного: $isCurrentlyFavorite")
-
-        val removedDto: EstablishmentFavoriteDto? = if (isCurrentlyFavorite) {
-            // 1. Запоминаем объект для отката, если удаление не удастся
-            _favoriteEstablishmentsList.value.find { it.id == establishmentId }
-        } else null
-
-        // 2. Оптимистичное обновление списка (меняем UI сразу)
-        _favoriteEstablishmentsList.update { current ->
-            if (isCurrentlyFavorite) {
-                Log.i("EstViewModel", "Оптимистичное УДАЛЕНИЕ: ID $establishmentId")
-                current.filter { it.id != establishmentId } // Оптимистичное УДАЛЕНИЕ
-            } else {
-                Log.i("EstViewModel", "Оптимистичное ДОБАВЛЕНИЕ: ID $establishmentId")
-                val newDto = EstablishmentFavoriteDto(
-                    establishment.id,
-                    establishment.name,
-                    establishment.address,
-                    establishment.rating,
-                    establishment.type,
-                    establishment.photoBase64s.firstOrNull()
-                )
-                current + newDto // Оптимистичное ДОБАВЛЕНИЕ
-            }
-        }
-
-        // 3. API-запрос и логика отката
-        viewModelScope.launch(Dispatchers.IO) {
-            val wasFavorite = isCurrentlyFavorite // Запоминаем исходный статус для отката
-            try {
-                if (wasFavorite) {
-                    // ⭐ КЛЮЧЕВОЙ ВЫЗОВ ДЛЯ УДАЛЕНИЯ
-                    apiService.removeFavoriteEstablishment(userId,establishmentId)
-                    withContext(Dispatchers.Main) {
-                        Log.i("EstViewModel", "Удалено из избранного ID $establishmentId (API success)")
-                        _errorMessage.value = null
-                    }
-                } else {
-                    // КЛЮЧЕВОЙ ВЫЗОВ ДЛЯ ДОБАВЛЕНИЯ
-                    apiService.addFavoriteEstablishment(userId,establishmentId)
-                    withContext(Dispatchers.Main) {
-                        Log.i("EstViewModel", "Добавлено в избранное ID $establishmentId (API success)")
-                        _errorMessage.value = null
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    // ⭐ ЛОГИКА ОТКАТА (Rollback) при ошибке API
-                    val action = if (wasFavorite) "удаления" else "добавления"
-                    Log.e("EstViewModel", "Ошибка API при $action избранного (ID $establishmentId): ${e.message}")
-                    _errorMessage.value = "Ошибка сервера. Не удалось изменить избранное."
-
-                    _favoriteEstablishmentsList.update { current ->
-                        if (wasFavorite) { // Если пытались УДАЛИТЬ, но не удалось -> ВОССТАНОВИТЬ
-                            Log.d("EstViewModel", "Откат: Восстановление ID $establishmentId")
-                            removedDto?.let { current + it } ?: current
-                        } else { // Если пытались ДОБАВИТЬ, но не удалось -> УДАЛИТЬ оптимистично добавленный
-                            Log.d("EstViewModel", "Откат: Удаление ID $establishmentId")
-                            current.filter { it.id != establishmentId }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun rollbackFavoriteState(establishmentId: Long, wasFavorite: Boolean, removedDto: EstablishmentFavoriteDto?) {
-        _favoriteEstablishmentsList.update { current ->
-            if (wasFavorite && removedDto != null) {
-                current + removedDto
-            } else if (!wasFavorite) {
-                current.filter { it.id != establishmentId }
-            } else {
-                current
-            }
-        }
-    }
-
-    // --- Временные состояния для редактирования (чтобы избежать сброса при навигации) ---
-    private val _editedName = MutableStateFlow("")
-    val editedName: StateFlow<String> = _editedName.asStateFlow()
-
-    private val _editedDescription = MutableStateFlow("")
-    val editedDescription: StateFlow<String> = _editedDescription.asStateFlow()
-
-    private val _editedAddress = MutableStateFlow("")
-    val editedAddress: StateFlow<String> = _editedAddress.asStateFlow()
-
-    private val _editedType = MutableStateFlow(TypeOfEstablishment.Restaurant)
-    val editedType: StateFlow<TypeOfEstablishment> = _editedType.asStateFlow()
-
-    private val _editedLatitude = MutableStateFlow(0.0)
-    val editedLatitude: StateFlow<Double> = _editedLatitude.asStateFlow()
-
-    private val _editedLongitude = MutableStateFlow(0.0)
-    val editedLongitude: StateFlow<Double> = _editedLongitude.asStateFlow()
-
-    private val _editedPhotoBase64s = MutableStateFlow<List<String>>(emptyList())
-    val editedPhotoBase64s: StateFlow<List<String>> = _editedPhotoBase64s.asStateFlow()
-
-    private val _editedOperatingHours = MutableStateFlow<Map<String, String>>(emptyMap())
-    val editedOperatingHours: StateFlow<Map<String, String>> = _editedOperatingHours.asStateFlow()
-
-    fun initEditedStates(displayDto: EstablishmentDisplayDto) {
-        updateEditedName(displayDto.name)
-        updateEditedDescription(displayDto.description)
-        updateEditedAddress(displayDto.address)
-        updateEditedLatitude(displayDto.latitude)
-        updateEditedLongitude(displayDto.longitude)
-        updateEditedType(displayDto.type)
-        updateEditedPhotos(displayDto.photoBase64s)
-        updateEditedOperatingHours(displayDto.operatingHoursString.toMap())
-    }
-
-    fun updateEditedName(newName: String) {
-        _editedName.value = newName
-    }
-
-    fun updateEditedDescription(newDescription: String) {
-        _editedDescription.value = newDescription
-    }
-
-    fun updateEditedAddress(newAddress: String) {
-        _editedAddress.value = newAddress
-    }
-
-    fun updateEditedType(newType: TypeOfEstablishment) {
-        _editedType.value = newType
-    }
-
-    fun updateEditedLatitude(newLatitude: Double) {
-        _editedLatitude.value = newLatitude
-    }
-
-    fun updateEditedLongitude(newLongitude: Double) {
-        _editedLongitude.value = newLongitude
-    }
-
-    fun updateEditedPhotos(newPhotos: List<String>) {
-        _editedPhotoBase64s.value = newPhotos
-    }
-
-    fun removePhoto(index: Int) {
-        _editedPhotoBase64s.value = _editedPhotoBase64s.value.filterIndexed { i, _ -> i != index }
-    }
-
-    fun updateEditedOperatingHours(newHours: Map<String, String>) {
-        _editedOperatingHours.value = newHours
-    }
-
-    fun saveChanges(establishmentId: Long, navController: NavController) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-
-            try {
-                val request = EstablishmentUpdateRequest(
-                    name = _editedName.value,
-                    description = _editedDescription.value,
-                    address = _editedAddress.value,
-                    latitude = _editedLatitude.value,
-                    longitude = _editedLongitude.value,
-                    type = _editedType.value,
-                    photoBase64s = _editedPhotoBase64s.value,
-                    operatingHoursString = _editedOperatingHours.value.toJsonString()
-                )
-
-                withContext(Dispatchers.IO) {
-                    apiService.updateEstablishment(establishmentId, request)
-                }
-
-                // Обновляем локальное состояние, чтобы DetailScreen сразу увидел изменения
-                _establishmentDetailState.update { current ->
-                    if (current is EstablishmentLoadState.Success) {
-                        current.copy(
-                            data = current.data.copy(
-                                name = request.name,
-                                description = request.description,
-                                address = request.address,
-                                latitude = request.latitude,
-                                longitude = request.longitude,
-                                type = request.type,
-                                photoBase64s = request.photoBase64s,
-                                operatingHoursString = request.operatingHoursString
-                            )
-                        )
-                    } else current
-                }
-
-                navController.popBackStack()
-            } catch (e: Exception) {
-                Log.e("EstablishmentVM", "Ошибка сохранения", e)
-                _errorMessage.value = "Не удалось сохранить изменения: ${e.message}"
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    // В updateEstablishment: используйте edited состояния для отправки на сервер
-// (Ваш существующий метод updateEstablishment - обновите параметры, чтобы использовать edited*)
-    fun updateEstablishment(
-        establishmentId: Long,
-        onResult: (Boolean) -> Unit
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val request = EstablishmentUpdateRequest(
-                    name = editedName.value,
-                    description = editedDescription.value,
-                    address = editedAddress.value,
-                    latitude = editedLatitude.value,
-                    longitude = editedLongitude.value,
-                    type = editedType.value,
-                    photoBase64s = editedPhotoBase64s.value,
-                    operatingHoursString = editedOperatingHours.value.toJsonString()
-                )
-                val response: Response<EstablishmentEntity> = apiService.updateEstablishment(establishmentId, request)
-                withContext(Dispatchers.Main) {
-                    if (response.isSuccessful) {
-                        Log.i("EstViewModel", "Заведение ID $establishmentId обновлено.")
-                        fetchTablesByEstablishmentId(establishmentId) // Перезагрузка после сохранения
-                        onResult(true)
-                    } else {
-                        Log.e("EstViewModel", "Ошибка обновления: ${response.code()}")
-                        onResult(false)
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Log.e("EstViewModel", "Сетевая ошибка: ${e.message}")
-                    onResult(false)
-                }
-            }
-        }
-    }
-
-    fun checkIfFavorite(id: Long): Boolean {
-        return favoriteEstablishmentIds.value.contains(id)
     }
 
     // ============================================= //
@@ -1561,109 +1053,5 @@ class EstablishmentViewModel @Inject constructor(
     fun isGpsEnabled(): Boolean {
         return locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) ?: false ||
                 locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ?: false
-    }
-
-    fun createBooking(
-        booking: BookingCreationDto,
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                withContext(Dispatchers.IO) {
-                    apiService.createBooking(booking)
-                }
-                onSuccess()
-            } catch (e: Exception) {
-                Log.e("EstViewModel", "Error creating booking: ${e.message}", e)
-                onError(e.message ?: "Unknown error")
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-
-    fun fetchEstablishmentDetail(establishmentId: Long) {
-        viewModelScope.launch {
-            _establishmentDetailState.value = EstablishmentLoadState.Loading
-            try {
-                val dto = withContext(Dispatchers.IO) {
-                    apiService.getEstablishmentById(establishmentId)
-                }
-                _establishmentDetailState.value = EstablishmentLoadState.Success(dto)
-            } catch (e: Exception) {
-                _establishmentDetailState.value = EstablishmentLoadState.Error(e.message ?: "Unknown error")
-                Log.e("EstablishmentViewModel", "Error fetching establishment detail: ${e.message}", e)
-            }
-        }
-    }
-
-    // В файле EstablishmentViewModel.kt добавьте/измените следующие части:
-
-    // Измените _editedPhotoBase64s на _editedPhotos
-    private val _editedPhotos = MutableStateFlow<List<Any>>(emptyList()) // Any: String (Base64) или Uri
-    val editedPhotos: StateFlow<List<Any>> = _editedPhotos.asStateFlow()
-
-// В initEditedStates (предполагая, что он существует и устанавливает фото из dto.photos: List<String>)
-    // Новый метод для добавления фото
-    fun addNewPhotos(uris: List<Uri>) {
-        _editedPhotos.update { it + uris }
-        viewModelScope.launch(Dispatchers.IO) {
-            uris.forEach { uri ->
-                val base64 = uriToBase64(appContext, uri) ?: return@forEach
-                withContext(Dispatchers.Main) {
-                    _editedPhotos.update { current ->
-                        current.map { if (it === uri) base64 else it }
-                    }
-                }
-            }
-        }
-    }
-
-    // Измените removeEditedPhoto (теперь для editedPhotos)
-    fun removeEditedPhoto(index: Int) {
-        _editedPhotos.update { currentList ->
-            currentList.toMutableList().apply {
-                if (index in indices) removeAt(index)
-            }
-        }
-    }
-
-    // В saveEditedEstablishment измените на:
-    fun saveEditedEstablishment(establishmentId: Long, navController: NavController) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-            try {
-                val photoBase64s = editedPhotos.value.map { photo ->
-                    when (photo) {
-                        is String -> photo
-                        is Uri -> uriToBase64(appContext, photo) ?: "" // Синхронно, но в launch (можно обернуть в withContext(IO))
-                        else -> ""
-                    }
-                }
-                val request = EstablishmentUpdateRequest(
-                    name = _editedName.value,
-                    description = _editedDescription.value,
-                    address = _editedAddress.value,
-                    latitude = _editedLatitude.value,
-                    longitude = _editedLongitude.value,
-                    type = _editedType.value,
-                    operatingHoursString = _editedOperatingHours.value.toJsonString(),
-                    photoBase64s = photoBase64s
-                )
-                withContext(Dispatchers.IO) {
-                    apiService.updateEstablishment(establishmentId, request)
-                }
-                // Успех - возвращаемся назад
-                navController.popBackStack()
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unknown error"
-                Log.e("EstablishmentViewModel", "Error saving edited establishment: ${e.message}", e)
-            } finally {
-                _isLoading.value = false
-            }
-        }
     }
 }
