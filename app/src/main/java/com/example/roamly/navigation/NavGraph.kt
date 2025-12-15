@@ -2,6 +2,7 @@ package com.example.roamly.navigation
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -33,6 +34,7 @@ import com.example.roamly.ui.screens.profileFR.ProfileScreen
 import com.example.roamly.ui.screens.sealed.AdminScreens
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.theme.AppTheme
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -92,10 +94,19 @@ fun NavGraph(
 
         composable(
             route = EstablishmentScreens.EstablishmentDetail.route,
-            arguments = listOf(navArgument("establishmentId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument(EstablishmentScreens.EstablishmentDetail.ESTABLISHMENT_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
         ) { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: return@composable
-            EstablishmentDetailScreen(navController =  navController, establishmentId =  establishmentId)
+            val establishmentId = backStackEntry.arguments?.getLong(
+                EstablishmentScreens.EstablishmentDetail.ESTABLISHMENT_ID_KEY
+            ) ?: return@composable
+            EstablishmentDetailScreen(
+                navController = navController,
+                establishmentId = establishmentId
+            )
         }
 
         composable(

@@ -1,6 +1,7 @@
 package com.example.roamly.ui.screens
 
 import android.annotation.SuppressLint
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,8 +22,9 @@ import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.entity.classes.TypeOfEstablishment
 import com.example.roamly.entity.classes.convertTypeToWord
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.graphics.Color 
 import androidx.compose.ui.text.font.FontWeight
+import com.example.roamly.ui.theme.AppTheme
+import androidx.compose.ui.graphics.Color // Добавлен импорт для Color.Transparent
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -59,8 +61,10 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 5.dp)
+            .background(AppTheme.colors.MainContainer)
     ) {
+        Spacer(modifier = Modifier.fillMaxWidth().height(13.dp))
         // --- 1. Поле поиска и фильтр ---
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -72,10 +76,26 @@ fun SearchScreen(
                 label = { Text("Название или адрес") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Поиск") },
                 modifier = Modifier.weight(1f),
-                singleLine = true
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AppTheme.colors.MainBorder,
+                    unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
+                    focusedLabelColor = AppTheme.colors.MainText,
+                    unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                    cursorColor = AppTheme.colors.MainBorder,
+                    focusedLeadingIconColor = AppTheme.colors.MainBorder,
+                    unfocusedLeadingIconColor = AppTheme.colors.SecondaryText,
+                    focusedContainerColor = AppTheme.colors.MainContainer,
+                    unfocusedContainerColor = AppTheme.colors.MainContainer,
+                    unfocusedTextColor = AppTheme.colors.MainText,
+                    focusedTextColor = AppTheme.colors.MainText,
+                )
             )
             Spacer(modifier = Modifier.width(8.dp))
-            IconButton(onClick = { showFilterDialog = true }) {
+            IconButton(
+                onClick = { showFilterDialog = true },
+                colors = IconButtonDefaults.iconButtonColors(contentColor = AppTheme.colors.MainBorder)
+            ) {
                 Icon(Icons.Default.Menu, contentDescription = "Фильтр")
             }
         }
@@ -90,9 +110,21 @@ fun SearchScreen(
             ) {
                 selectedTypes.forEach { type ->
                     FilterChip(
+                        enabled = true,
                         selected = true,
                         onClick = { /* Удаление фильтра */ },
-                        label = { Text(convertTypeToWord(type)) }
+                        label = { Text(convertTypeToWord(type)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AppTheme.colors.SelectedItem,
+                            selectedLabelColor = AppTheme.colors.MainContainer,
+                            selectedLeadingIconColor = AppTheme.colors.MainContainer,
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            selectedBorderColor = AppTheme.colors.SelectedItem,
+                            borderColor = AppTheme.colors.SecondaryBorder,
+                            enabled = true,
+                            selected = true
+                        ),
                     )
                 }
             }
@@ -107,7 +139,7 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = AppTheme.colors.MainBorder)
             }
         } else if (searchQuery.isEmpty() && recentEstablishments.isNotEmpty()) {
             // Если строка поиска пуста и есть история
@@ -115,10 +147,10 @@ fun SearchScreen(
                 text = "Недавние заведения",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
+                color = AppTheme.colors.MainText,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // ⭐ ИСПРАВЛЕНИЕ: LazyColumn для Истории и результатов
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp) // Отступ между карточками
@@ -130,7 +162,6 @@ fun SearchScreen(
                         viewModel = viewModel,
                         isRecent = true
                     )
-                    // ⭐ УДАЛЕН HorizontalDivider
                 }
 
                 if (searchResults.isNotEmpty()) {
@@ -140,13 +171,14 @@ fun SearchScreen(
                             text = "Результаты поиска",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.MainText,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         // Оставляем разделитель между заголовком "Результаты поиска" и элементами
                         HorizontalDivider(
                             Modifier,
                             DividerDefaults.Thickness,
-                            DividerDefaults.color
+                            AppTheme.colors.SecondaryBorder
                         )
                     }
                 }
@@ -158,15 +190,17 @@ fun SearchScreen(
                         viewModel = viewModel,
                         isRecent = false
                     )
-                    // ⭐ УДАЛЕН HorizontalDivider
                 }
             }
 
         } else if (searchQuery.isNotEmpty() && searchResults.isEmpty()) {
-            Text(text = "Заведений не найдено.", modifier = Modifier.padding(8.dp))
+            Text(
+                text = "Заведений не найдено.",
+                color = AppTheme.colors.SecondaryText,
+                modifier = Modifier.padding(8.dp)
+            )
         } else {
             // Если история пуста или мы в активном поиске и есть результаты
-            // ⭐ ИСПРАВЛЕНИЕ: LazyColumn для обычных результатов
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { // Отступ между карточками
                 if (searchQuery.isNotEmpty()) {
                     item {
@@ -174,13 +208,14 @@ fun SearchScreen(
                             text = "Результаты поиска",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.MainText,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         // Оставляем разделитель после заголовка
                         HorizontalDivider(
                             Modifier,
                             DividerDefaults.Thickness,
-                            DividerDefaults.color
+                            AppTheme.colors.SecondaryBorder
                         )
                     }
                 }
@@ -205,8 +240,7 @@ fun EstablishmentResultItem(
     viewModel: EstablishmentViewModel,
     isRecent: Boolean
 ) {
-    // Выбираем цвет фона: серый (surfaceVariant) для истории, прозрачный для обычных результатов
-    val backgroundColor = if (isRecent) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent
+    val backgroundColor = if (isRecent) AppTheme.colors.SecondaryContainer.copy(alpha = 0.5f) else AppTheme.colors.MainContainer
 
     Card(
         modifier = Modifier
@@ -219,7 +253,10 @@ fun EstablishmentResultItem(
             }),
         shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Небольшая тень
-        colors = CardDefaults.cardColors(containerColor = backgroundColor) // Применяем цвет фона к Card
+        colors = CardDefaults.cardColors(
+            containerColor = backgroundColor,
+            contentColor = AppTheme.colors.MainText
+        )
     ) {
         Row(
             modifier = Modifier
@@ -232,19 +269,19 @@ fun EstablishmentResultItem(
                 Text(
                     text = establishment.name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = AppTheme.colors.MainText
                 )
                 Text(
                     text = establishment.address,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppTheme.colors.SecondaryText
                 )
             }
             // Отображение рейтинга
             Text(
                 text = "Рейтинг: ${String.format("%.1f", establishment.rating)}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.secondary
+                color = AppTheme.colors.SecondaryText
             )
         }
     }
@@ -266,22 +303,30 @@ private fun FilterDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = AppTheme.colors.SecondaryContainer,
+        titleContentColor = AppTheme.colors.MainText,
+        textContentColor = AppTheme.colors.SecondaryText,
         title = { Text("Фильтр по типу заведения") },
         text = {
             Column {
-                // Кнопки "Выбрать все" / "Очистить"
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    TextButton(onClick = { tempSelections = allTypes.toSet() }) {
+                    TextButton(
+                        onClick = { tempSelections = allTypes.toSet() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.MainText)
+                    ) {
                         Text("Выбрать все")
                     }
-                    TextButton(onClick = { tempSelections = emptySet() }) {
+                    TextButton(
+                        onClick = { tempSelections = emptySet() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.MainText)
+                    ) {
                         Text("Очистить")
                     }
                 }
-                HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
+                HorizontalDivider(Modifier, DividerDefaults.Thickness, AppTheme.colors.SecondaryBorder)
                 // Список всех типов с чекбоксами
                 LazyColumn(modifier = Modifier.padding(top = 8.dp)) {
                     items(allTypes) { type ->
@@ -305,21 +350,39 @@ private fun FilterDialog(
                                     } else {
                                         tempSelections - type
                                     }
-                                }
+                                },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = AppTheme.colors.SelectedItem,
+                                    uncheckedColor = AppTheme.colors.SecondaryText,
+                                    checkmarkColor = AppTheme.colors.SecondaryContainer
+                                )
                             )
-                            Text(convertTypeToWord(type), modifier = Modifier.padding(start = 8.dp))
+                            Text(
+                                convertTypeToWord(type),
+                                modifier = Modifier.padding(start = 8.dp),
+                                color = AppTheme.colors.MainText
+                            )
                         }
                     }
                 }
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(tempSelections) }) {
+            Button(
+                onClick = { onConfirm(tempSelections) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppTheme.colors.MainSuccess,
+                    contentColor = AppTheme.colors.MainContainer
+                )
+            ) {
                 Text("Применить")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.MainText)
+            ) {
                 Text("Отмена")
             }
         }

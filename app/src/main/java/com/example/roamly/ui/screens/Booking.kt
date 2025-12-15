@@ -5,7 +5,6 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -15,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -26,6 +24,7 @@ import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
+import com.example.roamly.ui.theme.AppTheme
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -45,7 +44,7 @@ fun UserBookingsScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Получаем результат отмены из SavedStateHandle (как String)
+    // Получаем результат отмены из SavedStateHandle
     val cancellationResult by navController.currentBackStackEntry
         ?.savedStateHandle
         ?.getStateFlow<String?>("booking_cancellation_result", null)
@@ -55,7 +54,6 @@ fun UserBookingsScreen(
     LaunchedEffect(cancellationResult) {
         if (cancellationResult == "success") {
             snackbarHostState.showSnackbar("Бронирование отменено успешно")
-            // Очищаем значение, чтобы не показывалось повторно
             navController.currentBackStackEntry
                 ?.savedStateHandle
                 ?.set("booking_cancellation_result", null)
@@ -70,7 +68,8 @@ fun UserBookingsScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = AppTheme.colors.MainContainer
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -78,7 +77,10 @@ fun UserBookingsScreen(
                 .padding(paddingValues)
         ) {
             if (isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = AppTheme.colors.MainBorder
+                )
             }
 
             when {
@@ -86,7 +88,7 @@ fun UserBookingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(32.dp),
+                            .padding(10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -94,24 +96,29 @@ fun UserBookingsScreen(
                                 text = "Требуется авторизация",
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = AppTheme.colors.MainText,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "Для просмотра списка ваших бронирований, пожалуйста, войдите в свой аккаунт.",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = AppTheme.colors.SecondaryText,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(24.dp))
-                            Button(onClick = {
-                                navController.navigate(SealedButtonBar.Profile.route) {
-                                    popUpTo(navController.graph.startDestinationId)
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }) {
+                            Button(
+                                onClick = {
+                                    navController.navigate(SealedButtonBar.Profile.route) {
+                                        popUpTo(navController.graph.startDestinationId)
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AppTheme.colors.MainSuccess
+                                )
+                            ) {
                                 Text("Перейти к Профилю")
                             }
                         }
@@ -122,14 +129,15 @@ fun UserBookingsScreen(
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             "У вас пока нет активных бронирований.",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AppTheme.colors.SecondaryText
                         )
                     }
                 }
 
                 else -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(5.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(bookings, key = { it.id }) { booking ->
@@ -140,13 +148,11 @@ fun UserBookingsScreen(
                                 }
                             )
                         }
-                        item{
-                            Spacer(modifier = Modifier.fillMaxWidth().height(83.dp))
+                        item {
+                            Spacer(modifier = Modifier.fillMaxWidth().height(103.dp))
                         }
-
                     }
                 }
-
             }
         }
     }
@@ -165,23 +171,22 @@ fun BookingItemCard(booking: BookingDisplayDto, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
     ) {
-        // Главный Row для разделения контента и иконки
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp) // Общий padding для Row
+                .padding(16.dp)
         ) {
-
-            // Column для всего текстового контента
             Column(
-                modifier = Modifier.weight(1f) // Занимает всё доступное место, кроме места для иконки
+                modifier = Modifier.weight(1f)
             ) {
                 Text(
                     text = booking.establishmentName,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.MainText
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -190,13 +195,14 @@ fun BookingItemCard(booking: BookingDisplayDto, onClick: () -> Unit) {
                         imageVector = Icons.Default.DateRange,
                         contentDescription = "Дата",
                         modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = AppTheme.colors.MainBorder
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = booking.startTime.format(dateFormat)
                             .replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppTheme.colors.MainText
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
@@ -204,26 +210,26 @@ fun BookingItemCard(booking: BookingDisplayDto, onClick: () -> Unit) {
                 Text(
                     text = "${booking.startTime.format(timeFormat)} – ${endTime.format(timeFormat)} (${booking.durationMinutes} мин)",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppTheme.colors.SecondaryText
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "Столик: ${booking.tableName} (до ${booking.tableMaxCapacity} чел.)",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AppTheme.colors.SecondaryText
                 )
             }
 
-            // Column для иконки, которая будет прижата к низу
             Column(
-                modifier = Modifier.fillMaxHeight(), // Важно, чтобы этот Column занимал всю высоту Row
-                verticalArrangement = Arrangement.Bottom, // Прижимает содержимое (иконку) к низу
-                horizontalAlignment = Alignment.End // Выравнивает содержимое (иконку) по правому краю (необходимо, если Column не .fillMaxWidth(), как в данном случае)
+                modifier = Modifier.fillMaxHeight(),
+                verticalArrangement = Arrangement.Bottom,
+                horizontalAlignment = Alignment.End
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Подробнее",
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = AppTheme.colors.MainBorder
                 )
             }
         }

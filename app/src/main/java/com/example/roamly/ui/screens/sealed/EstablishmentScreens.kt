@@ -9,13 +9,12 @@ sealed class EstablishmentScreens(val route: String) {
         fun createRoute(id: Long) = "establishment/edit/$id"
     }
 
-    object MenuEdit: EstablishmentScreens(route = "establishment/menu/edit/{id}"){
-
+    object MenuEdit: EstablishmentScreens(route = "establishment/menu/edit/{id}") {
         fun createRoute(id: Long) = "establishment/menu/edit/$id"
-
     }
 
     object EstablishmentDetail : EstablishmentScreens("establishment/detail/{establishmentId}") {
+        const val ESTABLISHMENT_ID_KEY = "establishmentId"
         fun createRoute(id: Long?) = "establishment/detail/$id"
     }
 
@@ -24,4 +23,5 @@ sealed class EstablishmentScreens(val route: String) {
         fun createRoute(establishmentId: Long): String = "establishment/review/$establishmentId"
     }
 
-    object ApproveBookings : EstablishmentScreens("establishment/approve_bookings")}
+    object ApproveBookings : EstablishmentScreens("establishment/approve_bookings")
+}

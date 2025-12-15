@@ -2,25 +2,11 @@ package com.example.roamly.ui.screens.profileFR
 
 import android.util.Log
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer // <-- Добавлен импорт
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height // <-- Добавлен импорт
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -29,7 +15,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
-import kotlin.math.log
+import com.example.roamly.ui.theme.AppTheme
 
 @Composable
 fun LoginScreen(
@@ -39,116 +25,150 @@ fun LoginScreen(
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // ⭐ 1. ИЗМЕНЕНИЕ: Используем String? для хранения текста ошибки
     var loginError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var serverError by remember { mutableStateOf<String?>(null) }
 
-
-    Column (
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 200.dp, bottom = 200.dp),
-        verticalArrangement = Arrangement.SpaceEvenly,
-        horizontalAlignment = Alignment.CenterHorizontally
+    // Surface ensures consistent background color
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = AppTheme.colors.MainContainer
     ) {
-        OutlinedTextField(
-            value = login,
-            // ⭐ 2. ИЗМЕНЕНИЕ: isError и supportingText
-            isError = loginError != null,
-            onValueChange = {
-                login = it
-                // Сбрасываем ошибку, как только пользователь начинает печатать
-                if (loginError != null) loginError = null
-                if (serverError != null) serverError = null
-            },
-            label = { Text(text = "Введите логин") },
-            supportingText = {
-                if (loginError != null) {
-                    Text(text = loginError!!, color = MaterialTheme.colorScheme.error)
-                }
-            }
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Вход",
+                style = MaterialTheme.typography.headlineMedium,
+                color = AppTheme.colors.MainText,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 32.dp)
+            )
 
-        OutlinedTextField(
-            value = password,
-            // ⭐ 2. ИЗМЕНЕНИЕ: isError и supportingText
-            isError = passwordError != null,
-            onValueChange = {
-                password = it
-                // Сбрасываем ошибку, как только пользователь начинает печатать
-                if (passwordError != null) passwordError = null
-                if (serverError != null) serverError = null
-            },
-            label = { Text(text = "Введите пароль") },
-            supportingText = {
-                if (passwordError != null) {
-                    Text(text = passwordError!!, color = MaterialTheme.colorScheme.error)
-                }
-            }
-        )
+            OutlinedTextField(
+                value = login,
+                isError = loginError != null,
+                onValueChange = {
+                    login = it
+                    if (loginError != null) loginError = null
+                    if (serverError != null) serverError = null
+                },
+                label = { Text(text = "Введите логин") },
+                supportingText = {
+                    if (loginError != null) {
+                        Text(text = loginError!!, color = AppTheme.colors.MainFailure)
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AppTheme.colors.MainSuccess,
+                    unfocusedBorderColor = AppTheme.colors.MainBorder,
+                    errorBorderColor = AppTheme.colors.MainFailure,
+                    focusedLabelColor = AppTheme.colors.MainSuccess,
+                    unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                    cursorColor = AppTheme.colors.MainText,
+                    focusedTextColor = AppTheme.colors.MainText,
+                    unfocusedTextColor = AppTheme.colors.MainText
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
 
-        Button(
-            modifier = Modifier.fillMaxWidth(0.7f),
-            onClick = {
-                // ⭐ 3. ИЗМЕНЕНИЕ: Улучшенная логика валидации
-                // Сначала сбрасываем ошибки
-                loginError = null
-                passwordError = null
-                serverError = null
+            Spacer(modifier = Modifier.height(16.dp))
 
-                // Проверяем
-                if (login.length <= 3 ) {
-                    loginError = "Логин должен быть длиннее 3 символов"
-                }
-                if (password.length <= 3 ) {
-                    passwordError = "Пароль должен быть длиннее 3 символов"
-                }
+            OutlinedTextField(
+                value = password,
+                isError = passwordError != null,
+                onValueChange = {
+                    password = it
+                    if (passwordError != null) passwordError = null
+                    if (serverError != null) serverError = null
+                },
+                label = { Text(text = "Введите пароль") },
+                supportingText = {
+                    if (passwordError != null) {
+                        Text(text = passwordError!!, color = AppTheme.colors.MainFailure)
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AppTheme.colors.MainSuccess,
+                    unfocusedBorderColor = AppTheme.colors.MainBorder,
+                    errorBorderColor = AppTheme.colors.MainFailure,
+                    focusedLabelColor = AppTheme.colors.MainSuccess,
+                    unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                    cursorColor = AppTheme.colors.MainText,
+                    focusedTextColor = AppTheme.colors.MainText,
+                    unfocusedTextColor = AppTheme.colors.MainText
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                // Если локальных ошибок нет, пробуем войти
-                if (loginError == null && passwordError == null){
-                    userViewModel.loginUser(login = login, password = password) { createdUser ->
-                        if (createdUser != null) {
-                            Log.i("LoginScreen", "Пользователь вошел с id: ${createdUser.id}")
-                            navController.popBackStack()
-                        } else {
-                            // Ошибка от сервера
-                            serverError = "Неверный логин или пароль"
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                modifier = Modifier.fillMaxWidth(0.7f),
+                onClick = {
+                    loginError = null
+                    passwordError = null
+                    serverError = null
+
+                    if (login.length <= 3) {
+                        loginError = "Логин должен быть длиннее 3 символов"
+                    }
+                    if (password.length <= 3) {
+                        passwordError = "Пароль должен быть длиннее 3 символов"
+                    }
+
+                    if (loginError == null && passwordError == null) {
+                        userViewModel.loginUser(login = login, password = password) { createdUser ->
+                            if (createdUser != null) {
+                                Log.i("LoginScreen", "Пользователь вошел с id: ${createdUser.id}")
+                                navController.popBackStack()
+                            } else {
+                                serverError = "Неверный логин или пароль"
+                            }
                         }
                     }
-                }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppTheme.colors.MainSuccess,
+                    contentColor = AppTheme.colors.MainText
+                )
+            ) {
+                Text(text = "Войти в аккаунт")
             }
-        ) {
-            Text(text = "Войти в аккаунт")
-        }
 
-        // ⭐ 4. ДОБАВЛЕНО: Отображение ошибки сервера
-        if (serverError != null) {
-            Spacer(Modifier.height(8.dp))
+            if (serverError != null) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = serverError!!,
+                    color = AppTheme.colors.MainFailure,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+
             Text(
-                text = serverError!!,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.clickable {
+                    navController.popBackStack()
+                    navController.navigate(route = LogSinUpScreens.SingUp.route)
+                },
+                text = "Создать новый аккаунт",
+                color = AppTheme.colors.MainBorder, // Accent link color
+                fontSize = MaterialTheme.typography.bodyMedium.fontSize,
                 fontWeight = FontWeight.Bold
             )
         }
-
-        Text(
-            modifier = Modifier.clickable {
-                navController.popBackStack()
-                navController.navigate(route = LogSinUpScreens.SingUp.route)
-            },
-            text = "Созать новый аккаунт",
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = MaterialTheme.typography.bodySmall.fontSize,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 
 @Composable
-@Preview (showBackground = true)
-fun LoginScreenPreview(){
+@Preview(showBackground = true)
+fun LoginScreenPreview() {
     LoginScreen(
         navController = rememberNavController(),
         hiltViewModel()

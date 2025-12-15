@@ -2,30 +2,25 @@
 
 package com.example.roamly.ui.screens.booking
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -37,49 +32,13 @@ import com.example.roamly.entity.classes.TableEntity
 import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
+import com.example.roamly.ui.theme.AppTheme
 import java.time.*
 import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.util.*
 
 private const val TAG = "CreateBookingScreen"
 private val BOOKING_DURATIONS_MINUTES = listOf(30L, 60L, 90L, 120L, 150L, 180L)
-
-@RequiresApi(Build.VERSION_CODES.O)
-private val DAY_NAME_TO_DAY_OF_WEEK = mapOf(
-    "ПОНЕДЕЛЬНИК" to DayOfWeek.MONDAY,
-    "ВТОРНИК" to DayOfWeek.TUESDAY,
-    "СРЕДА" to DayOfWeek.WEDNESDAY,
-    "ЧЕТВЕРГ" to DayOfWeek.THURSDAY,
-    "ПЯТНИЦА" to DayOfWeek.FRIDAY,
-    "СУББОТА" to DayOfWeek.SATURDAY,
-    "ВОСКРЕСЕНЬЕ" to DayOfWeek.SUNDAY
-)
-
-@RequiresApi(Build.VERSION_CODES.O)
-fun parseOperatingHours(hoursStr: String?): Map<DayOfWeek, Pair<LocalTime?, LocalTime?>> {
-    if (hoursStr.isNullOrBlank()) return emptyMap()
-
-    return hoursStr.split("|")
-        .mapNotNull { dayEntry ->
-            val parts = dayEntry.split(":", limit = 2)
-            if (parts.size != 2) return@mapNotNull null
-
-            val dayName = parts[0].trim().uppercase(Locale.ROOT)
-            val hours = parts[1].trim()
-            val dayOfWeek = DAY_NAME_TO_DAY_OF_WEEK[dayName] ?: return@mapNotNull null
-
-            if (hours.contains("Закрыто", ignoreCase = true) || hours.isBlank()) {
-                dayOfWeek to (null to null)
-            } else {
-                val timeParts = hours.split("-", limit = 2)
-                if (timeParts.size == 2) {
-                    val start = LocalTime.parse(timeParts[0].trim())
-                    val end = LocalTime.parse(timeParts[1].trim())
-                    dayOfWeek to (start to end)
-                } else null
-            }
-        }.toMap()
-}
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -98,7 +57,7 @@ fun CreateBookingScreen(
     var selectedDuration by remember { mutableStateOf(90L) }
     var selectedTable by remember { mutableStateOf<TableEntity?>(null) }
     var numberOfGuests by remember { mutableStateOf(2) }
-    var guestContact by remember { mutableStateOf("") } // Изменено: guestPhone -> guestContact
+    var guestContact by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
 
     val establishmentState by viewModel.establishmentDetailState.collectAsState()
@@ -106,42 +65,60 @@ fun CreateBookingScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.errorMessage.collectAsState()
 
-    // Загружаем данные заведения и столики
+    // Загружаем данные заведения и доступные столики
     LaunchedEffect(Unit) {
         viewModel.fetchEstablishmentDetails(establishmentId)
     }
 
-    val operatingHours = (establishmentState as? EstablishmentLoadState.Success)?.data?.let {
-        parseOperatingHours(it.operatingHoursString)
-    } ?: emptyMap()
+    // Используем вычисляемое значение для определения, находится ли выбранное время в будущем
+    val selectedDateTime = LocalDateTime.of(selectedDate, selectedTime)
+    val now = LocalDateTime.now()
+    val isSelectedTimeInFuture = selectedDateTime.isAfter(now)
 
     LaunchedEffect(selectedDate, selectedTime) {
-        val dayOfWeek = selectedDate.dayOfWeek
-        val (open, close) = operatingHours[dayOfWeek] ?: return@LaunchedEffect
-        if (open != null && close != null && selectedTime >= open && selectedTime < close) {
-            val dateTime = LocalDateTime.of(selectedDate, selectedTime)
-            val iso = dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        if (isSelectedTimeInFuture) {
+            val iso = selectedDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             viewModel.fetchAvailableTables(establishmentId, iso)
         } else {
+            // Сбрасываем список столиков, если время в прошлом
             viewModel._availableTables.value = emptyList()
         }
     }
 
     Scaffold(
+        modifier = Modifier.background(AppTheme.colors.MainContainer),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Бронирование") },
+                title = {
+                    Text(
+                        "Бронирование",
+                        color = AppTheme.colors.MainText
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Назад")
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            "Назад",
+                            tint = AppTheme.colors.MainText
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = AppTheme.colors.SecondaryContainer,
+                    navigationIconContentColor = AppTheme.colors.MainText,
+                    titleContentColor = AppTheme.colors.MainText,
+                    actionIconContentColor = AppTheme.colors.MainText
+                )
             )
         }
     ) { padding ->
         if (isLoading && establishmentState is EstablishmentLoadState.Idle) {
             Box(modifier = Modifier.fillMaxSize()) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = AppTheme.colors.MainText
+                )
             }
             return@Scaffold
         }
@@ -154,50 +131,188 @@ fun CreateBookingScreen(
                     modifier = Modifier
                         .padding(padding)
                         .verticalScroll(rememberScrollState())
+                        .background(AppTheme.colors.MainContainer)
                 ) {
-                    Text(establishment.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text(establishment.address, style = MaterialTheme.typography.bodyLarge)
-                    DateSelector(selectedDate) { newDate -> selectedDate = newDate }
-                    TimeSelector(selectedTime, operatingHours, selectedDate) { newTime -> selectedTime = newTime }
-                    BookingDurationSelector(selectedDuration) { newDuration -> selectedDuration = newDuration }
-                    GuestCountSelector(numberOfGuests) { newCount -> numberOfGuests = newCount }
-                    Text("Доступные столы:", fontWeight = FontWeight.SemiBold)
-                    if (availableTables.isEmpty()) {
-                        Text("Нет доступных столов на выбранное время", color = Color.Red)
-                    } else {
-                        TableSelector(availableTables, selectedTable, numberOfGuests) { table -> selectedTable = table }
+                    // Заголовок
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 5.dp, vertical = 8.dp),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                establishment.name,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.MainText
+                            )
+                            Text(
+                                establishment.address,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = AppTheme.colors.SecondaryText
+                            )
+                        }
                     }
 
-                    // Измененное поле: Как с вами связаться
-                    OutlinedTextField(
-                        value = guestContact,
-                        onValueChange = { guestContact = it },
-                        label = { Text("Как с вами связаться (номер телефона, как обращаться)") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                    // Кастомный выбор даты
+                    Text(
+                        "Выберите дату:",
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppTheme.colors.MainText,
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                    )
+                    CustomDatePicker(
+                        selectedDate = selectedDate,
+                        onDateSelected = { newDate -> selectedDate = newDate }
                     )
 
-                    // Поле для заметок
-                    OutlinedTextField(
-                        value = notes,
-                        onValueChange = { notes = it },
-                        label = { Text("Заметки (по желанию)") },
+                    Spacer(Modifier.height(16.dp))
+
+                    // Кастомный выбор времени
+                    Text(
+                        "Выберите время:",
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppTheme.colors.MainText,
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+                    )
+                    CustomTimePicker(
+                        selectedDate = selectedDate,
+                        selectedTime = selectedTime,
+                        onTimeSelected = { newTime -> selectedTime = newTime }
+                    )
+
+                    // Предупреждение, если время в прошлом
+                    if (!isSelectedTimeInFuture) {
+                        Text(
+                            "Вы выбрали прошедшее время. Пожалуйста, выберите время в будущем.",
+                            color = AppTheme.colors.MainFailure,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 8.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Длительность бронирования
+                    BookingDurationSelector(selectedDuration) { newDuration -> selectedDuration = newDuration }
+                    Spacer(Modifier.height(16.dp))
+
+                    // Количество гостей
+                    GuestCountSelector(numberOfGuests) { newCount -> numberOfGuests = newCount }
+                    Spacer(Modifier.height(16.dp))
+
+                    // Доступные столики
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        minLines = 3
-                    )
+                            .padding(horizontal = 5.dp),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                "Доступные столы:",
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppTheme.colors.MainText,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+
+                            if (!isSelectedTimeInFuture) {
+                                Text(
+                                    "Выберите время в будущем, чтобы увидеть доступные столы",
+                                    color = AppTheme.colors.MainFailure,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            } else if (availableTables.isEmpty()) {
+                                Text(
+                                    "Нет доступных столов на выбранное время",
+                                    color = AppTheme.colors.MainFailure,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            } else {
+                                TableSelector(
+                                    availableTables,
+                                    selectedTable,
+                                    numberOfGuests
+                                ) { table -> selectedTable = table }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Контактная информация
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 5.dp),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                "Контактная информация",
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppTheme.colors.MainText,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            OutlinedTextField(
+                                value = guestContact,
+                                onValueChange = { guestContact = it },
+                                label = {
+                                    Text(
+                                        "Телефон для связи",
+                                        color = AppTheme.colors.SecondaryText
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppTheme.colors.MainBorder,
+                                    unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
+                                    focusedTextColor = AppTheme.colors.MainText,
+                                    unfocusedTextColor = AppTheme.colors.MainText,
+                                    focusedLabelColor = AppTheme.colors.SecondaryText,
+                                    unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                                    cursorColor = AppTheme.colors.MainText
+                                )
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = notes,
+                                onValueChange = { notes = it },
+                                label = {
+                                    Text(
+                                        "Комментарий (по желанию)",
+                                        color = AppTheme.colors.SecondaryText
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 3,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AppTheme.colors.MainBorder,
+                                    unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
+                                    focusedTextColor = AppTheme.colors.MainText,
+                                    unfocusedTextColor = AppTheme.colors.MainText,
+                                    focusedLabelColor = AppTheme.colors.SecondaryText,
+                                    unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                                    cursorColor = AppTheme.colors.MainText
+                                )
+                            )
+                        }
+                    }
 
                     Spacer(Modifier.height(24.dp))
 
                     // Кнопка бронирования
                     Button(
                         onClick = {
+                            if (!isSelectedTimeInFuture) {
+                                Toast.makeText(context, "Выберите время в будущем", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
                             selectedTable?.let { table ->
                                 val userId = user?.id ?: return@let
-                                val startTimeStr = LocalDateTime.of(selectedDate, selectedTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                val startTimeStr = selectedDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                                 val dto = BookingCreationDto(
                                     establishmentId = establishmentId,
                                     userId = userId,
@@ -206,7 +321,7 @@ fun CreateBookingScreen(
                                     durationMinutes = selectedDuration,
                                     numPeople = numberOfGuests,
                                     notes = notes.takeIf { it.isNotBlank() },
-                                    guestPhone = guestContact  // Теперь это может быть любой текст, сервер примет String
+                                    guestPhone = guestContact
                                 )
                                 viewModel.createBooking(dto) { success ->
                                     if (success) {
@@ -220,18 +335,73 @@ fun CreateBookingScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        enabled = selectedTable != null && !isLoading
+                            .padding(horizontal = 5.dp)
+                            .height(56.dp),
+                        enabled = selectedTable != null && isSelectedTimeInFuture && !isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.MainSuccess,
+                            contentColor = AppTheme.colors.MainText,
+                            disabledContainerColor = AppTheme.colors.SecondaryContainer,
+                            disabledContentColor = AppTheme.colors.SecondaryText
+                        )
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = null)
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                color = AppTheme.colors.MainText,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         Spacer(Modifier.width(8.dp))
-                        Text("Забронировать")
+                        Text(
+                            "Подтвердить бронирование",
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
+
+                    Spacer(Modifier.height(16.dp))
                 }
             }
             is EstablishmentLoadState.Error -> {
                 Box(Modifier.fillMaxSize()) {
-                    Text("Ошибка: ${(establishmentState as EstablishmentLoadState.Error).message}", Modifier.align(Alignment.Center))
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Build,
+                            contentDescription = null,
+                            tint = AppTheme.colors.MainFailure,
+                            modifier = Modifier.size(64.dp).padding(bottom = 16.dp)
+                        )
+                        Text(
+                            "Ошибка загрузки заведения",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = AppTheme.colors.MainFailure,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Text(
+                            (establishmentState as EstablishmentLoadState.Error).message ?: "Неизвестная ошибка",
+                            color = AppTheme.colors.MainText,
+                            modifier = Modifier.padding(horizontal = 32.dp)
+                        )
+                        Spacer(Modifier.height(24.dp))
+                        Button(
+                            onClick = { navController.popBackStack() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppTheme.colors.MainSuccess,
+                                contentColor = AppTheme.colors.MainText
+                            )
+                        ) {
+                            Text("Вернуться назад")
+                        }
+                    }
                 }
             }
             else -> {}
@@ -240,9 +410,30 @@ fun CreateBookingScreen(
         error?.let {
             AlertDialog(
                 onDismissRequest = { viewModel.clearError() },
-                title = { Text("Ошибка") },
-                text = { Text(it) },
-                confirmButton = { Button(onClick = { viewModel.clearError() }) { Text("OK") } }
+                title = {
+                    Text(
+                        "Ошибка",
+                        color = AppTheme.colors.MainText
+                    )
+                },
+                text = {
+                    Text(
+                        it,
+                        color = AppTheme.colors.MainText
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.clearError() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.MainSuccess,
+                            contentColor = AppTheme.colors.MainText
+                        )
+                    ) {
+                        Text("OK")
+                    }
+                },
+                containerColor = AppTheme.colors.MainContainer
             )
         }
     }
@@ -250,111 +441,220 @@ fun CreateBookingScreen(
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun DateSelector(
+fun CustomDatePicker(
     selectedDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit
 ) {
-    val context = LocalContext.current
-    var showDialog by remember { mutableStateOf(false) }
+    val today = LocalDate.now()
+    val maxDate = today.plusDays(30) // Ограничение: 1 месяц вперед
 
-    if (showDialog) {
-        DatePickerDialog(
-            context,
-            { _, year, month, dayOfMonth ->
-                onDateSelected(LocalDate.of(year, month + 1, dayOfMonth))
-                showDialog = false
-            },
-            selectedDate.year,
-            selectedDate.monthValue - 1,
-            selectedDate.dayOfMonth
-        ).show()
+    val dates = remember {
+        (0..30).map { today.plusDays(it.toLong()) }
     }
 
-    OutlinedTextField(
-        value = selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
-        onValueChange = {},
-        label = { Text("Дата") },
-        readOnly = true,
-        trailingIcon = {
-            Icon(
-                Icons.Default.DateRange,
-                contentDescription = null,
-                Modifier.clickable { showDialog = true }
-            )
-        },
-        modifier = Modifier.fillMaxWidth()
-    )
-}
+    val lazyListState = rememberLazyListState()
 
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun TimeSelector(
-    selectedTime: LocalTime,
-    operatingHours: Map<DayOfWeek, Pair<LocalTime?, LocalTime?>>,
-    selectedDate: LocalDate,
-    onTimeSelected: (LocalTime) -> Unit
-) {
-    val context = LocalContext.current
-    var showDialog by remember { mutableStateOf(false) }
-
-    if (showDialog) {
-        TimePickerDialog(
-            context,
-            { _, hourOfDay, minute ->
-                val newTime = LocalTime.of(hourOfDay, minute)
-                onTimeSelected(newTime)
-                showDialog = false
-            },
-            selectedTime.hour,
-            selectedTime.minute,
-            true
-        ).show()
+    LaunchedEffect(selectedDate) {
+        val index = dates.indexOf(selectedDate)
+        if (index >= 0) {
+            lazyListState.animateScrollToItem(index)
+        }
     }
 
-    OutlinedTextField(
-        value = selectedTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-        onValueChange = {},
-        label = { Text("Время") },
-        readOnly = true,
-        trailingIcon = {
-            Icon(
-                Icons.Default.DateRange,
-                contentDescription = null,
-                Modifier.clickable { showDialog = true }
-            )
-        },
+    LazyRow(
+        state = lazyListState,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 5.dp),
         modifier = Modifier.fillMaxWidth()
-    )
-}
+    ) {
+        items(dates) { date ->
+            val isSelected = date == selectedDate
+            val isToday = date == today
+            val isDisabled = date > maxDate
 
-@Composable
-fun DurationSelector(
-    selectedDuration: Long,
-    onDurationSelected: (Long) -> Unit
-) {
-    Column {
-        Text("Длительность:", fontWeight = FontWeight.SemiBold)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(BOOKING_DURATIONS_MINUTES) { minutes ->
-                val isSelected = minutes == selectedDuration
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onDurationSelected(minutes) },
-                    label = { Text(formatDuration(minutes)) }
-                )
+            Card(
+                onClick = {
+                    if (!isDisabled) {
+                        onDateSelected(date)
+                    }
+                },
+                modifier = Modifier.width(70.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = AppTheme.colors.SecondaryContainer
+                ),
+                border = when {
+                    isSelected -> BorderStroke(2.dp, AppTheme.colors.MainBorder)
+                    isToday -> BorderStroke(1.dp, AppTheme.colors.SecondarySuccess)
+                    else -> BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                }
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale("ru")),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isDisabled) AppTheme.colors.SecondaryText else AppTheme.colors.MainText,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                    Text(
+                        date.dayOfMonth.toString(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDisabled) AppTheme.colors.SecondaryText else AppTheme.colors.MainText,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                    Text(
+                        date.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale("ru")),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isDisabled) AppTheme.colors.SecondaryText else AppTheme.colors.MainText,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
         }
     }
 }
 
-private fun formatDuration(minutes: Long): String {
-    val hours = minutes / 60
-    val mins = minutes % 60
-    return when{
-        mins > 0 && hours > 0 ->  "$hours ч $mins мин"
-        mins > 0 && hours == 0L -> "$mins мин"
-        mins == 0L && hours > 0 -> "$hours ч "
-        else -> "Error"
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun CustomTimePicker(
+    selectedDate: LocalDate,
+    selectedTime: LocalTime,
+    onTimeSelected: (LocalTime) -> Unit
+) {
+    val today = LocalDate.now()
+    val now = LocalTime.now()
+    val isToday = selectedDate == today
+
+    val startHour = 8
+    val endHour = 22
+    val intervalMinutes = 30
+
+    val timeSlots = remember {
+        val slots = mutableListOf<LocalTime>()
+        for (hour in startHour..endHour) {
+            for (minute in listOf(0, 30)) {
+                if (hour == endHour && minute > 0) continue
+                val time = LocalTime.of(hour, minute)
+                slots.add(time)
+            }
+        }
+        slots
+    }
+
+    val lazyListState = rememberLazyListState()
+
+    LaunchedEffect(selectedTime) {
+        val index = timeSlots.indexOfFirst { it == selectedTime }
+        if (index >= 0) {
+            lazyListState.animateScrollToItem(index)
+        }
+    }
+
+    LazyRow(
+        state = lazyListState,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 5.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(timeSlots) { time ->
+            val isSelected = time == selectedTime
+            // Время в прошлом только если это сегодня и время уже прошло
+            val isDisabled = isToday && time.isBefore(now)
+
+            Card(
+                onClick = {
+                    if (!isDisabled) {
+                        onTimeSelected(time)
+                    }
+                },
+                modifier = Modifier.width(70.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = AppTheme.colors.SecondaryContainer
+                ),
+                border = if (isSelected) {
+                    BorderStroke(2.dp, AppTheme.colors.MainBorder)
+                } else {
+                    BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                }
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 12.dp)
+                ) {
+                    Text(
+                        time.format(DateTimeFormatter.ofPattern("HH:mm")),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isDisabled) AppTheme.colors.SecondaryText else AppTheme.colors.MainText
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BookingDurationSelector(
+    selectedDuration: Long,
+    onDurationSelected: (Long) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 5.dp),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Длительность:",
+                fontWeight = FontWeight.SemiBold,
+                color = AppTheme.colors.MainText,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp)
+            ) {
+                items(BOOKING_DURATIONS_MINUTES) { minutes ->
+                    val isSelected = minutes == selectedDuration
+                    Card(
+                        onClick = { onDurationSelected(minutes) },
+                        modifier = Modifier.width(100.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = AppTheme.colors.SecondaryContainer
+                        ),
+                        border = if (isSelected) {
+                            BorderStroke(2.dp, AppTheme.colors.MainBorder)
+                        } else {
+                            BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                        }
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(vertical = 12.dp)
+                        ) {
+                            Text(
+                                text = formatDuration(minutes),
+                                fontWeight = FontWeight.Medium,
+                                color = AppTheme.colors.MainText
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -363,20 +663,92 @@ fun GuestCountSelector(
     numPeople: Int,
     onGuestCountChange: (Int) -> Unit
 ) {
-    Column {
-        Text("Количество гостей:", fontWeight = FontWeight.SemiBold)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onGuestCountChange(numPeople - 1) }, enabled = numPeople > 1) {
-                Icon(Icons.Filled.KeyboardArrowLeft, "Меньше")
-            }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 5.dp),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "$numPeople",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.width(60.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                "Количество гостей:",
+                fontWeight = FontWeight.SemiBold,
+                color = AppTheme.colors.MainText,
+                modifier = Modifier.padding(bottom = 12.dp)
             )
-            IconButton(onClick = { onGuestCountChange(numPeople + 1) }) {
-                Icon(Icons.Filled.KeyboardArrowRight, "Больше")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Кнопка уменьшения
+                Card(
+                    onClick = { if (numPeople > 1) onGuestCountChange(numPeople - 1) },
+                    modifier = Modifier.size(48.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (numPeople > 1) AppTheme.colors.SecondaryContainer
+                        else AppTheme.colors.SecondaryContainer.copy(alpha = 0.5f)
+                    ),
+                    border = BorderStroke(1.dp, AppTheme.colors.SecondaryBorder),
+                    enabled = numPeople > 1
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Build, // TODO: Заменить на Remove или Minus
+                            contentDescription = "Уменьшить количество гостей",
+                            modifier = Modifier.size(24.dp),
+                            tint = if (numPeople > 1) AppTheme.colors.MainText
+                            else AppTheme.colors.SecondaryText
+                        )
+                    }
+                }
+
+                // Отображение количества
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "$numPeople",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.MainText
+                    )
+                    Text(
+                        text = when (numPeople) {
+                            1 -> "гость"
+                            in 2..4 -> "гостя"
+                            else -> "гостей"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.SecondaryText
+                    )
+                }
+
+                // Кнопка увеличения
+                Card(
+                    onClick = { onGuestCountChange(numPeople + 1) },
+                    modifier = Modifier.size(48.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = AppTheme.colors.SecondaryContainer
+                    ),
+                    border = BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Увеличить количество гостей",
+                            modifier = Modifier.size(24.dp),
+                            tint = AppTheme.colors.MainText
+                        )
+                    }
+                }
             }
         }
     }
@@ -389,23 +761,24 @@ fun TableSelector(
     requiredCapacity: Int,
     onTableSelected: (TableEntity) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         availableTables.forEach { table ->
             val isSelected = table == selectedTable
-            val borderStroke = if (isSelected) {
-                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-            } else {
-                CardDefaults.outlinedCardBorder()
-            }
+            val fitsCapacity = table.maxCapacity >= requiredCapacity
 
-            OutlinedCard(
-                onClick = { onTableSelected(table) },
+            Card(
+                onClick = { if (fitsCapacity) onTableSelected(table) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
-                    else MaterialTheme.colorScheme.surface
+                    containerColor = AppTheme.colors.SecondaryContainer
                 ),
-                border = borderStroke
+                border = if (isSelected) {
+                    BorderStroke(2.dp, AppTheme.colors.MainBorder)
+                } else {
+                    BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                }
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
@@ -413,15 +786,42 @@ fun TableSelector(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(table.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Вместимость: ${table.maxCapacity} чел.",
-                            color = if (table.maxCapacity >= requiredCapacity) MaterialTheme.colorScheme.onSurface
-                            else MaterialTheme.colorScheme.error
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                table.name,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = AppTheme.colors.MainText,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    "Выбран",
+                                    tint = AppTheme.colors.MainSuccess,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Build,
+                                "Вместимость",
+                                tint = if (fitsCapacity) AppTheme.colors.MainText else AppTheme.colors.MainFailure,
+                                modifier = Modifier.size(16.dp).padding(end = 4.dp)
+                            )
+                            Text(
+                                "${table.maxCapacity} чел.",
+                                color = if (fitsCapacity) AppTheme.colors.MainText else AppTheme.colors.MainFailure
+                            )
+                        }
                     }
-                    if (isSelected) {
-                        Icon(Icons.Default.DateRange, "Выбран", tint = MaterialTheme.colorScheme.primary)
+                    if (!fitsCapacity) {
+                        Text(
+                            "Мал для ${requiredCapacity} чел.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AppTheme.colors.MainFailure
+                        )
                     }
                 }
             }
@@ -429,29 +829,12 @@ fun TableSelector(
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun BookingDurationSelector(
-    selectedDuration: Long,
-    onDurationSelected: (Long) -> Unit
-) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(BOOKING_DURATIONS_MINUTES) { duration ->
-            val isSelected = duration == selectedDuration
-            ElevatedCard(
-                onClick = { onDurationSelected(duration) },
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isSelected) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (isSelected) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                shape = MaterialTheme.shapes.extraSmall
-            ) {
-                Text(
-                    text = formatDuration(duration),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
+private fun formatDuration(minutes: Long): String {
+    val hours = minutes / 60
+    val mins = minutes % 60
+    return when {
+        hours > 0 && mins > 0 -> "$hours ч $mins мин"
+        hours > 0 -> "$hours ч"
+        else -> "$mins мин"
     }
 }

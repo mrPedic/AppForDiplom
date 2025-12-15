@@ -1,3 +1,4 @@
+// ColorPalette2.kt
 package com.example.roamly.ui.theme
 
 import androidx.compose.ui.graphics.Color
@@ -12,24 +13,26 @@ val EnchantedDark2_1 = Color(0xFF501F5B)   // darkChoc
 val EnchantedDark1_1 = Color(0xFF29264C)   // darkContrast
 val EnchantedError = Color(0xFF800020)
 
-// Палитра Enchanted (ThemePalette2)
-val LightEnchantedAppColors = MyAppColors(
-    lightHart = EnchantedLight3_1,    // Самый светлый фон
-    lightMedium = EnchantedLight2_1,  // Светлый акцент/Карточка
-    lightLow = EnchantedLight1_1,     // Средний светлый/Нейтральный акцент
+// Дополнительные цвета для новой схемы
+val EnchantedSecondarySuccess = EnchantedLight1_1 // Светлый акцент для вторичного успеха
+val EnchantedSecondaryFailure = Color(0xFFB94A3E) // Светлый красный для вторичной ошибки (заимствовано для consistency)
+val EnchantedSelected = EnchantedMedium1_1 // Цвет выбранного элемента
+val EnchantedUnSelected = Color(0xFF808080) // Серый для невыбранного элемента
+val EnchantedMainBorder = EnchantedMedium2_1 // Основной бордер
+val EnchantedSecondaryBorder = EnchantedDark2_1 // Вторичный бордер
 
-    darkMain = EnchantedMedium1_1,    // Основной темный акцент (Violet Spell)
-    darkContrast = EnchantedDark1_1,  // Самый темный текст/фон (Midnight Whisper)
-    darkChoc = EnchantedDark2_1,      // Темный фон/Кнопки (Twilight Gaze)
-    success = EnchantedMedium2_1,
-    failure = EnchantedError
+// Светлая палитра Enchanted (ThemePalette2)
+val EnchantedAppColors = MyAppColors(
+    MainText = EnchantedDark1_1,          // Основной текст (темный контрастный)
+    SecondaryText = EnchantedDark2_1,     // Вторичный текст (темный фон/кнопки)
+    MainContainer = EnchantedLight3_1,    // Основной контейнер (самый светлый фон)
+    SecondaryContainer = EnchantedLight2_1, // Вторичный контейнер (светлый акцент/карточка)
+    MainBorder = EnchantedMainBorder,     // Основной бордер
+    SecondaryBorder = EnchantedSecondaryBorder, // Вторичный бордер
+    MainSuccess = EnchantedMedium2_1,     // Основной успех
+    SecondarySuccess = EnchantedSecondarySuccess, // Вторичный успех
+    MainFailure = EnchantedError,         // Основная ошибка
+    SecondaryFailure = EnchantedSecondaryFailure, // Вторичная ошибка
+    SelectedItem = EnchantedSelected, // Выбранный элемент
+    UnSelectedItem = EnchantedUnSelected // Невыбранный элемент
 )
-
-// Функция-помощник для получения цветов по Enum
-fun getColorsByConfig(config: AppThemeConfig, isDark: Boolean): MyAppColors {
-    // ВАЖНО: Игнорируем isDark, чтобы тема не менялась при смене системной темы.
-    return when (config) {
-        AppThemeConfig.ThemePalette1 -> LightAppColors
-        AppThemeConfig.ThemePalette2 -> LightEnchantedAppColors
-    }
-}

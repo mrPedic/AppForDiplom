@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -32,7 +34,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +47,7 @@ import com.example.roamly.entity.classes.TypeOfEstablishment
 import com.example.roamly.entity.ViewModel.EstablishmentEditViewModel
 import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.theme.AppTheme
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.osmdroid.config.Configuration
@@ -117,12 +119,28 @@ fun EstablishmentEditScreen(
     val scrollState = rememberScrollState()
 
     Scaffold(
+        modifier = Modifier.background(AppTheme.colors.MainContainer),
         topBar = {
             TopAppBar(
-                title = { Text("Редактирование заведения") },
+                title = {
+                    Text(
+                        "Редактирование заведения",
+                        color = AppTheme.colors.MainText
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = AppTheme.colors.SecondaryContainer,
+                    navigationIconContentColor = AppTheme.colors.MainText,
+                    titleContentColor = AppTheme.colors.MainText,
+                    actionIconContentColor = AppTheme.colors.MainText
+                ),
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = "Назад",
+                            tint = AppTheme.colors.MainText
+                        )
                     }
                 },
                 actions = {
@@ -136,7 +154,11 @@ fun EstablishmentEditScreen(
                                 )
                             }
                         ) {
-                            Icon(Icons.Filled.Done, contentDescription = "Сохранить")
+                            Icon(
+                                Icons.Filled.Done,
+                                contentDescription = "Сохранить",
+                                tint = AppTheme.colors.MainText
+                            )
                         }
                     }
                 }
@@ -145,13 +167,15 @@ fun EstablishmentEditScreen(
     ) { innerPadding ->
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(
+                    color = AppTheme.colors.MainText
+                )
             }
         } else if (errorMessage != null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = "Ошибка: $errorMessage",
-                    color = MaterialTheme.colorScheme.error,
+                    color = AppTheme.colors.MainFailure,
                     modifier = Modifier.padding(16.dp)
                 )
             }
@@ -161,12 +185,18 @@ fun EstablishmentEditScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .verticalScroll(scrollState)
+                    .background(AppTheme.colors.MainContainer)
                     .padding(16.dp)
             ) {
                 // Основная информация
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = AppTheme.colors.SecondaryContainer
+                    ),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
+                    ),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -200,7 +230,12 @@ fun EstablishmentEditScreen(
                         Spacer(Modifier.height(8.dp))
 
                         // Карта
-                        Text("Местоположение", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Местоположение",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.MainText
+                        )
                         Spacer(Modifier.height(8.dp))
 
                         Box(
@@ -208,7 +243,11 @@ fun EstablishmentEditScreen(
                                 .fillMaxWidth()
                                 .height(200.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .border(1.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .border(
+                                    1.dp,
+                                    AppTheme.colors.SecondaryBorder,
+                                    RoundedCornerShape(8.dp)
+                                )
                         ) {
                             AndroidView(
                                 factory = { ctx ->
@@ -249,9 +288,16 @@ fun EstablishmentEditScreen(
                                 .clickable { navController.navigate(EstablishmentScreens.MapPicker.route) }
                                 .padding(4.dp)
                         ) {
-                            Icon(Icons.Filled.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(
+                                Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                tint = AppTheme.colors.MainSuccess
+                            )
                             Spacer(Modifier.width(8.dp))
-                            Text("Изменить на карте", color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                "Изменить на карте",
+                                color = AppTheme.colors.MainSuccess
+                            )
                         }
 
                         Spacer(Modifier.height(16.dp))
@@ -267,18 +313,46 @@ fun EstablishmentEditScreen(
                                 readOnly = true,
                                 value = convertTypeToWord(editedType),
                                 onValueChange = { },
-                                label = { Text("Тип заведения") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                                colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                                label = {
+                                    Text(
+                                        "Тип заведения",
+                                        color = AppTheme.colors.SecondaryText
+                                    )
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = if (expanded) Icons.Filled.KeyboardArrowUp  else Icons.Filled.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = AppTheme.colors.MainText
+                                    )
+                                },
+                                colors = ExposedDropdownMenuDefaults.textFieldColors(
+                                    focusedContainerColor = AppTheme.colors.MainContainer,
+                                    unfocusedContainerColor = AppTheme.colors.MainContainer,
+                                    disabledContainerColor = AppTheme.colors.MainContainer,
+                                    focusedTextColor = AppTheme.colors.MainText,
+                                    unfocusedTextColor = AppTheme.colors.MainText,
+                                    focusedLabelColor = AppTheme.colors.SecondaryText,
+                                    unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                                    focusedIndicatorColor = AppTheme.colors.MainBorder,
+                                    unfocusedIndicatorColor = AppTheme.colors.SecondaryBorder,
+                                    cursorColor = AppTheme.colors.MainText
+                                ),
                                 modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
                             ExposedDropdownMenu(
                                 expanded = expanded,
-                                onDismissRequest = { expanded = false }
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.background(AppTheme.colors.MainContainer)
                             ) {
                                 TypeOfEstablishment.entries.forEach { type ->
                                     DropdownMenuItem(
-                                        text = { Text(convertTypeToWord(type)) },
+                                        text = {
+                                            Text(
+                                                convertTypeToWord(type),
+                                                color = AppTheme.colors.MainText
+                                            )
+                                        },
                                         onClick = {
                                             viewModel.updateType(type)
                                             expanded = false
@@ -295,11 +369,21 @@ fun EstablishmentEditScreen(
                 // Фотографии
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = AppTheme.colors.SecondaryContainer
+                    ),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
+                    ),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Фотографии", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Фотографии",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.MainText
+                        )
                         Spacer(Modifier.height(12.dp))
 
                         LazyRow(
@@ -311,7 +395,7 @@ fun EstablishmentEditScreen(
                                     modifier = Modifier
                                         .size(140.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(Color.LightGray.copy(alpha = 0.3f))
+                                        .background(AppTheme.colors.SecondaryBorder.copy(alpha = 0.3f))
                                 ) {
                                     // Подготовка модели изображения
                                     val model = remember(item) {
@@ -319,7 +403,6 @@ fun EstablishmentEditScreen(
                                             is EstablishmentEditViewModel.PhotoItem.Local -> item.uri
                                             is EstablishmentEditViewModel.PhotoItem.Remote -> {
                                                 try {
-                                                    // Просто декодируем байты, как в DetailScreen
                                                     Base64.decode(item.base64, Base64.DEFAULT)
                                                 } catch (e: Exception) {
                                                     null
@@ -343,15 +426,15 @@ fun EstablishmentEditScreen(
                                         is AsyncImagePainter.State.Loading -> {
                                             CircularProgressIndicator(
                                                 modifier = Modifier.align(Alignment.Center),
-                                                strokeWidth = 2.dp
+                                                strokeWidth = 2.dp,
+                                                color = AppTheme.colors.MainText
                                             )
                                         }
                                         is AsyncImagePainter.State.Error -> {
-                                            // Показываем иконку, только если реально ошибка загрузки
                                             Icon(
                                                 Icons.Filled.Warning,
                                                 contentDescription = "Ошибка",
-                                                tint = MaterialTheme.colorScheme.error,
+                                                tint = AppTheme.colors.MainFailure,
                                                 modifier = Modifier.align(Alignment.Center)
                                             )
                                         }
@@ -365,12 +448,12 @@ fun EstablishmentEditScreen(
                                             .align(Alignment.TopEnd)
                                             .padding(4.dp)
                                             .size(28.dp)
-                                            .background(Color.White.copy(alpha = 0.8f), CircleShape)
+                                            .background(AppTheme.colors.MainContainer.copy(alpha = 0.8f), CircleShape)
                                     ) {
                                         Icon(
                                             Icons.Filled.Close,
                                             contentDescription = "Удалить",
-                                            tint = Color.Red,
+                                            tint = AppTheme.colors.MainFailure,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -383,14 +466,18 @@ fun EstablishmentEditScreen(
                                     modifier = Modifier
                                         .size(140.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                        .border(
+                                            2.dp,
+                                            AppTheme.colors.MainSuccess.copy(alpha = 0.5f),
+                                            RoundedCornerShape(12.dp)
+                                        )
                                         .clickable { photoPickerLauncher.launch("image/*") },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         Icons.Filled.Add,
                                         contentDescription = "Добавить фото",
-                                        tint = MaterialTheme.colorScheme.primary,
+                                        tint = AppTheme.colors.MainSuccess,
                                         modifier = Modifier.size(48.dp)
                                     )
                                 }
@@ -427,13 +514,14 @@ fun EditableTextField(
                 text = label,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                color = AppTheme.colors.MainText
             )
             IconButton(onClick = { onEditToggle(!isEditing) }) {
                 Icon(
                     imageVector = if (isEditing) Icons.Filled.Done else Icons.Filled.Create,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = AppTheme.colors.MainSuccess
                 )
             }
         }
@@ -445,13 +533,23 @@ fun EditableTextField(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = singleLine,
                 minLines = minLines,
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AppTheme.colors.MainBorder,
+                    unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
+                    focusedTextColor = AppTheme.colors.MainText,
+                    unfocusedTextColor = AppTheme.colors.MainText,
+                    focusedLabelColor = AppTheme.colors.SecondaryText,
+                    unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                    cursorColor = AppTheme.colors.MainText
+                )
             )
         } else {
             Text(
                 text = value.ifEmpty { "Не указано" },
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+                color = if (value.isEmpty()) AppTheme.colors.SecondaryText else AppTheme.colors.MainText
             )
         }
     }
@@ -484,11 +582,21 @@ fun ScheduleEditBlock(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(5.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AppTheme.colors.SecondaryContainer
+        ),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
+        ),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Часы работы", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Часы работы",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = AppTheme.colors.MainText
+            )
             Spacer(Modifier.height(12.dp))
 
             days.forEach { day ->
@@ -497,7 +605,11 @@ fun ScheduleEditBlock(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = day, modifier = Modifier.weight(0.4f))
+                    Text(
+                        text = day,
+                        modifier = Modifier.weight(0.4f),
+                        color = AppTheme.colors.MainText
+                    )
                     OutlinedTextField(
                         value = hours,
                         onValueChange = { newHours ->
@@ -507,7 +619,21 @@ fun ScheduleEditBlock(
                         },
                         modifier = Modifier.weight(0.6f),
                         singleLine = true,
-                        placeholder = { Text("09:00 - 22:00") }
+                        placeholder = {
+                            Text(
+                                "09:00 - 22:00",
+                                color = AppTheme.colors.SecondaryText
+                            )
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AppTheme.colors.MainBorder,
+                            unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
+                            focusedTextColor = AppTheme.colors.MainText,
+                            unfocusedTextColor = AppTheme.colors.MainText,
+                            focusedLabelColor = AppTheme.colors.SecondaryText,
+                            unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                            cursorColor = AppTheme.colors.MainText
+                        )
                     )
                 }
             }

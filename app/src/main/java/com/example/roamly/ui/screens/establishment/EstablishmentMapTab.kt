@@ -3,19 +3,12 @@ package com.example.roamly.ui.screens.establishment
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.view.MotionEvent
-import android.view.ViewGroup
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -29,7 +22,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-
+import com.example.roamly.ui.theme.AppTheme
 
 @Composable
 fun EstablishmentMapTab(
@@ -43,38 +36,39 @@ fun EstablishmentMapTab(
 
     // Функция для открытия внешнего приложения навигации
     val startNavigation = {
-        // Формируем URI для запроса маршрута, например, используя Google Maps:
-        // geo:lat,lng?q=query (Просто указывает точку)
-        // https://www.google.com/maps/dir/?api=1&destination=lat,lng (Строит маршрут)
         val uri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude&travelmode=driving")
         val mapIntent = Intent(Intent.ACTION_VIEW, uri)
 
-        // Попытка запустить внешнее приложение
         try {
             context.startActivity(mapIntent)
         } catch (e: Exception) {
-            // В случае ошибки (например, нет браузера или навигационного приложения)
-            // В реальном приложении здесь нужен Toast/Snackbar
             e.printStackTrace()
         }
     }
-
 
     Card(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        elevation = CardDefaults.cardElevation(4.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = AppTheme.colors.SecondaryContainer
+        ),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
+        ),
+        elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AppTheme.colors.SecondaryContainer),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // Занимает большую часть пространства
+                    .weight(1f)
                     .padding(8.dp),
                 factory = { ctx ->
                     // Настройка osmdroid
@@ -84,19 +78,17 @@ fun EstablishmentMapTab(
                         setMultiTouchControls(true)
                         controller.setZoom(14.0)
                         controller.setCenter(point)
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
+                        layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
                         )
 
-                        // ⭐ ИЗМЕНЕНИЕ: БЛОКИРОВКА ПЕРЕМЕЩЕНИЯ (ТОЛЬКО ЗУМ)
+                        // Блокировка перемещения (только зум)
                         this.setOnTouchListener { v, event ->
-                            // Разрешаем только Pinch-to-Zoom (2 пальца)
                             if (event.pointerCount == 2) {
-                                false // Вернуть false, чтобы позволить осмдроид обрабатывать мультитач
+                                false
                             } else {
-                                // Блокируем одиночные касания и перетаскивание
-                                true // Вернуть true, чтобы потреблять событие и не давать ему двигать карту
+                                true
                             }
                         }
                     }
@@ -117,15 +109,21 @@ fun EstablishmentMapTab(
                 }
             )
 
-            // ⭐ ДОБАВЛЕНО: Кнопка для построения маршрута
+            // Кнопка для построения маршрута
             Button(
                 onClick = startNavigation,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 16.dp),
-                shape = MaterialTheme.shapes.medium
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppTheme.colors.MainSuccess,
+                    contentColor = AppTheme.colors.MainText
+                )
             ) {
-                Text(text = "Построить маршрут")
+                Text(
+                    text = "Построить маршрут",
+                    color = AppTheme.colors.MainText
+                )
             }
         }
     }

@@ -55,10 +55,7 @@ MainActivity : ComponentActivity() {
                 LocalAppColors provides targetColors
             ) {
                 MaterialTheme {
-                    MainScreen(
-                        currentTheme = currentThemeConfig,
-                        onThemeChange = { newTheme -> viewModel.switchTheme(newTheme) }
-                    )
+                    MainScreen()
                 }
             }
         }

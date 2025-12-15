@@ -35,6 +35,7 @@ import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
+import com.example.roamly.ui.theme.AppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -88,8 +89,8 @@ fun HomeScreen(
         ) {
             SmallFloatingActionButton(
                 onClick = onMapRefresh,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                containerColor = AppTheme.colors.SecondaryContainer,
+                contentColor = AppTheme.colors.MainText,
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(Icons.Filled.Refresh, contentDescription = "Обновить карту")
@@ -144,10 +145,11 @@ private fun LoadingCard() {
             .fillMaxWidth()
             .height(220.dp),
         shape = RoundedCornerShape(30.dp),
-        elevation = CardDefaults.cardElevation(8.dp)
+        elevation = CardDefaults.cardElevation(8.dp),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = AppTheme.colors.MainBorder)
         }
     }
 }
@@ -157,15 +159,26 @@ private fun ErrorCard(message: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(30.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.MainFailure.copy(alpha = 0.15f))
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-            Spacer(Modifier.width(12.dp))
-            Text(text = message, color = MaterialTheme.colorScheme.onErrorContainer)
+            Icon(
+                Icons.Default.Build,
+                contentDescription = null,
+                tint = AppTheme.colors.MainFailure,
+                modifier = Modifier.size(32.dp)
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = AppTheme.colors.MainText
+            )
         }
     }
 }
@@ -178,60 +191,50 @@ private fun DetailCard(
     onViewDetails: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight(),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(30.dp),
-        elevation = CardDefaults.cardElevation(8.dp)
+        elevation = CardDefaults.cardElevation(12.dp),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.MainContainer)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isPhotoLoading) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        }
-                    } else {
-                        AsyncEstablishmentImage(
-                            photoBase64s = establishment.photoBase64s,
-                            placeholderColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    }
+                AsyncEstablishmentImage(
+                    photoBase64s = establishment.photoBase64s,
+                    placeholderColor = AppTheme.colors.SecondaryContainer,
+                    contentDescription = "Фото заведения"
+                )
 
-                    Spacer(Modifier.width(12.dp))
-
+                Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
                     Text(
                         text = establishment.name,
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = AppTheme.colors.MainText,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.Close, contentDescription = "Закрыть")
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Закрыть",
+                        tint = AppTheme.colors.SecondaryText
+                    )
                 }
             }
 
             Spacer(Modifier.height(16.dp))
-            HorizontalDivider()
+            HorizontalDivider(color = AppTheme.colors.SecondaryBorder)
             Spacer(Modifier.height(16.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val hours = establishment.operatingHoursString ?: "Нет данных"
                 val isClosed = hours.contains("Закрыто", ignoreCase = true)
-                val statusColor = if (isClosed) MaterialTheme.colorScheme.error else Color(0xFF388E3C)
+                val statusColor = if (isClosed) AppTheme.colors.MainFailure else AppTheme.colors.MainSuccess
                 val statusText = when {
                     hours == "Нет данных" -> "Нет данных"
                     isClosed -> "Сейчас закрыто"
@@ -248,7 +251,11 @@ private fun DetailCard(
 
             Button(
                 onClick = onViewDetails,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppTheme.colors.MainSuccess,
+                    contentColor = AppTheme.colors.MainText
+                )
             ) {
                 Text("Смотреть детали")
             }
@@ -275,15 +282,17 @@ fun MyLocationButton(
     }
 
     val backgroundColor = when {
-        isTracking -> MaterialTheme.colorScheme.primary
-        hasLocation -> MaterialTheme.colorScheme.secondaryContainer
-        else -> MaterialTheme.colorScheme.surfaceContainer
+        isTracking -> AppTheme.colors.MainSuccess           // Яркий акцент, когда активно
+        hasLocation -> AppTheme.colors.SecondarySuccess     // Вторичный успех, когда есть позиция
+        else -> AppTheme.colors.SecondaryContainer         // Нейтральный контейнер по умолчанию
     }
+
+    val contentColor = if (isTracking) AppTheme.colors.MainContainer else AppTheme.colors.MainText
 
     val icon = when {
         isTracking -> Icons.Filled.LocationOn
         hasLocation -> Icons.Filled.Place
-        else -> Icons.Filled.LocationOn
+        else -> Icons.Filled.Build
     }
 
     SmallFloatingActionButton(
@@ -300,7 +309,7 @@ fun MyLocationButton(
             }
         },
         containerColor = backgroundColor,
-        contentColor = if (isTracking) Color.White else MaterialTheme.colorScheme.onSurface,
+        contentColor = contentColor,
         modifier = modifier.size(48.dp)
     ) {
         Icon(icon, contentDescription = "Моё местоположение")
@@ -339,7 +348,7 @@ fun OsmMapAndroidView(
 fun AsyncEstablishmentImage(
     photoBase64s: List<String>,
     modifier: Modifier = Modifier,
-    placeholderColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    placeholderColor: Color = AppTheme.colors.SecondaryContainer,
     contentDescription: String? = null
 ) {
     var bytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -378,18 +387,22 @@ fun AsyncEstablishmentImage(
             imageVector = Icons.Default.AccountCircle,
             contentDescription = contentDescription,
             modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = AppTheme.colors.SecondaryText
         )
     }
 }
 
 @Composable
-private fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, color: Color = MaterialTheme.colorScheme.onSurface) {
+private fun InfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    color: Color = AppTheme.colors.MainText
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = AppTheme.colors.MainBorder,
             modifier = Modifier.size(20.dp)
         )
         Spacer(Modifier.width(12.dp))

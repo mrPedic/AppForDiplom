@@ -3,54 +3,36 @@ package com.example.roamly.ui.screens.profileFR
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row // <-- 1. Добавлен импорт
-import androidx.compose.foundation.layout.Spacer // <-- 2. Добавлен импорт
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height // <-- 3. Добавлен импорт
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults // <-- 4. Добавлен импорт
-import androidx.compose.material3.Card // <-- 5. Добавлен импорт
-import androidx.compose.material3.CardDefaults // <-- 6. Добавлен импорт
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
-import com.example.roamly.entity.ViewModel.UserViewModel
-import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.DividerDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.theme.AppTheme
 
 @Composable
 fun ProfileScreen(
@@ -58,19 +40,24 @@ fun ProfileScreen(
     userViewModel: UserViewModel,
     establishmentViewModel: EstablishmentViewModel = hiltViewModel()
 ) {
-    // Логика не изменилась: по-прежнему проверяем статус авторизации
     val user by userViewModel.user.collectAsState()
     val isLoggedIn = user.role != Role.UnRegistered
 
-    if (isLoggedIn) {
-        RegisteredProfileContent(navController, userViewModel, establishmentViewModel)
-    } else {
-        UnRegisteredProfileContent(navController, userViewModel)
+    // Base background matching Booking.kt
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = AppTheme.colors.MainContainer
+    ) {
+        if (isLoggedIn) {
+            RegisteredProfileContent(navController, userViewModel, establishmentViewModel)
+        } else {
+            UnRegisteredProfileContent(navController, userViewModel)
+        }
     }
 }
 
 // ----------------------------------------------------
-// КОМПОНЕНТ ДЛЯ АВТОРИЗОВАННОГО ПОЛЬЗОВАТЕЛЯ
+// LOGGED IN USER CONTENT
 // ----------------------------------------------------
 @Composable
 private fun RegisteredProfileContent(
@@ -92,31 +79,35 @@ private fun RegisteredProfileContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = "Ваш Профиль",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
+            color = AppTheme.colors.MainText,
             modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
         )
 
-        // Карточка информации о пользователе
+        // User Info Card -> Matches BookingItemCard style
         Card(
             modifier = Modifier.fillMaxWidth(),
             elevation = CardDefaults.cardElevation(4.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = "Информация о пользователе",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.MainText,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
+                HorizontalDivider(
+                    color = AppTheme.colors.MainBorder.copy(alpha = 0.5f),
+                    thickness = DividerDefaults.Thickness
+                )
                 Spacer(modifier = Modifier.height(12.dp))
 
                 InfoRow(label = "Имя:", value = currentUser.name ?: "Не указано")
@@ -128,9 +119,10 @@ private fun RegisteredProfileContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Избранные заведения ",
+            text = "Избранные заведения",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
+            color = AppTheme.colors.MainText,
             modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
         )
 
@@ -139,16 +131,15 @@ private fun RegisteredProfileContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(100.dp)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(8.dp)),
+                    .background(AppTheme.colors.SecondaryContainer, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Список избранного пуст",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = AppTheme.colors.SecondaryText
                 )
             }
         } else {
-            // Горизонтальный список избранного
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 8.dp)
@@ -166,14 +157,18 @@ private fun RegisteredProfileContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Кнопки управления
+        // Action Buttons
         Button(
             onClick = {
                 navController.navigate(EstablishmentScreens.UserEstablishments.route)
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp)
+                .padding(bottom = 12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppTheme.colors.SecondaryContainer,
+                contentColor = AppTheme.colors.MainText
+            )
         ){
             Text(text = "Мои Заведения")
         }
@@ -182,20 +177,25 @@ private fun RegisteredProfileContent(
             onClick = {
                 navController.navigate(EstablishmentScreens.CreateEstablishment.route)
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppTheme.colors.MainSuccess, // Primary Action
+                contentColor = AppTheme.colors.MainText
+            )
         ){
             Text(text = "Создать свое заведение")
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
+        // Logout -> Destructive Action
         Button(
             onClick = {
                 userViewModel.logout()
             },
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError
+                containerColor = AppTheme.colors.MainFailure,
+                contentColor = AppTheme.colors.MainText // Or white, depending on theme, but MainText is safe
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -213,13 +213,12 @@ fun FavoriteEstablishmentCard(
 ) {
     Card(
         modifier = Modifier
-            .width(160.dp) // Фиксированная ширина для горизонтального скролла
+            .width(160.dp)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
     ) {
         Column {
-            // Фото
             val imageBytes = remember(item.photoBase64) {
                 if (!item.photoBase64.isNullOrBlank()) base64ToByteArray(item.photoBase64) else null
             }
@@ -228,7 +227,7 @@ fun FavoriteEstablishmentCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(100.dp)
-                    .background(Color.Gray)
+                    .background(AppTheme.colors.MainContainer) // Fallback background
             ) {
                 if (imageBytes != null) {
                     Image(
@@ -238,22 +237,25 @@ fun FavoriteEstablishmentCard(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    // Заглушка
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("Нет фото", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "Нет фото",
+                            color = AppTheme.colors.SecondaryText,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
 
-                // Рейтинг поверх фото
+                // Rating Badge
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(4.dp),
                     shape = RoundedCornerShape(4.dp),
-                    color = Color.Black.copy(alpha = 0.6f)
+                    color = AppTheme.colors.MainContainer.copy(alpha = 0.8f)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -262,13 +264,13 @@ fun FavoriteEstablishmentCard(
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = null,
-                            tint = Color(0xFFFFD700),
+                            tint = AppTheme.colors.MainSuccess,
                             modifier = Modifier.size(12.dp)
                         )
                         Spacer(Modifier.width(2.dp))
                         Text(
                             text = String.format("%.1f", item.rating),
-                            color = Color.White,
+                            color = AppTheme.colors.MainText,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold
                         )
@@ -276,26 +278,27 @@ fun FavoriteEstablishmentCard(
                 }
             }
 
-            // Информация
+            // Info Section
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
                     text = item.name,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.MainText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = convertTypeToWord(item.type),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = AppTheme.colors.SecondaryText,
                     maxLines = 1
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = item.address,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AppTheme.colors.SecondaryText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.9f
@@ -306,7 +309,7 @@ fun FavoriteEstablishmentCard(
 }
 
 // ----------------------------------------------------
-// КОМПОНЕНТ ДЛЯ НЕАВТОРИЗОВАННОГО ПОЛЬЗОВАТЕЛЯ
+// NOT LOGGED IN CONTENT
 // ----------------------------------------------------
 
 @Composable
@@ -314,20 +317,18 @@ private fun UnRegisteredProfileContent(
     navController: NavController,
     userViewModel: UserViewModel
 ) {
-    // ⭐ ИСПРАВЛЕНО: Убран Box с синим фоном.
-    // Используем центрированный Column со стандартным фоном.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center, // Центрируем по вертикали
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = "Профиль",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = AppTheme.colors.MainText
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -335,34 +336,36 @@ private fun UnRegisteredProfileContent(
         Text(
             text = "Вы не авторизованы",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant // Мягкий цвет
+            color = AppTheme.colors.SecondaryText
         )
 
         Spacer(modifier = Modifier.height(48.dp))
 
-
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        // --- Кнопки входа/регистрации ---
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Button(
                 modifier = Modifier
-                    .fillMaxWidth(0.8f) // Немного шире
+                    .fillMaxWidth(0.8f)
                     .padding(bottom = 16.dp),
                 onClick = {
                     navController.navigate(route = LogSinUpScreens.SingUp.route)
                 },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppTheme.colors.MainSuccess, // Action color
+                    contentColor = AppTheme.colors.MainText
+                )
             ) {
                 Text(text = "Создать аккаунт")
             }
 
             Button(
-                modifier = Modifier
-                    .fillMaxWidth(0.8f),
+                modifier = Modifier.fillMaxWidth(0.8f),
                 onClick = {
                     navController.navigate(route = LogSinUpScreens.Login.route)
                 },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppTheme.colors.MainBorder, // Secondary Action
+                    contentColor = AppTheme.colors.MainText
+                )
             ) {
                 Text(text = "Войти в аккаунт")
             }
@@ -370,14 +373,6 @@ private fun UnRegisteredProfileContent(
     }
 }
 
-// ----------------------------------------------------
-// Вспомогательные компоненты
-// ----------------------------------------------------
-
-
-/**
- * Вспомогательный Composable для отображения строки "Метка: Значение"
- */
 @Composable
 private fun InfoRow(label: String, value: String) {
     Row(
@@ -389,12 +384,13 @@ private fun InfoRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = AppTheme.colors.SecondaryText
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            color = AppTheme.colors.MainText
         )
     }
 }

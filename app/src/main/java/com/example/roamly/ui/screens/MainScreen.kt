@@ -4,17 +4,15 @@ package com.example.roamly.ui.screens
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -22,7 +20,6 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,13 +44,12 @@ import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
+import com.example.roamly.ui.theme.AppTheme
 import com.example.roamly.ui.theme.AppThemeConfig
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MainScreen(
-    currentTheme: AppThemeConfig,
-    onThemeChange: (AppThemeConfig) -> Unit,
     navController: NavHostController = rememberNavController(),
     userViewModel: UserViewModel = hiltViewModel(),
     establishmentViewModel: EstablishmentViewModel = hiltViewModel()
@@ -91,21 +87,9 @@ fun MainScreen(
     val showBottomBar = safeRoute !in hideBottomBarRoutes
     val showBackIcon = safeRoute !in hideBackIcon
 
-    Scaffold(
-        topBar = {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp),
-                    color = Color.Transparent,
-                    content = {}
-                )
-        },
-    ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().background(AppTheme.colors.MainContainer)) {
             NavGraph(
                 navController = navController,
-                modifier = Modifier.padding(innerPadding),
                 userViewModel = userViewModel,
                 mapRefreshKey = mapRefreshKey,
                 onMapRefresh = {
@@ -125,9 +109,6 @@ fun MainScreen(
             }
         }
     }
-}
-
-
 
 @Composable
 fun FloatingButtonBar(
@@ -155,27 +136,27 @@ fun FloatingButtonBar(
     Surface(
         modifier = modifier.border(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = AppTheme.colors.MainBorder,
             shape = MaterialTheme.shapes.extraLarge
         ),
         shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+        color = AppTheme.colors.MainContainer.copy(alpha = 0.95f), // Основной контейнер (темный фон в темной теме)
         tonalElevation = 8.dp,
         shadowElevation = 8.dp
     ) {
         NavigationBar(
-            containerColor = Color.Transparent // Навигационная панель сама по себе прозрачна
+            containerColor = Color.Transparent // Прозрачный фон самой NavigationBar
         ) {
             screens.forEach { screen ->
                 NavigationBarItem(
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedIconColor = AppTheme.colors.MainSuccess,      // Яркий акцент для выбранного (например, синий/фиолетовый успех)
+                        unselectedIconColor = AppTheme.colors.SecondaryText, // Вторичный текст для невыбранных
 
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedTextColor = AppTheme.colors.MainSuccess,
+                        unselectedTextColor = AppTheme.colors.SecondaryText,
 
-                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                        indicatorColor = AppTheme.colors.SecondarySuccess.copy(alpha = 0.3f) // Вторичный успех как индикатор
                     ),
                     icon = {
                         Icon(

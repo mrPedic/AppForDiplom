@@ -20,6 +20,7 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.ui.theme.AppTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -76,7 +77,6 @@ fun ReviewCreationScreen(
     }
 
     // --- Функция отправки ---
-    // Явная декларация типа val submitReview: () -> Unit помогает избежать ошибок приведения типов
     val submitReview: () -> Unit = {
         if (userId == null || userId < 1) {
             Toast.makeText(context, "Ошибка: Пользователь не авторизован.", Toast.LENGTH_LONG).show()
@@ -106,7 +106,6 @@ fun ReviewCreationScreen(
         }
     }
 
-
     Column(
         modifier = Modifier
             .padding(16.dp)
@@ -114,13 +113,25 @@ fun ReviewCreationScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // 1. Слайдер для оценки
-        Text("Ваша оценка: ${"%.1f".format(rating)} *", style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "Ваша оценка: ${"%.1f".format(rating)} *",
+            style = MaterialTheme.typography.titleMedium,
+            color = AppTheme.colors.MainText
+        )
+
         Slider(
             value = rating,
             onValueChange = { rating = it },
             valueRange = 1f..5f,
             steps = 3, // 1, 2, 3, 4, 5
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = AppTheme.colors.SelectedItem,
+                activeTrackColor = AppTheme.colors.MainSuccess,
+                inactiveTrackColor = AppTheme.colors.SecondaryContainer,
+                activeTickColor = AppTheme.colors.MainSuccess,
+                inactiveTickColor = AppTheme.colors.SecondaryContainer
+            )
         )
 
         Spacer(Modifier.height(16.dp))
@@ -129,11 +140,35 @@ fun ReviewCreationScreen(
         OutlinedTextField(
             value = reviewText,
             onValueChange = { reviewText = it },
-            label = { Text("Текст отзыва *") },
-            placeholder = { Text("Опишите свои впечатления...") },
+            label = {
+                Text(
+                    text = "Текст отзыва *",
+                    color = AppTheme.colors.SecondaryText
+                )
+            },
+            placeholder = {
+                Text(
+                    text = "Опишите свои впечатления...",
+                    color = AppTheme.colors.SecondaryText.copy(alpha = 0.6f)
+                )
+            },
             minLines = 3,
             maxLines = 6,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AppTheme.colors.MainBorder,
+                unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
+                errorBorderColor = AppTheme.colors.MainFailure,
+                focusedTextColor = AppTheme.colors.MainText,
+                unfocusedTextColor = AppTheme.colors.MainText,
+                cursorColor = AppTheme.colors.MainText,
+                focusedLabelColor = AppTheme.colors.SecondaryText,
+                unfocusedLabelColor = AppTheme.colors.SecondaryText,
+                focusedContainerColor = AppTheme.colors.MainContainer,
+                unfocusedContainerColor = AppTheme.colors.MainContainer,
+                focusedPlaceholderColor = AppTheme.colors.SecondaryText.copy(alpha = 0.6f),
+                unfocusedPlaceholderColor = AppTheme.colors.SecondaryText.copy(alpha = 0.6f)
+            )
         )
 
         Spacer(Modifier.height(16.dp))
@@ -141,27 +176,50 @@ fun ReviewCreationScreen(
         // 3. Кнопка выбора фото
         Button(
             onClick = { imagePickerLauncher.launch("image/*") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppTheme.colors.SecondaryContainer,
+                contentColor = AppTheme.colors.MainText,
+                disabledContainerColor = AppTheme.colors.SecondaryContainer.copy(alpha = 0.5f),
+                disabledContentColor = AppTheme.colors.MainText.copy(alpha = 0.5f)
+            ),
+            border = ButtonDefaults.outlinedButtonBorder.copy(
+                brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
+            )
         ) {
-            Text("Выбрать фото (опционально)")
+            Text(
+                text = "Выбрать фото (опционально)",
+                color = AppTheme.colors.MainText
+            )
         }
 
         Spacer(Modifier.height(8.dp))
 
         // 4. Отображение выбранного фото
         selectedImageUri?.let { uri ->
-            Box(
+            Card(
                 modifier = Modifier
                     .height(150.dp)
                     .fillMaxWidth()
-                    .padding(8.dp)
-            ) {
-                // Используем Coil для загрузки изображения из Uri
-                Image(
-                    painter = rememberAsyncImagePainter(uri),
-                    contentDescription = "Выбранное фото",
-                    modifier = Modifier.fillMaxSize()
+                    .padding(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = AppTheme.colors.SecondaryContainer
+                ),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
                 )
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Используем Coil для загрузки изображения из Uri
+                    Image(
+                        painter = rememberAsyncImagePainter(uri),
+                        contentDescription = "Выбранное фото",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
 
@@ -169,15 +227,35 @@ fun ReviewCreationScreen(
 
         // 5. Кнопка отправки
         Button(
-            onClick = submitReview, // ⭐ ИСПРАВЛЕНИЕ: Убрано as () -> Unit
+            onClick = submitReview,
             enabled = !isLoading && reviewText.isNotBlank() && rating > 0f,
-            modifier = Modifier.fillMaxWidth().height(50.dp)
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppTheme.colors.MainSuccess,
+                contentColor = AppTheme.colors.MainText,
+                disabledContainerColor = AppTheme.colors.MainSuccess.copy(alpha = 0.5f),
+                disabledContentColor = AppTheme.colors.MainText.copy(alpha = 0.5f)
+            )
         ) {
             if (isLoading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                CircularProgressIndicator(
+                    color = AppTheme.colors.MainText,
+                    modifier = Modifier.size(24.dp)
+                )
             } else {
-                Text("Отправить отзыв")
+                Text(
+                    text = "Отправить отзыв",
+                    color = AppTheme.colors.MainText
+                )
             }
         }
+
+        // 6. Индикатор обязательных полей
+        Text(
+            text = "* - обязательные поля",
+            style = MaterialTheme.typography.bodySmall,
+            color = AppTheme.colors.SecondaryText,
+            modifier = Modifier.padding(top = 16.dp)
+        )
     }
 }

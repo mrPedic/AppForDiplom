@@ -4,32 +4,36 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-
 @Immutable
 data class MyAppColors(
-    // Твои переменные (Светлые тона)
-    val lightHart: Color,    // Самый светлый фон (Background)
-    val lightMedium: Color,  // Светлый акцент/Карточка (Camel/Dawn)
-    val lightLow: Color,     // Средний светлый/Нейтральный акцент
-
-    // Добавленные переменные (для текста, темного акцента и семантики)
-    val darkMain: Color,     // Основной темный акцент (Blue/Violet)
-    val darkContrast: Color, // Самый темный/Контрастный (Navy/Midnight)
-    val darkChoc: Color,     // Темный фон/Кнопки (Choc/Twilight)
-    val success: Color,      // Цвет успеха (зеленый/синий)
-    val failure: Color       // Цвет ошибки (красный)
+    val MainText: Color,
+    val SecondaryText: Color,
+    val MainContainer: Color,
+    val SecondaryContainer: Color,
+    val MainBorder: Color,
+    val SecondaryBorder: Color,
+    val MainSuccess: Color,
+    val SecondarySuccess: Color,
+    val MainFailure: Color,
+    val SecondaryFailure: Color,
+    val SelectedItem: Color,
+    val UnSelectedItem: Color
 )
 
 val LocalAppColors = staticCompositionLocalOf {
     // Дефолтные значения (не будут использоваться, но нужны для инициализации)
     MyAppColors(
-        lightHart = Color.Unspecified,
-        lightMedium = Color.Unspecified,
-        lightLow = Color.Unspecified,
-        darkMain = Color.Unspecified,
-        darkContrast = Color.Unspecified,
-        darkChoc = Color.Unspecified,
-        success = Color.Unspecified,
-        failure = Color.Unspecified
+        MainText = Color.Unspecified,
+        SecondaryText = Color.Unspecified,
+        MainContainer = Color.Unspecified,
+        SecondaryContainer = Color.Unspecified,
+        MainBorder = Color.Unspecified,
+        SecondaryBorder = Color.Unspecified,
+        MainSuccess = Color.Unspecified,
+        SecondarySuccess = Color.Unspecified,
+        MainFailure = Color.Unspecified,
+        SecondaryFailure = Color.Unspecified,
+        SelectedItem = Color.Unspecified,
+        UnSelectedItem = Color.Unspecified
     )
 }

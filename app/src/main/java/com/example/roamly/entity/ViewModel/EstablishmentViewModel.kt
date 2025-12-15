@@ -170,18 +170,44 @@ class EstablishmentViewModel @Inject constructor(
             .debounce(300L) // Ждем 300 мс
             .distinctUntilChanged() // Игнорируем, если ничего не изменилось
             .onEach { (query, types) ->
-
                 // Выполняем поиск, только если запрос не пуст ИЛИ выбраны фильтры
                 if (query.isBlank() && types.isEmpty()) {
                     _establishmentSearchResults.value = emptyList()
                     _isSearchLoading.value = false
                     Log.i("EstViewModel", "Запрос пуст, фильтры не выбраны.")
                 } else {
-                    // Если запрос пуст, но есть фильтры, query будет "" (пустая строка)
+                    // ВЫПОЛНЯЕМ ПОИСК ПРИ ИЗМЕНЕНИИ ФИЛЬТРОВ
+                    performSearch(query, types)
                 }
             }
             .launchIn(viewModelScope)
     }
+
+    private fun performSearch(query: String, types: Set<TypeOfEstablishment>) {
+        viewModelScope.launch {
+            _isSearchLoading.value = true
+            try {
+                val typeNames = if (types.isNotEmpty()) {
+                    types.map { it.name }
+                } else null
+
+                val results = apiService.searchEstablishments(
+                    query = if (query.isNotBlank()) query else null,
+                    types = typeNames
+                )
+
+                _establishmentSearchResults.value = results
+                Log.i("EstViewModel", "Найдено заведений: ${results.size}")
+            } catch (e: Exception) {
+                Log.e("EstViewModel", "Ошибка поиска: ${e.message}")
+                _errorMessage.value = "Ошибка при поиске заведений"
+                _establishmentSearchResults.value = emptyList()
+            } finally {
+                _isSearchLoading.value = false
+            }
+        }
+    }
+
 
     // =========================================== //
     // ===== МЕТОДЫ ПОИСКА (Search Methods) ===== //
@@ -1114,7 +1140,7 @@ class EstablishmentViewModel @Inject constructor(
                 removeAll { it.id == establishment.id }
                 add(0, establishment)
             }
-            val finalHistory = newList.take(5)
+            val finalHistory = newList.take(3)
 
             // СОХРАНЯЕМ В ХРАНИЛИЩЕ ПОСЛЕ ОБНОВЛЕНИЯ
             viewModelScope.launch {

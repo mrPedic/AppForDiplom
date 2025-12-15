@@ -18,15 +18,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +56,7 @@ import com.example.roamly.entity.ViewModel.EstablishmentDetailViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
@@ -100,66 +102,74 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
     val tabs = listOf("Описание", "Меню", "Отзывы", "Карта")
 
     LaunchedEffect(Unit) {
-        scrollBehavior.state.heightOffset = 0f  // Ensure header is expanded initially
+        scrollBehavior.state.heightOffset = 0f
     }
 
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 3) {
             scrollBehavior.state.heightOffset = 0f
         }
-        // Removed the line that collapses for other tabs; let scrolling handle collapse
     }
+
+    val colors = AppTheme.colors
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    (descriptionState as? LoadState.Success)?.data?.let { desc ->
-                        Text(desc.name)
-                    } ?: Text("Заведение")
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
-                    }
-                },
-                actions = {
-                    val isFavorite = (favoriteState as? LoadState.Success)?.data ?: false
-                    if (user.id != null) {
-                        IconButton(onClick = {
-                            if (isFavorite) {
-                                viewModel.removeFavoriteEstablishment(userId, establishmentId)
-                            } else {
-                                viewModel.addFavoriteEstablishment(userId, establishmentId)
+            Column {
+                Spacer(modifier = Modifier.fillMaxWidth().height(17.dp))
+                TopAppBar(
+                    title = {
+                        (descriptionState as? LoadState.Success)?.data?.let { desc ->
+                            Text(desc.name, color = colors.MainText)
+                        } ?: Text("Заведение", color = colors.MainText)
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад", tint = colors.MainText)
+                        }
+                    },
+                    actions = {
+                        val isFavorite = (favoriteState as? LoadState.Success)?.data ?: false
+                        if (user.id != null) {
+                            IconButton(onClick = {
+                                if (isFavorite) {
+                                    viewModel.removeFavoriteEstablishment(userId, establishmentId)
+                                } else {
+                                    viewModel.addFavoriteEstablishment(userId, establishmentId)
+                                }
+                            }) {
+                                Icon(
+                                    if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = "Избранное",
+                                    tint = if (isFavorite) AppTheme.colors.MainFailure else colors.MainText
+                                )
                             }
-                        }) {
-                            Icon(
-                                if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                contentDescription = "Избранное",
-                                tint = if (isFavorite) Color.Red else LocalContentColor.current
-                            )
                         }
-                    }
-                    if (isCreator) {
-                        IconButton(onClick = {
-                            navController.navigate(EstablishmentScreens.EstablishmentEdit.route.replace("{id}", establishmentId.toString()))
-                        }) {
-                            Icon(
-                                Icons.Filled.Create,
-                                contentDescription = "Редактировать заведение",
-                                tint = LocalContentColor.current
-                            )
+                        if (isCreator) {
+                            IconButton(onClick = {
+                                navController.navigate(EstablishmentScreens.EstablishmentEdit.route.replace("{id}", establishmentId.toString()))
+                            }) {
+                                Icon(
+                                    Icons.Filled.Create,
+                                    contentDescription = "Редактировать заведение",
+                                    tint = colors.MainText
+                                )
+                            }
                         }
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-                windowInsets = WindowInsets(top = 0.dp),
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                    },
+                    scrollBehavior = scrollBehavior,
+                    windowInsets = WindowInsets(top = 0.dp),
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = colors.MainContainer.copy(alpha = 0.95f),
+                        scrolledContainerColor = colors.MainContainer,
+                        navigationIconContentColor = colors.MainText,
+                        titleContentColor = colors.MainText,
+                        actionIconContentColor = colors.MainText
+                    )
                 )
-            )
+            }
         },
+        containerColor = colors.MainContainer,
         contentWindowInsets = WindowInsets(top = 0.dp)
     ) { innerPadding ->
         Column(
@@ -173,29 +183,25 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
             val animatedHeight by animateFloatAsState(targetValue = 250f * (1f - collapsedFraction))
             val animatedAlpha by animateFloatAsState(targetValue = 1f - collapsedFraction)
 
+            // Правильная логика фотографий
             if (photoList.isNotEmpty() && animatedHeight > 1f) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp)
-                        .clipToBounds()
+                        .height(animatedHeight.dp)
+                        .graphicsLayer { alpha = animatedAlpha }
                 ) {
-                    val imagePagerState = rememberPagerState(pageCount = { photoList.size })
+                    val photoPagerState = rememberPagerState(pageCount = { photoList.size })
                     HorizontalPager(
-                        state = imagePagerState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(animatedHeight.dp)
-                            .graphicsLayer { alpha = animatedAlpha.coerceIn(0f, 1f) }
-                            .nestedScroll(scrollBehavior.nestedScrollConnection)
+                        state = photoPagerState,
+                        modifier = Modifier.fillMaxSize()
                     ) { page ->
+                        val imageBytes = photoList[page]
                         Image(
                             painter = rememberAsyncImagePainter(
                                 ImageRequest.Builder(LocalContext.current)
-                                    .data(photoList[page])
+                                    .data(imageBytes)
                                     .crossfade(true)
-//                                    .placeholder(R.drawable.placeholder_image)
-//                                    .error(R.drawable.error_image)
                                     .build()
                             ),
                             contentDescription = null,
@@ -206,47 +212,68 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
                 }
             }
 
-            TabRow(selectedTabIndex = pagerState.currentPage) {
+            // Вставьте этот код вместо обычного TabRow
+            TabRow(
+                selectedTabIndex = pagerState.currentPage,
+                containerColor = AppTheme.colors.MainContainer.copy(alpha = 0.95f), // Полупрозрачный основной контейнер как в нижней панели
+                divider = { }, // Убираем стандартный divider, если не нужен
+                indicator = { tabPositions ->
+                    TabRowDefaults.Indicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                        color = AppTheme.colors.SecondarySuccess.copy(alpha = 0.3f), // Полупрозрачный индикатор как в NavigationBar
+                        height = 3.dp
+                    )
+                }
+            ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = pagerState.currentPage == index,
                         onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
-                        text = { Text(title) }
+                        text = {
+                            Text(
+                                title,
+                                color = if (pagerState.currentPage == index)
+                                    AppTheme.colors.MainSuccess
+                                else
+                                    AppTheme.colors.SecondaryText
+                            )
+                        },
+                        selectedContentColor = AppTheme.colors.MainSuccess,
+                        unselectedContentColor = AppTheme.colors.SecondaryText
                     )
                 }
             }
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                userScrollEnabled = true,
-                flingBehavior = PagerDefaults.flingBehavior(state = pagerState)
-            ) { page ->
+            HorizontalPager(state = pagerState) { page ->
                 when (page) {
                     0 -> DescriptionTab(
-                        descriptionState = descriptionState,
-                        onRetry = { viewModel.retryDescription(establishmentId) },
-                        establishmentId = establishmentId,
-                        navController = navController,
-                        scrollBehavior = scrollBehavior
+                        descriptionState,
+                        { viewModel.descriptionState },
+                        scrollBehavior,
+                        isCreator, // Добавлено
+                        establishmentId, // Добавлено
+                        navController // Добавлено
                     )
                     1 -> MenuTab(
-                        menuState = menuState,
-                        onRetry = { viewModel.retryMenu(establishmentId) },
-                        scrollBehavior = scrollBehavior,
-                        isCreator = isCreator,
-                        establishmentId = establishmentId,
-                        navController = navController
+                        menuState,
+                        { viewModel.menuState },
+                        scrollBehavior,
+                        isCreator,
+                        establishmentId,
+                        navController
                     )
                     2 -> ReviewsTab(
-                        reviewsState = reviewsState,
-                        onRetry = { viewModel.retryReviews(establishmentId) },
-                        scrollBehavior = scrollBehavior
+                        reviewsState,
+                        { viewModel.reviewsState },
+                        scrollBehavior,
+                        isCreator, // Добавлено
+                        establishmentId, // Добавлено
+                        navController // Добавлено
                     )
                     3 -> MapTab(
-                        mapState = mapState,
-                        onRetry = { viewModel.retryMap(establishmentId) },
-                        scrollBehavior = scrollBehavior
+                        mapState,
+                        { viewModel.mapState },
+                        scrollBehavior
                     )
                 }
             }
@@ -258,9 +285,10 @@ fun EstablishmentDetailScreen(establishmentId: Long, navController: NavControlle
 private fun DescriptionTab(
     descriptionState: LoadState<DescriptionDTO>,
     onRetry: () -> Unit,
-    establishmentId: Long,
-    navController: NavController,
-    scrollBehavior: TopAppBarScrollBehavior
+    scrollBehavior: TopAppBarScrollBehavior,
+    isCreator: Boolean, // Добавлено
+    establishmentId: Long, // Добавлено
+    navController: NavController // Добавлено
 ) {
     val state = rememberLazyListState()
     LazyContent(state, scrollBehavior, true) {
@@ -268,16 +296,12 @@ private fun DescriptionTab(
             when (descriptionState) {
                 is LoadState.Loading -> DelayedLoadingIndicator(150)
                 is LoadState.Error -> ErrorItem(descriptionState.message, onRetry)
-                is LoadState.Success -> DescriptionSection(descriptionState.data)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = { navController.navigate(BookingScreens.CreateBooking.route.replace("{${BookingScreens.ESTABLISHMENT_ID_KEY}}", establishmentId.toString())) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Filled.DateRange, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Забронировать столик")
+                is LoadState.Success -> DescriptionSection(
+                    desc = descriptionState.data,
+                    isCreator = isCreator, // Добавлено
+                    establishmentId = establishmentId, // Добавлено
+                    navController = navController // Добавлено
+                )
             }
         }
     }
@@ -304,7 +328,11 @@ private fun MenuTab(
                             onClick = {
                                 navController.navigate(EstablishmentScreens.MenuEdit.route.replace("{id}", establishmentId.toString()))
                             },
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppTheme.colors.SecondaryContainer,
+                                contentColor = AppTheme.colors.SecondaryText
+                            )
                         ) {
                             Text("Редактировать меню")
                         }
@@ -320,7 +348,10 @@ private fun MenuTab(
 private fun ReviewsTab(
     reviewsState: LoadState<List<ReviewEntity>>,
     onRetry: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior
+    scrollBehavior: TopAppBarScrollBehavior,
+    isCreator: Boolean, // Добавлено
+    establishmentId: Long, // Добавлено
+    navController: NavController // Добавлено
 ) {
     val state = rememberLazyListState()
     LazyContent(state, scrollBehavior, true) {
@@ -328,7 +359,12 @@ private fun ReviewsTab(
             when (reviewsState) {
                 is LoadState.Loading -> DelayedLoadingIndicator(150)
                 is LoadState.Error -> ErrorItem(reviewsState.message, onRetry)
-                is LoadState.Success -> ReviewsSection(reviewsState.data)
+                is LoadState.Success -> ReviewsSection(
+                    reviews = reviewsState.data,
+                    isCreator = isCreator, // Добавлено
+                    establishmentId = establishmentId, // Добавлено
+                    navController = navController // Добавлено
+                )
             }
         }
     }
@@ -368,7 +404,6 @@ private fun DelayedLoadingIndicator(delayMillis: Long = 150L) {
     }
 }
 
-// Исправленная функция — теперь content имеет тип LazyListScope.() -> Unit
 @Composable
 private fun LazyContent(
     state: LazyListState,
@@ -386,39 +421,93 @@ private fun LazyContent(
     )
 }
 
-
 @Composable
 private fun ErrorItem(message: String, onRetry: () -> Unit) {
+    val colors = AppTheme.colors
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Text("Ошибка: $message")
+        Text("Ошибка: $message", color = colors.MainFailure)
         Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onRetry) { Text("Повторить") }
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = colors.MainSuccess)
+        ) { Text("Повторить", color = colors.MainText) }
     }
 }
 
-// Остальные composables без изменений
 @Composable
-fun DescriptionSection(desc: DescriptionDTO) {
-    Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(desc.description, style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Адрес: ${desc.address}", style = MaterialTheme.typography.bodyMedium)
-            Text("Рейтинг: ${desc.rating}", style = MaterialTheme.typography.bodyMedium)
-            Text("Тип: ${desc.type}", style = MaterialTheme.typography.bodyMedium)
-            desc.operatingHoursString?.let { Text("Часы работы: $it", style = MaterialTheme.typography.bodyMedium) }
-            Text("Дата создания: ${desc.dateOfCreation}", style = MaterialTheme.typography.bodyMedium)
+fun DescriptionSection(
+    desc: DescriptionDTO,
+    isCreator: Boolean, // Добавлено
+    establishmentId: Long, // Добавлено
+    navController: NavController // Добавлено
+) {
+    val colors = AppTheme.colors
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(4.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(desc.description, style = MaterialTheme.typography.bodyLarge, color = colors.MainText)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Адрес: ${desc.address}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
+                Text("Рейтинг: ${desc.rating}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
+                Text("Тип: ${desc.type}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
+
+                // Улучшенное отображение времени работы
+                desc.operatingHoursString?.let { operatingHours ->
+                    Column {
+                        Text("Часы работы:", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
+                        // Разбиваем строку на отдельные дни
+                        operatingHours.split(";").forEach { dayHours ->
+                            Text(
+                                text = "  • $dayHours",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.SecondaryText
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                Text("Дата создания: ${desc.dateOfCreation}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Кнопка для создания бронирования
+        Button(
+            onClick = {
+                navController.navigate(BookingScreens.CreateBooking.createRoute(establishmentId))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colors.MainSuccess,
+                contentColor = colors.MainText
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Build, // Нужно добавить этот иконку в импорты
+                contentDescription = "Забронировать",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Забронировать столик")
         }
     }
 }
 
 @Composable
 fun MenuSection(menu: MenuOfEstablishment) {
+    val colors = AppTheme.colors
     Column {
-        Text("Еда", style = MaterialTheme.typography.headlineSmall)
+        Text("Еда", style = MaterialTheme.typography.headlineSmall, color = colors.MainText)
         Spacer(modifier = Modifier.height(8.dp))
         menu.foodGroups.forEach { group ->
-            Text(group.name ?: "Группа", fontWeight = FontWeight.Bold)
+            Text(group.name ?: "Группа", fontWeight = FontWeight.Bold, color = colors.MainText)
             LazyRow {
                 items(group.items) { food ->
                     FoodCard(food = food, onClick = {})
@@ -427,10 +516,10 @@ fun MenuSection(menu: MenuOfEstablishment) {
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
-        Text("Напитки", style = MaterialTheme.typography.headlineSmall)
+        Text("Напитки", style = MaterialTheme.typography.headlineSmall, color = colors.MainText)
         Spacer(modifier = Modifier.height(8.dp))
         menu.drinksGroups.forEach { group ->
-            Text(group.name ?: "Группа", fontWeight = FontWeight.Bold)
+            Text(group.name ?: "Группа", fontWeight = FontWeight.Bold, color = colors.MainText)
             LazyRow {
                 items(group.items) { drink ->
                     DrinkCard(drink = drink, onClick = {})
@@ -443,34 +532,83 @@ fun MenuSection(menu: MenuOfEstablishment) {
 }
 
 @Composable
-fun ReviewsSection(reviews: List<ReviewEntity>) {
-    if (reviews.isEmpty()) {
-        Text("Нет отзывов", style = MaterialTheme.typography.bodyLarge)
-    } else {
-        reviews.forEach { review ->
-            Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), elevation = CardDefaults.cardElevation(4.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Рейтинг: ${review.rating}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(review.reviewText, style = MaterialTheme.typography.bodyMedium)
-                    review.photoBase64?.let { photo ->
-                        Image(
-                            painter = rememberAsyncImagePainter(Base64.decode(photo, Base64.DEFAULT)),
-                            contentDescription = null,
-                            modifier = Modifier.size(100.dp).padding(top = 8.dp),
-                            contentScale = ContentScale.Crop
-                        )
+fun ReviewsSection(
+    reviews: List<ReviewEntity>,
+    isCreator: Boolean, // Добавлено
+    establishmentId: Long, // Добавлено
+    navController: NavController // Добавлено
+) {
+    val colors = AppTheme.colors
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Показываем кнопку создания отзыва только если пользователь не владелец
+        if (!isCreator) {
+            Button(
+                onClick = {
+                    navController.navigate(EstablishmentScreens.ReviewCreation.createRoute(establishmentId))
+                },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.SecondarySuccess,
+                    contentColor = colors.MainText
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Build, // Нужно добавить этот иконку в импорты
+                    contentDescription = "Написать отзыв",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Написать отзыв")
+            }
+        }
+
+        if (reviews.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(4.dp),
+                colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Пока нет отзывов", style = MaterialTheme.typography.bodyLarge, color = colors.SecondaryText)
+                }
+            }
+        } else {
+            reviews.forEach { review ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    elevation = CardDefaults.cardElevation(4.dp),
+                    colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer),
+                    border = BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Рейтинг: ${review.rating}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = colors.MainText)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(review.reviewText, style = MaterialTheme.typography.bodyMedium, color = colors.MainText)
+                        review.photoBase64?.let { photo ->
+                            Image(
+                                painter = rememberAsyncImagePainter(Base64.decode(photo, Base64.DEFAULT)),
+                                contentDescription = null,
+                                modifier = Modifier.size(100.dp).padding(top = 8.dp),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Дата: ${review.dateOfCreation}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Дата: ${review.dateOfCreation}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                 }
             }
         }
     }
 }
-
 @Composable
 fun MapSection(mapData: MapDTO) {
+    val colors = AppTheme.colors
     Box(
         modifier = Modifier
             .fillMaxWidth()
