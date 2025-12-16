@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -344,6 +346,7 @@ private fun MenuTab(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 private fun ReviewsTab(
     reviewsState: LoadState<List<ReviewEntity>>,
@@ -448,7 +451,7 @@ fun DescriptionSection(
             elevation = CardDefaults.cardElevation(4.dp),
             colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(5.dp)) {
                 Text(desc.description, style = MaterialTheme.typography.bodyLarge, color = colors.MainText)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Адрес: ${desc.address}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
@@ -503,67 +506,74 @@ fun DescriptionSection(
 @Composable
 fun MenuSection(menu: MenuOfEstablishment) {
     val colors = AppTheme.colors
-    Column {
-        Text("Еда", style = MaterialTheme.typography.headlineSmall, color = colors.MainText)
-        Spacer(modifier = Modifier.height(8.dp))
-        menu.foodGroups.forEach { group ->
-            Text(group.name ?: "Группа", fontWeight = FontWeight.Bold, color = colors.MainText)
-            LazyRow {
-                items(group.items) { food ->
-                    FoodCard(food = food, onClick = {})
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-        Text("Напитки", style = MaterialTheme.typography.headlineSmall, color = colors.MainText)
-        Spacer(modifier = Modifier.height(8.dp))
-        menu.drinksGroups.forEach { group ->
-            Text(group.name ?: "Группа", fontWeight = FontWeight.Bold, color = colors.MainText)
-            LazyRow {
-                items(group.items) { drink ->
-                    DrinkCard(drink = drink, onClick = {})
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
 
-@Composable
-fun ReviewsSection(
-    reviews: List<ReviewEntity>,
-    isCreator: Boolean, // Добавлено
-    establishmentId: Long, // Добавлено
-    navController: NavController // Добавлено
-) {
-    val colors = AppTheme.colors
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // Показываем кнопку создания отзыва только если пользователь не владелец
-        if (!isCreator) {
-            Button(
-                onClick = {
-                    navController.navigate(EstablishmentScreens.ReviewCreation.createRoute(establishmentId))
-                },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.SecondarySuccess,
-                    contentColor = colors.MainText
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Build, // Нужно добавить этот иконку в импорты
-                    contentDescription = "Написать отзыв",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Написать отзыв")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp) // Добавляем отступ снизу для навигации
+    ) {
+        // Раздел еды
+        if (menu.foodGroups.isNotEmpty()) {
+            Text(
+                "Еда",
+                style = MaterialTheme.typography.headlineSmall,
+                color = colors.MainText,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            menu.foodGroups.forEach { group ->
+                if (group.items.isNotEmpty()) {
+                    Text(
+                        group.name ?: "Группа",
+                        fontWeight = FontWeight.Bold,
+                        color = colors.MainText,
+                        modifier = Modifier.padding(bottom = 8.dp, top = 4.dp)
+                    )
+
+                    LazyRow(
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        items(group.items) { food ->
+                            SimpleFoodCard(food = food)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                    }
+                }
             }
         }
 
-        if (reviews.isEmpty()) {
+        // Раздел напитков
+        if (menu.drinksGroups.isNotEmpty()) {
+            Text(
+                "Напитки",
+                style = MaterialTheme.typography.headlineSmall,
+                color = colors.MainText,
+                modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
+            )
+
+            menu.drinksGroups.forEach { group ->
+                if (group.items.isNotEmpty()) {
+                    Text(
+                        group.name ?: "Группа",
+                        fontWeight = FontWeight.Bold,
+                        color = colors.MainText,
+                        modifier = Modifier.padding(bottom = 8.dp, top = 4.dp)
+                    )
+
+                    LazyRow(
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        items(group.items) { drink ->
+                            SimpleDrinkCard(drink = drink)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Если меню пустое
+        if (menu.foodGroups.isEmpty() && menu.drinksGroups.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(4.dp),
@@ -575,37 +585,181 @@ fun ReviewsSection(
                         .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Пока нет отзывов", style = MaterialTheme.typography.bodyLarge, color = colors.SecondaryText)
-                }
-            }
-        } else {
-            reviews.forEach { review ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    elevation = CardDefaults.cardElevation(4.dp),
-                    colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer),
-                    border = BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Рейтинг: ${review.rating}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = colors.MainText)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(review.reviewText, style = MaterialTheme.typography.bodyMedium, color = colors.MainText)
-                        review.photoBase64?.let { photo ->
-                            Image(
-                                painter = rememberAsyncImagePainter(Base64.decode(photo, Base64.DEFAULT)),
-                                contentDescription = null,
-                                modifier = Modifier.size(100.dp).padding(top = 8.dp),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Дата: ${review.dateOfCreation}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    }
+                    Text(
+                        "Меню пока не добавлено",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.SecondaryText
+                    )
                 }
             }
         }
     }
 }
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun ReviewsSection(
+    reviews: List<ReviewEntity>,
+    isCreator: Boolean,
+    establishmentId: Long,
+    navController: NavController
+) {
+    val colors = AppTheme.colors
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Показываем кнопку создания отзыва только если пользователь не владелец
+        if (!isCreator) {
+            OutlinedButton(
+                onClick = {
+                    navController.navigate(EstablishmentScreens.ReviewCreation.createRoute(establishmentId))
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 5.dp, vertical = 8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = colors.MainSuccess.copy(alpha = 0.1f),
+                    contentColor = colors.MainSuccess
+                ),
+                border = BorderStroke(1.dp, colors.MainSuccess.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Написать отзыв",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Написать отзыв", fontWeight = FontWeight.Medium)
+            }
+        }
+
+        if (reviews.isEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                elevation = CardDefaults.cardElevation(0.dp),
+                colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Default.Build,
+                        contentDescription = null,
+                        tint = colors.SecondaryText,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Пока нет отзывов",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.MainText
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Будьте первым, кто оставит отзыв!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.SecondaryText
+                    )
+                }
+            }
+        } else {
+            // Статистика отзывов
+            val averageRating = reviews.map { it.rating }.average()
+            val ratingCount = reviews.size
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = colors.MainContainer,
+                    contentColor = colors.MainText
+                ),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Рейтинг заведения",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.SecondaryText
+                        )
+                        Text(
+                            String.format("%.1f", averageRating),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.MainText
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            repeat(5) { index ->
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = if (index < averageRating.toInt())
+                                        colors.MainSuccess
+                                    else
+                                        colors.SecondaryBorder,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "Всего отзывов",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.SecondaryText
+                        )
+                        Text(
+                            ratingCount.toString(),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.MainText
+                        )
+                        Text(
+                            "на основе отзывов",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.SecondaryText
+                        )
+                    }
+                }
+            }
+
+            // Список отзывов
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                reviews.forEach { review ->
+                    ReviewCard(
+                        review = review,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun MapSection(mapData: MapDTO) {
     val colors = AppTheme.colors

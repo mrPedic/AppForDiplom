@@ -10,8 +10,8 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitFactory {
     //IP при подключении через мобильную точку доступа
-    //const val BASE_URL = "http://10.39.189.228:8080"
-    const val BASE_URL = "https://x8tsh9tc-8080.euw.devtunnels.ms"
+    const val BASE_URL = "http://10.39.189.228:8080"
+    // const val BASE_URL = "https://x8tsh9tc-8080.euw.devtunnels.ms"
 
 
     // const val BASE_URL = "http://192.168.100.174:8080"

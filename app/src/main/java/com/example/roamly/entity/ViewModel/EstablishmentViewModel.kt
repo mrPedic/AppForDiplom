@@ -79,6 +79,7 @@ class EstablishmentViewModel @Inject constructor(
 
 
 
+
     // --- StateFlow для неодобренных заведений (Admin) ---
     private val _pendingEstablishments =
         MutableStateFlow<List<EstablishmentDisplayDto>>(emptyList())
