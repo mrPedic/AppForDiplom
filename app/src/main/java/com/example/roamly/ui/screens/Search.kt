@@ -2,6 +2,7 @@ package com.example.roamly.ui.screens
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +23,7 @@ import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.entity.classes.TypeOfEstablishment
 import com.example.roamly.entity.classes.convertTypeToWord
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.focus.focusModifier
 import androidx.compose.ui.text.font.FontWeight
 import com.example.roamly.ui.theme.AppTheme
 import androidx.compose.ui.graphics.Color // Добавлен импорт для Color.Transparent
@@ -240,7 +242,7 @@ fun EstablishmentResultItem(
     viewModel: EstablishmentViewModel,
     isRecent: Boolean
 ) {
-    val backgroundColor = if (isRecent) AppTheme.colors.SecondaryContainer.copy(alpha = 0.5f) else AppTheme.colors.MainContainer
+    val backgroundColor = AppTheme.colors.SecondaryContainer
 
     Card(
         modifier = Modifier

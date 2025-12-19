@@ -697,7 +697,7 @@ fun GuestCountSelector(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Default.Build, // TODO: Заменить на Remove или Minus
+                            Icons.Default.Build,
                             contentDescription = "Уменьшить количество гостей",
                             modifier = Modifier.size(24.dp),
                             tint = if (numPeople > 1) AppTheme.colors.MainText

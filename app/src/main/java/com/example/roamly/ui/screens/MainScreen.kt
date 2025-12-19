@@ -2,6 +2,7 @@
 
 package com.example.roamly.ui.screens
 
+import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
@@ -47,6 +48,7 @@ import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.theme.AppTheme
 import com.example.roamly.ui.theme.AppThemeConfig
 
+@SuppressLint("SuspiciousIndentation")
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MainScreen(
@@ -72,7 +74,8 @@ fun MainScreen(
         BookingScreens.CreateBooking.route,
         EstablishmentScreens.EstablishmentEdit.route,
         EstablishmentScreens.MapPicker.route,
-        AdminScreens.PendingList.route
+        AdminScreens.PendingList.route,
+        BookingScreens.BookingDetail.route
     )
 
     val hideBackIcon = listOf(
