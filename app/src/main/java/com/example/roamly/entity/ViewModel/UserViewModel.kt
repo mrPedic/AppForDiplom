@@ -8,6 +8,7 @@ import com.example.roamly.data.source.UserDataSource // ⭐ ИМПОРТ НОВ�
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.User
 import com.example.roamly.factory.RetrofitFactory
+import com.example.roamly.websocket.WebSocketManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,6 +89,8 @@ class UserViewModel @Inject constructor(
                 } else {
                     onResult(null)
                 }
+                WebSocketManager.getInstance().connectWithUser(user.value.id.toString())
+                WebSocketManager.getInstance().subscribe("user_${user.value.id}")
             } catch (e: Exception) {
                 Log.e("UserViewModel", "Ошибка авторизации: ${e.message}")
                 onResult(null)
@@ -97,6 +100,7 @@ class UserViewModel @Inject constructor(
 
     fun logout() {
         userDataSource.clearUserState()
+        WebSocketManager.getInstance().disconnect()
     }
 
     fun updateRole(newRole: Role) {
