@@ -44,6 +44,7 @@ import com.example.roamly.ui.screens.sealed.AdminScreens
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.screens.sealed.NotificationScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.theme.AppTheme
 import com.example.roamly.ui.theme.AppThemeConfig
@@ -75,7 +76,8 @@ fun MainScreen(
         EstablishmentScreens.EstablishmentEdit.route,
         EstablishmentScreens.MapPicker.route,
         AdminScreens.PendingList.route,
-        BookingScreens.BookingDetail.route
+        BookingScreens.BookingDetail.route,
+        NotificationScreens.Notifications.route // 🆕 Добавляем экран уведомлений
     )
 
     val hideBackIcon = listOf(
@@ -90,28 +92,28 @@ fun MainScreen(
     val showBottomBar = safeRoute !in hideBottomBarRoutes
     val showBackIcon = safeRoute !in hideBackIcon
 
-        Box(modifier = Modifier.fillMaxSize().background(AppTheme.colors.MainContainer)) {
-            NavGraph(
+    Box(modifier = Modifier.fillMaxSize().background(AppTheme.colors.MainContainer)) {
+        NavGraph(
+            navController = navController,
+            userViewModel = userViewModel,
+            mapRefreshKey = mapRefreshKey,
+            onMapRefresh = {
+                establishmentViewModel.fetchEstablishmentMarkers()
+                mapRefreshKey = !mapRefreshKey
+            }
+        )
+
+        if (showBottomBar) {
+            FloatingButtonBar(
                 navController = navController,
                 userViewModel = userViewModel,
-                mapRefreshKey = mapRefreshKey,
-                onMapRefresh = {
-                    establishmentViewModel.fetchEstablishmentMarkers()
-                    mapRefreshKey = !mapRefreshKey
-                }
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp, start = 16.dp, end = 16.dp)
             )
-
-            if (showBottomBar) {
-                FloatingButtonBar(
-                    navController = navController,
-                    userViewModel = userViewModel,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp)
-                )
-            }
         }
     }
+}
 
 @Composable
 fun FloatingButtonBar(

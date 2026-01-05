@@ -30,10 +30,12 @@ import com.example.roamly.ui.screens.establishment.MapPickerScreen
 import com.example.roamly.ui.screens.establishment.MenuEditScreen
 import com.example.roamly.ui.screens.establishment.ReviewCreationScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
+import com.example.roamly.ui.screens.profileFR.NotificationsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 import com.example.roamly.ui.screens.sealed.AdminScreens
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.screens.sealed.NotificationScreens
 import com.example.roamly.ui.theme.AppTheme
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -88,6 +90,10 @@ fun NavGraph(
         }
         composable(EstablishmentScreens.UserEstablishments.route) {
             UserEstablishmentsScreen(navController, userViewModel)
+        }
+
+        composable(route = NotificationScreens.Notifications.route) {
+            NotificationsScreen(navController = navController)
         }
 
         // Просмотр и редактирование заведения

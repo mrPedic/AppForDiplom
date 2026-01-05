@@ -1,13 +1,17 @@
 package com.example.roamly.ui.screens.profileFR
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -17,31 +21,57 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.NotificationViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.screens.sealed.NotificationScreens
 import com.example.roamly.ui.theme.AppTheme
+import com.example.roamly.websocket.SockJSManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.min
 
 @Composable
 fun ProfileScreen(
     navController: NavController,
     userViewModel: UserViewModel,
-    establishmentViewModel: EstablishmentViewModel = hiltViewModel()
+    establishmentViewModel: EstablishmentViewModel = hiltViewModel(),
+    notificationViewModel: NotificationViewModel = hiltViewModel()
 ) {
     val user by userViewModel.user.collectAsState()
     val isLoggedIn = user.role != Role.UnRegistered
+
+    // Получаем StateFlow значения как State
+    val unreadCountState by notificationViewModel.unreadCount.collectAsState()
+
+    LaunchedEffect(unreadCountState) {
+        Log.d("ProfileScreen", "🔄 Unread count updated: $unreadCountState")
+    }
+
+    // 🔥 НОВОЕ: Обновляем уведомления при каждом открытии экрана профиля
+    LaunchedEffect(Unit) {
+        if (isLoggedIn) {
+            notificationViewModel.refresh()
+        }
+    }
+    val connectionState by notificationViewModel.connectionState.collectAsState()
 
     // Base background matching Booking.kt
     Surface(
@@ -49,7 +79,13 @@ fun ProfileScreen(
         color = AppTheme.colors.MainContainer
     ) {
         if (isLoggedIn) {
-            RegisteredProfileContent(navController, userViewModel, establishmentViewModel)
+            RegisteredProfileContent(
+                navController = navController,
+                userViewModel = userViewModel,
+                establishmentViewModel = establishmentViewModel,
+                notificationViewModel = notificationViewModel,
+                unreadCount = unreadCountState
+            )
         } else {
             UnRegisteredProfileContent(navController, userViewModel)
         }
@@ -63,22 +99,34 @@ fun ProfileScreen(
 private fun RegisteredProfileContent(
     navController: NavController,
     userViewModel: UserViewModel,
-    establishmentViewModel: EstablishmentViewModel
+    establishmentViewModel: EstablishmentViewModel,
+    notificationViewModel: NotificationViewModel,
+    unreadCount: Int
 ) {
     val currentUser by userViewModel.user.collectAsState()
     val favorites by establishmentViewModel.favoriteEstablishmentsList.collectAsState()
 
+    // 🔥 НОВОЕ: Обновляем избранные заведения при каждом открытии
     LaunchedEffect(currentUser.id) {
         if (currentUser.id != null) {
             establishmentViewModel.fetchFavoriteEstablishmentsList(currentUser.id!!)
         }
     }
 
+    // 🔥 НОВОЕ: Обновляем уведомления при каждом открытии
+    LaunchedEffect(Unit) {
+        notificationViewModel.refresh()
+    }
+
+    val connectionState by notificationViewModel.connectionState.collectAsState()
+    val lastMessage = notificationViewModel.lastMessage
+
     val buttonBarHeight = 102.dp
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -164,25 +212,171 @@ private fun RegisteredProfileContent(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .padding(bottom = 8.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = AppTheme.colors.SecondaryContainer,
                 contentColor = AppTheme.colors.MainText
             )
-        ){
+        ) {
             Text(text = "Мои Заведения")
+        }
+
+        // 🆕 Кнопка диагностики WebSocket
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Кнопка диагностики SockJS
+            Button(
+                onClick = {
+                    Log.d("Profile", "=== SockJS Diagnosis ===")
+                    val sockJSManager = SockJSManager.getInstance()
+                    Log.d("Profile", sockJSManager.diagnoseConnection())
+
+                    currentUser.id?.let { userId ->
+                        CoroutineScope(Dispatchers.IO).launch {
+                            sockJSManager.connectWithUser(userId.toString())
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Cyan,
+                    contentColor = Color.Black
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("🔍 Diagnose SockJS")
+            }
+
+            // Кнопка переподключения
+            Button(
+                onClick = {
+                    Log.d("Profile", "Reconnecting SockJS...")
+                    val sockJSManager = SockJSManager.getInstance()
+                    sockJSManager.disconnect()
+
+                    currentUser.id?.let { userId ->
+                        CoroutineScope(Dispatchers.IO).launch {
+                            delay(2000)
+                            sockJSManager.connectWithUser(userId.toString())
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Red,
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("🔄 Reconnect SockJS")
+            }
+        }
+
+        // 🔥 Добавим кнопку для тестирования уведомлений
+        Button(
+            onClick = {
+                notificationViewModel.sendTestMessage()
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Green,
+                contentColor = Color.White
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
+        ) {
+            Text("🎯 Отправить тестовое сообщение")
+        }
+
+        // 🔥 Панель отладки WebSocket
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .padding(bottom = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.8f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "WebSocket Status: $connectionState",
+                    color = Color.White,
+                    fontSize = 10.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Последнее сообщение: ${lastMessage?.take(100) ?: "нет"}",
+                    color = Color.White,
+                    fontSize = 10.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Непрочитанные уведомления: $unreadCount",
+                    color = Color.White,
+                    fontSize = 10.sp
+                )
+            }
+        }
+
+        // 🆕 Кнопка уведомлений
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = {
+                    navController.navigate(NotificationScreens.Notifications.route)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AppTheme.colors.MainBorder,
+                    contentColor = AppTheme.colors.MainText
+                )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "Уведомления",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Уведомления")
+                }
+            }
+
+            // Бейдж с количеством непрочитанных
+            if (unreadCount > 0) {
+                Badge(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-8).dp, y = 8.dp)
+                ) {
+                    Text(min(unreadCount, 99).toString())
+                }
+            }
         }
 
         Button(
             onClick = {
                 navController.navigate(EstablishmentScreens.CreateEstablishment.route)
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = AppTheme.colors.MainSuccess, // Primary Action
+                containerColor = AppTheme.colors.MainSuccess,
                 contentColor = AppTheme.colors.MainText
             )
-        ){
+        ) {
             Text(text = "Создать свое заведение")
         }
 
@@ -192,10 +386,11 @@ private fun RegisteredProfileContent(
         Button(
             onClick = {
                 userViewModel.logout()
+                notificationViewModel.disconnect()
             },
             colors = ButtonDefaults.buttonColors(
                 containerColor = AppTheme.colors.MainFailure,
-                contentColor = AppTheme.colors.MainText // Or white, depending on theme, but MainText is safe
+                contentColor = AppTheme.colors.MainText
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -227,7 +422,7 @@ fun FavoriteEstablishmentCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(100.dp)
-                    .background(AppTheme.colors.MainContainer) // Fallback background
+                    .background(AppTheme.colors.MainContainer)
             ) {
                 if (imageBytes != null) {
                     Image(
@@ -350,7 +545,7 @@ private fun UnRegisteredProfileContent(
                     navController.navigate(route = LogSinUpScreens.SingUp.route)
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.colors.MainSuccess, // Action color
+                    containerColor = AppTheme.colors.MainSuccess,
                     contentColor = AppTheme.colors.MainText
                 )
             ) {
@@ -363,7 +558,7 @@ private fun UnRegisteredProfileContent(
                     navController.navigate(route = LogSinUpScreens.Login.route)
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.colors.MainBorder, // Secondary Action
+                    containerColor = AppTheme.colors.MainBorder,
                     contentColor = AppTheme.colors.MainText
                 )
             ) {

@@ -22,14 +22,16 @@ android {
         kotlinCompilerExtensionVersion = "1.6.11"
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
-    kotlinOptions { jvmTarget = "11" }
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
 }
 
 dependencies {
-// === Версионирование через libs.versions.toml ===
+    // === Версионирование через libs.versions.toml ===
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -38,26 +40,26 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-// Hilt (обязательно через version catalog!)
+    // Hilt
     implementation(libs.hilt.android)
     implementation(libs.androidx.preference.ktx)
     implementation(libs.androidx.foundation)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.nav.compose)
-// Navigation
+    // Navigation
     implementation("androidx.navigation:navigation-compose:2.9.3")
-// Retrofit, Coil, Coroutines и всё остальное — можно оставить как есть
+    // Retrofit, Coil, Coroutines
     implementation("org.json:json:20240303")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-scalars:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-// Maps
+    // Maps
     implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation("com.github.MKergall:osmbonuspack:6.9.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-// Testing
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -65,9 +67,22 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-//for HttpLoggingInterceptor
+    // Logging & OkHttp
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation(libs.okhttp)  // Добавлено для явной поддержки WebSocket
+    implementation(libs.okhttp)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    // RxJava 2 (Required for StompProtocolAndroid 1.6.6)
+    implementation("io.reactivex.rxjava2:rxjava:2.2.21")
+    implementation("io.reactivex.rxjava2:rxandroid:2.1.1")
+
+    // WebSocket / SockJS support
+    implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-urlconnection:4.12.0")
+    implementation("org.java-websocket:Java-WebSocket:1.5.4")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // Stomp Protocol
+    implementation("com.github.NaikSoftware:StompProtocolAndroid:1.6.6")
 }
