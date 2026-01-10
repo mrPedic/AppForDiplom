@@ -555,21 +555,90 @@ fun EditableTextField(
     }
 }
 
+// Замените функцию toJsonString() на эту версию:
+
 fun Map<String, String>.toJsonString(): String? {
-    return if (this.isEmpty()) null else Gson().toJson(this)
+    return if (this.isEmpty()) {
+        null
+    } else {
+        // Преобразуем в формат JSON массива ["Пн: 9:00-22:00", "Вт: 9:00-22:00", ...]
+        val items = this.entries.map { (day, time) ->
+            // Используем сокращенные названия дней для компактности
+            val shortDay = when (day.trim()) {
+                "Понедельник" -> "Пн"
+                "Вторник" -> "Вт"
+                "Среда" -> "Ср"
+                "Четверг" -> "Чт"
+                "Пятница" -> "Пт"
+                "Суббота" -> "Сб"
+                "Воскресенье" -> "Вс"
+                else -> day.take(2) // Берем первые 2 символа для других форматов
+            }
+            "\"$shortDay: $time\""
+        }
+
+        "[${items.joinToString(", ")}]"
+    }
 }
+
+// Замените существующую функцию toMap() на эту версию:
 
 fun String?.toMap(): Map<String, String> {
     return try {
         if (this.isNullOrBlank() || this.trim() == "null") {
             emptyMap()
         } else {
-            val type = object : TypeToken<Map<String, String>>() {}.type
-            Gson().fromJson<Map<String, String>>(this, type).filterValues { it.isNotBlank() }
+            // Пробуем парсить как JSON массив
+            parseOperatingHoursArray(this)
         }
     } catch (e: Exception) {
         Log.e("ScheduleHelper", "Ошибка парсинга: $this", e)
         emptyMap()
+    }
+}
+
+private fun parseOperatingHoursArray(jsonArrayString: String): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+    val gson = Gson()
+
+    try {
+        // Убираем пробелы и парсим как JSON массив строк
+        val cleanString = jsonArrayString.trim()
+        val type = object : TypeToken<List<String>>() {}.type
+        val list = gson.fromJson<List<String>>(cleanString, type)
+
+        list.forEach { item ->
+            // Формат: "Пн: 9:00-22:00" или "Пн:9:00-22:00"
+            val colonIndex = item.indexOf(':')
+            if (colonIndex > 0) {
+                val day = item.substring(0, colonIndex).trim()
+                val time = item.substring(colonIndex + 1).trim()
+
+                // Нормализуем названия дней (на случай если пришли полные названия)
+                val normalizedDay = normalizeDayName(day)
+
+                if (time.isNotBlank()) {
+                    result[normalizedDay] = time
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("ScheduleHelper", "Ошибка парсинга JSON массива: $jsonArrayString", e)
+    }
+
+    return result
+}
+
+private fun normalizeDayName(day: String): String {
+    return when (day.trim()) {
+        "Пн", "Понедельник", "понедельник" -> "Понедельник"
+        "Вт", "Вторник", "вторник" -> "Вторник"
+        "Ср", "Среда", "среда" -> "Среда"
+        "Чт", "Четверг", "четверг" -> "Четверг"
+        "Пт", "Пятница", "пятница" -> "Пятница"
+        "Сб", "Суббота", "суббота" -> "Суббота"
+        "Вс", "Воскресенье", "воскресенье" -> "Воскресенье"
+        else -> day.trim()
     }
 }
 

@@ -4,6 +4,7 @@ package com.example.roamly.ui.screens.establishment
 
 import android.os.Build
 import android.util.Base64
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.*
@@ -59,6 +60,8 @@ import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.theme.AppTheme
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
@@ -462,13 +465,28 @@ fun DescriptionSection(
                 desc.operatingHoursString?.let { operatingHours ->
                     Column {
                         Text("Часы работы:", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
-                        // Разбиваем строку на отдельные дни
-                        operatingHours.split(";").forEach { dayHours ->
-                            Text(
-                                text = "  • $dayHours",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.SecondaryText
-                            )
+
+                        // Парсим расписание
+                        val scheduleMap = parseCompactSchedule(operatingHours)
+
+                        // Если не удалось распарсить как компактный формат, пробуем как JSON массив
+                        val hoursMap = if (scheduleMap.isEmpty()) {
+                            operatingHours.toMap()
+                        } else {
+                            scheduleMap
+                        }
+
+                        // Порядок дней недели
+                        val daysOfWeek = listOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
+
+                        daysOfWeek.forEach { day ->
+                            hoursMap[day]?.let { hours ->
+                                Text(
+                                    text = "  • $day: $hours",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.SecondaryText
+                                )
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -812,4 +830,73 @@ fun MapSection(mapData: MapDTO) {
             )
         }
     }
+}
+
+private fun parseCompactSchedule(schedule: String): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+
+    // Маппинг сокращений дней к полным именам
+    val dayMap = mapOf(
+        "Пн" to "Понедельник",
+        "Вт" to "Вторник",
+        "Ср" to "Среда",
+        "Чт" to "Четверг",
+        "Пт" to "Пятница",
+        "Сб" to "Суббота",
+        "Вс" to "Воскресенье"
+    )
+
+    // Порядок дней для диапазонов
+    val daysOrder = listOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
+
+    // Разделяем по запятым
+    val parts = schedule.split(",").map { it.trim() }.filter { it.isNotBlank() }
+
+    parts.forEach { part ->
+        // Разделяем диапазон дней и время (ожидаем формат "Диапазон Время")
+        val spaceIndex = part.indexOf(' ')
+        if (spaceIndex == -1) {
+            return@forEach // Пропускаем некорректные части
+        }
+
+        val dayRange = part.substring(0, spaceIndex).trim()
+        val time = part.substring(spaceIndex + 1).trim()
+
+        if (time.isBlank()) {
+            return@forEach
+        }
+
+        // Парсим диапазон дней
+        val days: List<String> = if (dayRange.contains("-")) {
+            val rangeSplit = dayRange.split("-")
+            if (rangeSplit.size != 2) {
+                return@forEach
+            }
+
+            val fromShort = rangeSplit[0].trim()
+            val toShort = rangeSplit[1].trim()
+
+            val fromFull = dayMap[fromShort] ?: return@forEach
+            val toFull = dayMap[toShort] ?: return@forEach
+
+            val fromIndex = daysOrder.indexOf(fromFull)
+            val toIndex = daysOrder.indexOf(toFull)
+
+            if (fromIndex == -1 || toIndex == -1 || fromIndex > toIndex) {
+                return@forEach
+            }
+
+            daysOrder.subList(fromIndex, toIndex + 1)
+        } else {
+            val singleShort = dayRange.trim()
+            val singleFull = dayMap[singleShort] ?: return@forEach
+            listOf(singleFull)
+        }
+
+        // Присваиваем время для каждого дня
+        days.forEach { day ->
+            result[day] = time
+        }
+    }
+    return result.filterValues { it.isNotBlank() }
 }

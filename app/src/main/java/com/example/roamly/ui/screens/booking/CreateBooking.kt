@@ -3,6 +3,7 @@
 package com.example.roamly.ui.screens.booking
 
 import android.os.Build
+import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
@@ -33,6 +34,8 @@ import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import com.example.roamly.ui.theme.AppTheme
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -70,17 +73,53 @@ fun CreateBookingScreen(
         viewModel.fetchEstablishmentDetails(establishmentId)
     }
 
+    // Получаем рабочие часы для выбранной даты
+    val workingHours by remember(selectedDate, establishmentState) {
+        derivedStateOf {
+            when (establishmentState) {
+                is EstablishmentLoadState.Success -> {
+                    val establishment = (establishmentState as EstablishmentLoadState.Success).data
+                    getWorkingHoursForDay(establishment.operatingHoursString, selectedDate.dayOfWeek)
+                }
+                else -> null
+            }
+        }
+    }
+
     // Используем вычисляемое значение для определения, находится ли выбранное время в будущем
     val selectedDateTime = LocalDateTime.of(selectedDate, selectedTime)
     val now = LocalDateTime.now()
     val isSelectedTimeInFuture = selectedDateTime.isAfter(now)
 
+    // Проверяем, что бронь укладывается в рабочие часы
+    val isDurationValid by remember(selectedTime, selectedDuration, workingHours) {
+        derivedStateOf {
+            if (workingHours == null) false
+            else {
+                val (open, close) = workingHours!!
+                val isOvernight = close.isBefore(open) || close == LocalTime.MIDNIGHT
+                val openMinutes = open.toSecondOfDay() / 60L
+                var closeMinutes = close.toSecondOfDay() / 60L
+                if (isOvernight) closeMinutes += 1440
+                var startMinutes = selectedTime.toSecondOfDay() / 60L
+                if (isOvernight && selectedTime.isBefore(open)) startMinutes += 1440
+                val endMinutes = startMinutes + selectedDuration
+                startMinutes >= openMinutes && endMinutes <= closeMinutes
+            }
+        }
+    }
+
+    // Проверяем, что выбранное время доступно (не в прошлом и в рабочих часах)
+    val isTimeValid = isSelectedTimeInFuture && (workingHours == null ||
+            (!selectedTime.isBefore(workingHours!!.first) &&
+                    !selectedTime.isAfter(workingHours!!.second.minusMinutes(30))))
+
     LaunchedEffect(selectedDate, selectedTime) {
-        if (isSelectedTimeInFuture) {
+        if (isTimeValid) {
             val iso = selectedDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             viewModel.fetchAvailableTables(establishmentId, iso)
         } else {
-            // Сбрасываем список столиков, если время в прошлом
+            // Сбрасываем список столиков, если время недоступно
             viewModel._availableTables.value = emptyList()
         }
     }
@@ -152,6 +191,16 @@ fun CreateBookingScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = AppTheme.colors.SecondaryText
                             )
+
+                            // Отображаем рабочие часы для выбранного дня
+                            workingHours?.let { (open, close) ->
+                                Text(
+                                    "Рабочие часы: ${open.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${close.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AppTheme.colors.SecondaryText,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                         }
                     }
 
@@ -169,7 +218,7 @@ fun CreateBookingScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Кастомный выбор времени
+                    // Кастомный выбор времени с учетом рабочих часов
                     Text(
                         "Выберите время:",
                         fontWeight = FontWeight.SemiBold,
@@ -179,13 +228,22 @@ fun CreateBookingScreen(
                     CustomTimePicker(
                         selectedDate = selectedDate,
                         selectedTime = selectedTime,
-                        onTimeSelected = { newTime -> selectedTime = newTime }
+                        onTimeSelected = { newTime -> selectedTime = newTime },
+                        workingHours = workingHours
                     )
 
-                    // Предупреждение, если время в прошлом
+                    // Предупреждения
                     if (!isSelectedTimeInFuture) {
                         Text(
                             "Вы выбрали прошедшее время. Пожалуйста, выберите время в будущем.",
+                            color = AppTheme.colors.MainFailure,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 8.dp)
+                        )
+                    }
+
+                    if (workingHours != null && !isDurationValid && isSelectedTimeInFuture) {
+                        Text(
+                            "Выбранная длительность не укладывается в рабочие часы заведения. Максимально возможное время окончания: ${workingHours!!.second.format(DateTimeFormatter.ofPattern("HH:mm"))}",
                             color = AppTheme.colors.MainFailure,
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 8.dp)
                         )
@@ -216,9 +274,10 @@ fun CreateBookingScreen(
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
-                            if (!isSelectedTimeInFuture) {
+                            if (!isTimeValid) {
                                 Text(
-                                    "Выберите время в будущем, чтобы увидеть доступные столы",
+                                    if (workingHours == null) "Часы работы не указаны"
+                                    else "Выберите время в будущем и в пределах рабочих часов, чтобы увидеть доступные столы",
                                     color = AppTheme.colors.MainFailure,
                                     modifier = Modifier.padding(vertical = 8.dp)
                                 )
@@ -303,10 +362,20 @@ fun CreateBookingScreen(
                     Spacer(Modifier.height(24.dp))
 
                     // Кнопка бронирования
+                    val isBookingEnabled = selectedTable != null &&
+                            isSelectedTimeInFuture &&
+                            (workingHours == null || isDurationValid) &&
+                            !isLoading
+
                     Button(
                         onClick = {
                             if (!isSelectedTimeInFuture) {
                                 Toast.makeText(context, "Выберите время в будущем", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            if (workingHours != null && !isDurationValid) {
+                                Toast.makeText(context, "Выбранная длительность не укладывается в рабочие часы", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
 
@@ -337,7 +406,7 @@ fun CreateBookingScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 5.dp)
                             .height(56.dp),
-                        enabled = selectedTable != null && isSelectedTimeInFuture && !isLoading,
+                        enabled = isBookingEnabled,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AppTheme.colors.MainSuccess,
                             contentColor = AppTheme.colors.MainText,
@@ -446,8 +515,8 @@ fun CustomDatePicker(
     onDateSelected: (LocalDate) -> Unit
 ) {
     val today = LocalDate.now()
-    val maxDate = today.plusDays(30) // Ограничение: 1 месяц вперед
 
+    // Используем remember для кэширования списка дат
     val dates = remember {
         (0..30).map { today.plusDays(it.toLong()) }
     }
@@ -467,10 +536,10 @@ fun CustomDatePicker(
         contentPadding = PaddingValues(horizontal = 5.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        items(dates) { date ->
+        items(dates, key = { it.toString() }) { date -> // Добавляем ключ для оптимизации
             val isSelected = date == selectedDate
             val isToday = date == today
-            val isDisabled = date > maxDate
+            val isDisabled = date < today // Предотвращаем выбор прошедших дат
 
             Card(
                 onClick = {
@@ -486,7 +555,8 @@ fun CustomDatePicker(
                     isSelected -> BorderStroke(2.dp, AppTheme.colors.MainBorder)
                     isToday -> BorderStroke(1.dp, AppTheme.colors.SecondarySuccess)
                     else -> BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
-                }
+                },
+                enabled = !isDisabled
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -525,24 +595,33 @@ fun CustomDatePicker(
 fun CustomTimePicker(
     selectedDate: LocalDate,
     selectedTime: LocalTime,
-    onTimeSelected: (LocalTime) -> Unit
+    onTimeSelected: (LocalTime) -> Unit,
+    workingHours: Pair<LocalTime, LocalTime>? = null
 ) {
     val today = LocalDate.now()
     val now = LocalTime.now()
     val isToday = selectedDate == today
 
-    val startHour = 8
-    val endHour = 22
-    val intervalMinutes = 30
+    val timeSlots = remember(workingHours, selectedDate) {
+        if (workingHours == null) return@remember emptyList<LocalTime>()
 
-    val timeSlots = remember {
+        val (open, close) = workingHours
+        val isOvernight = close.isBefore(open) || close == LocalTime.MIDNIGHT
+        val openMinutes = open.toSecondOfDay() / 60L
+        var closeMinutes = close.toSecondOfDay() / 60L
+        if (isOvernight) closeMinutes += 1440
+
         val slots = mutableListOf<LocalTime>()
-        for (hour in startHour..endHour) {
-            for (minute in listOf(0, 30)) {
-                if (hour == endHour && minute > 0) continue
-                val time = LocalTime.of(hour, minute)
+        var currentMinutes = openMinutes
+        val maxSlots = 96
+
+        while (currentMinutes < closeMinutes && slots.size < maxSlots) {
+            val endMinutes = currentMinutes + 30
+            if (endMinutes <= closeMinutes) {
+                val time = LocalTime.ofSecondOfDay((currentMinutes % 1440) * 60)
                 slots.add(time)
             }
+            currentMinutes += 30
         }
         slots
     }
@@ -553,6 +632,9 @@ fun CustomTimePicker(
         val index = timeSlots.indexOfFirst { it == selectedTime }
         if (index >= 0) {
             lazyListState.animateScrollToItem(index)
+        } else if (timeSlots.isNotEmpty()) {
+            // Если выбранное время не в списке слотов, выбираем первый доступный слот
+            onTimeSelected(timeSlots[0])
         }
     }
 
@@ -562,44 +644,96 @@ fun CustomTimePicker(
         contentPadding = PaddingValues(horizontal = 5.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        items(timeSlots) { time ->
-            val isSelected = time == selectedTime
-            // Время в прошлом только если это сегодня и время уже прошло
-            val isDisabled = isToday && time.isBefore(now)
-
-            Card(
-                onClick = {
-                    if (!isDisabled) {
-                        onTimeSelected(time)
-                    }
-                },
-                modifier = Modifier.width(70.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = AppTheme.colors.SecondaryContainer
-                ),
-                border = if (isSelected) {
-                    BorderStroke(2.dp, AppTheme.colors.MainBorder)
-                } else {
-                    BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
-                }
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+        if (workingHours == null) {
+            item {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .width(200.dp)
                         .padding(vertical = 12.dp)
                 ) {
                     Text(
-                        time.format(DateTimeFormatter.ofPattern("HH:mm")),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isDisabled) AppTheme.colors.SecondaryText else AppTheme.colors.MainText
+                        "Часы работы не указаны",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppTheme.colors.SecondaryText
                     )
+                }
+            }
+        } else if (timeSlots.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .width(200.dp)
+                        .padding(vertical = 12.dp)
+                ) {
+                    Text(
+                        "Нет доступного времени",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppTheme.colors.MainFailure
+                    )
+                }
+            }
+        } else {
+            items(timeSlots) { time ->
+                val isSelected = time == selectedTime
+                val isDisabled = isToday && time.isBefore(now)
+                val isValid = workingHours?.let { isValidBookingTime(time, it, 30L) } ?: false
+
+                Card(
+                    onClick = {
+                        if (!isDisabled && isValid) {
+                            onTimeSelected(time)
+                        }
+                    },
+                    modifier = Modifier.width(70.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = AppTheme.colors.SecondaryContainer
+                    ),
+                    border = if (isSelected) {
+                        BorderStroke(2.dp, AppTheme.colors.MainBorder)
+                    } else {
+                        BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                    },
+                    enabled = !isDisabled && isValid
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(vertical = 12.dp)
+                    ) {
+                        Text(
+                            time.format(DateTimeFormatter.ofPattern("HH:mm")),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = when {
+                                isDisabled || !isValid -> AppTheme.colors.SecondaryText
+                                else -> AppTheme.colors.MainText
+                            }
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+// Функция для проверки, что бронь поместится в рабочие часы
+@RequiresApi(Build.VERSION_CODES.O)
+private fun isValidBookingTime(
+    startTime: LocalTime,
+    workingHours: Pair<LocalTime, LocalTime>,
+    durationMinutes: Long = 30L
+): Boolean {
+    val (open, close) = workingHours
+    val isOvernight = close.isBefore(open) || close == LocalTime.MIDNIGHT
+    val openMinutes = open.toSecondOfDay() / 60L
+    var closeMinutes = close.toSecondOfDay() / 60L
+    if (isOvernight) closeMinutes += 1440
+    var startMinutes = startTime.toSecondOfDay() / 60L
+    if (isOvernight && startTime.isBefore(open)) startMinutes += 1440
+    val endMinutes = startMinutes + durationMinutes
+    return startMinutes >= openMinutes && endMinutes <= closeMinutes
 }
 
 @Composable
@@ -624,7 +758,7 @@ fun BookingDurationSelector(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp)
             ) {
-                items(BOOKING_DURATIONS_MINUTES) { minutes ->
+                items(BOOKING_DURATIONS_MINUTES, key = { it.toString() }) { minutes ->
                     val isSelected = minutes == selectedDuration
                     Card(
                         onClick = { onDurationSelected(minutes) },
@@ -777,7 +911,7 @@ fun TableSelector(
                 border = if (isSelected) {
                     BorderStroke(2.dp, AppTheme.colors.MainBorder)
                 } else {
-                    BorderStroke(1.dp, AppTheme.colors.SecondaryBorder)
+                    BorderStroke(0.5.dp, AppTheme.colors.SecondaryBorder)
                 }
             ) {
                 Row(
@@ -836,5 +970,144 @@ private fun formatDuration(minutes: Long): String {
         hours > 0 && mins > 0 -> "$hours ч $mins мин"
         hours > 0 -> "$hours ч"
         else -> "$mins мин"
+    }
+}
+
+private fun parseOperatingHours(operatingHoursString: String?): Map<String, String> {
+    if (operatingHoursString.isNullOrBlank()) {
+        Log.d(TAG, "parseOperatingHours: operatingHoursString is null or blank")
+        return emptyMap()
+    }
+
+    Log.d(TAG, "parseOperatingHours: raw string = $operatingHoursString")
+
+    return try {
+        // Пробуем парсить как JSON массив
+        val result = parseOperatingHoursArray(operatingHoursString)
+        Log.d(TAG, "parseOperatingHours: parsed successfully, size = ${result.size}")
+        result
+    } catch (e: Exception) {
+        Log.e(TAG, "parseOperatingHours: error parsing", e)
+        emptyMap()
+    }
+}
+
+private fun parseOperatingHoursArray(jsonArrayString: String): Map<String, String> {
+    val result = mutableMapOf<String, String>()
+    val gson = Gson()
+
+    try {
+        // Убираем пробелы и парсим как JSON массив строк
+        val cleanString = jsonArrayString.trim()
+        Log.d(TAG, "parseOperatingHoursArray: cleanString = $cleanString")
+
+        val type = object : TypeToken<List<String>>() {}.type
+        val list = gson.fromJson<List<String>>(cleanString, type)
+
+        Log.d(TAG, "parseOperatingHoursArray: parsed list size = ${list.size}")
+        Log.d(TAG, "parseOperatingHoursArray: list = $list")
+
+        list.forEach { item ->
+            Log.d(TAG, "parseOperatingHoursArray: processing item = $item")
+            // Формат может быть: "Пн: 8:00-24:00" или "Понедельник: 8:00-24:00"
+            // Ищем первое вхождение ":" которое разделяет день и время
+            val colonIndex = item.indexOf(':')
+            if (colonIndex > 0) {
+                val day = item.substring(0, colonIndex).trim()
+                val time = item.substring(colonIndex + 1).trim()
+                Log.d(TAG, "parseOperatingHoursArray: day='$day', time='$time'")
+
+                // Нормализуем названия дней
+                val normalizedDay = normalizeDayName(day)
+                Log.d(TAG, "parseOperatingHoursArray: normalizedDay='$normalizedDay'")
+
+                if (time.isNotBlank() && time != "Закрыто") {
+                    result[normalizedDay] = time
+                    Log.d(TAG, "parseOperatingHoursArray: added to result")
+                }
+            } else {
+                Log.d(TAG, "parseOperatingHoursArray: item doesn't contain ':', skipping")
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "parseOperatingHoursArray: error parsing JSON", e)
+        // Игнорируем ошибки парсинга
+    }
+
+    Log.d(TAG, "parseOperatingHoursArray: final result size = ${result.size}")
+    Log.d(TAG, "parseOperatingHoursArray: result = $result")
+    return result
+}
+
+private fun normalizeDayName(day: String): String {
+    val lowerDay = day.trim().lowercase(Locale.getDefault())
+    val result = when {
+        lowerDay.startsWith("пн") -> "Понедельник"
+        lowerDay.startsWith("вт") -> "Вторник"
+        lowerDay.startsWith("ср") -> "Среда"
+        lowerDay.startsWith("чт") -> "Четверг"
+        lowerDay.startsWith("пт") -> "Пятница"
+        lowerDay.startsWith("сб") -> "Суббота"
+        lowerDay.startsWith("вс") -> "Воскресенье"
+        lowerDay == "понедельник" -> "Понедельник"
+        lowerDay == "вторник" -> "Вторник"
+        lowerDay == "среда" -> "Среда"
+        lowerDay == "четверг" -> "Четверг"
+        lowerDay == "пятница" -> "Пятница"
+        lowerDay == "суббота" -> "Суббота"
+        lowerDay == "воскресенье" -> "Воскресенье"
+        else -> day.trim()
+    }
+    Log.d(TAG, "normalizeDayName: '$day' -> '$result'")
+    return result
+}
+
+// Функция для получения часов работы на конкретный день
+@RequiresApi(Build.VERSION_CODES.O)
+private fun getWorkingHoursForDay(
+    operatingHoursString: String?,
+    dayOfWeek: DayOfWeek
+): Pair<LocalTime, LocalTime>? {
+    Log.d(TAG, "getWorkingHoursForDay: called with dayOfWeek = $dayOfWeek")
+    Log.d(TAG, "getWorkingHoursForDay: operatingHoursString = $operatingHoursString")
+
+    val operatingHours = parseOperatingHours(operatingHoursString)
+    Log.d(TAG, "getWorkingHoursForDay: parsed operatingHours = $operatingHours")
+
+    val dayMap = mapOf(
+        DayOfWeek.MONDAY to "Понедельник",
+        DayOfWeek.TUESDAY to "Вторник",
+        DayOfWeek.WEDNESDAY to "Среда",
+        DayOfWeek.THURSDAY to "Четверг",
+        DayOfWeek.FRIDAY to "Пятница",
+        DayOfWeek.SATURDAY to "Суббота",
+        DayOfWeek.SUNDAY to "Воскресенье"
+    )
+
+    val dayName = dayMap[dayOfWeek] ?: return null
+    val hoursString = operatingHours[dayName] ?: return null
+
+    val times = hoursString.split("-")
+    if (times.size != 2) return null
+
+    return try {
+        val openTimeStr = times[0].trim()
+        var closeTimeStr = times[1].trim()
+
+        val formatter = DateTimeFormatter.ofPattern("H:mm")
+
+        val openTime = LocalTime.parse(openTimeStr, formatter)
+
+        // Обрабатываем 24:00 и подобные случаи
+        val closeTime = when {
+            closeTimeStr == "24:00" || closeTimeStr == "00:00" -> LocalTime.MIDNIGHT
+            closeTimeStr == "24" || closeTimeStr == "00" -> LocalTime.MIDNIGHT
+            else -> LocalTime.parse(closeTimeStr, formatter)
+        }
+
+        Pair(openTime, closeTime)
+    } catch (e: Exception) {
+        Log.e(TAG, "getWorkingHoursForDay: error parsing time", e)
+        null
     }
 }
