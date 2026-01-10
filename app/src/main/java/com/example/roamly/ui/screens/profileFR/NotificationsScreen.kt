@@ -1,6 +1,8 @@
 package com.example.roamly.ui.screens.profileFR
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,30 +22,51 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.NotificationViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.ui.screens.booking.BookingApprovalDialog
 import com.example.roamly.ui.theme.AppTheme
 import java.text.SimpleDateFormat
 import java.util.*
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     navController: NavController,
-    viewModel: NotificationViewModel = hiltViewModel()
+    viewModel: NotificationViewModel = hiltViewModel(),
+    bookingViewModel: BookingViewModel = hiltViewModel(),
+    userViewModel: UserViewModel = hiltViewModel()
 ) {
     val notifications by viewModel.notifications.collectAsState()
     val unreadCount by viewModel.unreadCount.collectAsState()
+    val showDialog by viewModel.showBookingDialog.collectAsState()
+    val selectedBooking by viewModel.selectedBooking.collectAsState()
+    val user by userViewModel.user.collectAsState()
+
+    // Диалог подтверждения брони
+    selectedBooking?.let { booking ->
+        if (showDialog) {
+            BookingApprovalDialog(
+                booking = booking,
+                onDismiss = { viewModel.dismissBookingDialog() },
+                onApprove = {
+                    bookingViewModel.approveBooking(booking.id, user.id ?: 0)
+                    viewModel.dismissBookingDialog()
+                },
+                onReject = {
+                    bookingViewModel.rejectBooking(booking.id, user.id ?: 0)
+                    viewModel.dismissBookingDialog()
+                },
+                isVisible = showDialog
+            )
+        }
+    }
 
     // 🔥 НОВОЕ: Автоматическое обновление при каждом открытии экрана
     LaunchedEffect(Unit) {
         viewModel.refresh()
-    }
-
-    // 🔥 ДЛЯ ОТЛАДКИ
-    LaunchedEffect(notifications, unreadCount) {
-        Log.d("NotificationsScreen",
-            "📊 Уведомлений: ${notifications.size}, Непрочитанных: $unreadCount, " +
-                    "ID всех уведомлений: ${notifications.map { it.id }}")
     }
 
     Scaffold(
@@ -66,11 +89,13 @@ fun NotificationsScreen(
                         )
                     }
                 },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = AppTheme.colors.SecondaryContainer // ФОН ДОБАВЛЕН
+                ),
                 actions = {
                     // 🔥 Добавляем кнопку обновления
                     IconButton(onClick = {
                         viewModel.refresh()
-                        // Показать Snackbar или другой индикатор обновления
                     }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -88,10 +113,7 @@ fun NotificationsScreen(
                             )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = AppTheme.colors.MainContainer
-                )
+                }
             )
         }
     ) { paddingValues ->
@@ -120,24 +142,68 @@ fun NotificationsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(
-                        items = notifications.distinctBy { it.id }, // Добавляем distinctBy здесь
+                        items = notifications.distinctBy { it.id },
                         key = { it.id }
                     ) { notification ->
                         NotificationItemCard(
                             notification = notification,
                             onClick = {
-                                viewModel.markAsRead(notification.id)
+                                // Обработка клика на уведомление
+                                if (notification.type == "NEW_BOOKING") {
+                                    // Парсим данные из уведомления
+                                    val data = parseNotificationData(notification.message)
+                                    viewModel.handleNotificationClick(notification.id, data)
+                                } else {
+                                    viewModel.markAsRead(notification.id)
+                                }
                             }
                         )
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(103.dp)) // Отступ под нижнюю панель
+                        Spacer(modifier = Modifier.height(103.dp))
                     }
                 }
             }
         }
     }
+}
+
+// Вспомогательная функция для парсинга данных из уведомления
+private fun parseNotificationData(message: String): Map<String, String> {
+    val data = mutableMapOf<String, String>()
+
+    // Пример парсинга сообщения (зависит от формата уведомления с сервера)
+    // В реальном приложении сервер должен отправлять структурированные данные в data поле
+    if (message.contains("Заведение:")) {
+        val lines = message.split("\n")
+        lines.forEach { line ->
+            when {
+                line.contains("Заведение:") -> {
+                    val parts = line.split("Заведение:")
+                    if (parts.size > 1) {
+                        data["establishmentName"] = parts[1].trim()
+                    }
+                }
+                line.contains("Гость:") -> {
+                    val parts = line.split("Гость:")
+                    if (parts.size > 1) {
+                        data["userName"] = parts[1].trim()
+                    }
+                }
+                line.contains("Столик:") -> {
+                    val parts = line.split("Столик:")
+                    if (parts.size > 1) {
+                        val tableInfo = parts[1].trim()
+                        val tableNumber = tableInfo.replace("№", "").trim()
+                        data["tableNumber"] = tableNumber
+                    }
+                }
+            }
+        }
+    }
+
+    return data
 }
 
 @Composable

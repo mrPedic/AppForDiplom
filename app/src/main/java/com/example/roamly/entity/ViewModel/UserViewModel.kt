@@ -29,7 +29,8 @@ class UserViewModel @Inject constructor(
     val isServerConnected = _isServerConnected.asStateFlow()
 
     init {
-        checkServerConnection()
+        // Убрана проверка подключения, так как endpoint /ping не реализован на сервере
+        // Если нужен, добавьте на бэкенде @GET("ping") и верните "pong"
 
         // Слушаем изменения пользователя для WebSocket подключения
         viewModelScope.launch {
@@ -50,17 +51,6 @@ class UserViewModel @Inject constructor(
                 }
             }
         }
-    }
-
-    fun checkServerConnection() = viewModelScope.launch(Dispatchers.IO) {
-        val isConnected = try {
-            val response = apiService.pingServer()
-            response.trim().equals("pong", ignoreCase = true)
-        } catch (e: Exception) {
-            Log.e("ConnectionCheck", "Ошибка подключения к серверу: ${e.message}")
-            false
-        }
-        _isServerConnected.value = isConnected
     }
 
     fun loginUser(login: String, password: String, onResult: (User?) -> Unit) {

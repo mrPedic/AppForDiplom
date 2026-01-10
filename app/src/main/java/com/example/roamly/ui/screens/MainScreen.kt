@@ -64,20 +64,17 @@ fun MainScreen(
 
     var mapRefreshKey by remember { mutableStateOf(false) }
 
-    val hideBottomBarRoutes = listOf(
-        LogSinUpScreens.SingUp.route,
-        LogSinUpScreens.Login.route,
-        EstablishmentScreens.EstablishmentDetail.route,
-        EstablishmentScreens.CreateEstablishment.route,
-        EstablishmentScreens.UserEstablishments.route,
-        EstablishmentScreens.MenuEdit.route,
-        EstablishmentScreens.ReviewCreation.route,
-        BookingScreens.CreateBooking.route,
-        EstablishmentScreens.EstablishmentEdit.route,
-        EstablishmentScreens.MapPicker.route,
-        AdminScreens.PendingList.route,
-        BookingScreens.BookingDetail.route,
-        NotificationScreens.Notifications.route // 🆕 Добавляем экран уведомлений
+    // БЕЛЫЙ СПИСОК: экраны, где ДОЛЖНА быть нижняя панель
+    val bottomBarVisibleRoutes = listOf(
+        // Основные вкладки
+        SealedButtonBar.Home.route,
+        SealedButtonBar.Searching.route,
+        SealedButtonBar.Booking.route,
+        SealedButtonBar.Profile.route,
+        SealedButtonBar.AdminPanel.route,
+
+        // Экран уведомлений теперь должен показывать панель
+        NotificationScreens.Notifications.route
     )
 
     val hideBackIcon = listOf(
@@ -85,11 +82,14 @@ fun MainScreen(
         SealedButtonBar.Booking.route,
         SealedButtonBar.Searching.route,
         SealedButtonBar.Home.route,
-        SealedButtonBar.AdminPanel.route
+        SealedButtonBar.AdminPanel.route,
+        // Добавляем экран уведомлений, чтобы там тоже не было кнопки назад
+        NotificationScreens.Notifications.route
     )
 
     val isHomeScreen = safeRoute == SealedButtonBar.Home.route
-    val showBottomBar = safeRoute !in hideBottomBarRoutes
+    // Панель показывается только если маршрут в белом списке
+    val showBottomBar = safeRoute in bottomBarVisibleRoutes
     val showBackIcon = safeRoute !in hideBackIcon
 
     Box(modifier = Modifier.fillMaxSize().background(AppTheme.colors.MainContainer)) {
@@ -145,23 +145,21 @@ fun FloatingButtonBar(
             shape = MaterialTheme.shapes.extraLarge
         ),
         shape = MaterialTheme.shapes.extraLarge,
-        color = AppTheme.colors.MainContainer.copy(alpha = 0.95f), // Основной контейнер (темный фон в темной теме)
+        color = AppTheme.colors.MainContainer.copy(alpha = 0.95f),
         tonalElevation = 8.dp,
         shadowElevation = 8.dp
     ) {
         NavigationBar(
-            containerColor = Color.Transparent // Прозрачный фон самой NavigationBar
+            containerColor = Color.Transparent
         ) {
             screens.forEach { screen ->
                 NavigationBarItem(
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AppTheme.colors.MainSuccess,      // Яркий акцент для выбранного (например, синий/фиолетовый успех)
-                        unselectedIconColor = AppTheme.colors.SecondaryText, // Вторичный текст для невыбранных
-
+                        selectedIconColor = AppTheme.colors.MainSuccess,
+                        unselectedIconColor = AppTheme.colors.SecondaryText,
                         selectedTextColor = AppTheme.colors.MainSuccess,
                         unselectedTextColor = AppTheme.colors.SecondaryText,
-
-                        indicatorColor = AppTheme.colors.SecondarySuccess.copy(alpha = 0.3f) // Вторичный успех как индикатор
+                        indicatorColor = AppTheme.colors.SecondarySuccess.copy(alpha = 0.3f)
                     ),
                     icon = {
                         Icon(

@@ -121,5 +121,4 @@ fun EstablishmentEntity.toDisplayDto(): EstablishmentDisplayDto {
         photoBase64s = this.photoBase64s,
         operatingHoursString = this.operatingHoursString,
     )
-
 }

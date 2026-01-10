@@ -1,254 +1,246 @@
+// UserEstablishments.kt
 package com.example.roamly.ui.screens.establishment
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
-import com.example.roamly.entity.classes.EstablishmentStatus
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.UserEstablishmentsViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
-import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.entity.classes.TypeOfEstablishment
+import com.example.roamly.entity.classes.convertTypeToWord
+import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.theme.AppTheme
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserEstablishmentsScreen(
     navController: NavController,
     userViewModel: UserViewModel = hiltViewModel(),
-    viewModel: EstablishmentViewModel = hiltViewModel()
+    establishmentViewModel: EstablishmentViewModel = hiltViewModel(),
+    pinnedViewModel: UserEstablishmentsViewModel = hiltViewModel()
 ) {
     val user by userViewModel.user.collectAsState()
+    val establishments by establishmentViewModel.userEstablishments.collectAsState(emptyList())
+    val pinnedIds by pinnedViewModel.pinnedEstablishments.collectAsState()
+    val isLoading by establishmentViewModel.isLoading.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
-    val establishments by viewModel.userEstablishments.collectAsState(initial = emptyList())
-    val isLoading by viewModel.isLoading.collectAsState(initial = false)
-    val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
+    // Поиск и фильтрация на клиенте
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf<TypeOfEstablishment?>(null) }
 
-    val userId = user.id
+    // Список типов типов из enum, исключая Error
+    val establishmentTypes = TypeOfEstablishment.values().filter { it != TypeOfEstablishment.Error }
 
-    // Запуск загрузки данных при входе на экран
-    LaunchedEffect(userId) {
-        userId?.let {
-            viewModel.fetchEstablishmentsByUserId(it)
+    // Фильтрация заведений на клиенте
+    val filteredEstablishments = establishments.filter { est ->
+        (searchQuery.isEmpty() || est.name.contains(searchQuery, ignoreCase = true)) &&
+                (selectedType == null || est.type == selectedType)
+    }
+
+    // Разделяем на закрепленные и обычные после фильтрации
+    val pinnedEstablishments = filteredEstablishments.filter { it.id in pinnedIds }
+    val otherEstablishments = filteredEstablishments.filter { it.id !in pinnedIds }
+
+    // Объединенный список с заголовками (показываем заголовок только если раздел не пуст)
+    val displayList = buildList {
+        if (pinnedEstablishments.isNotEmpty()) {
+            add("Закрепленные")
+            addAll(pinnedEstablishments)
+        }
+        if (otherEstablishments.isNotEmpty()) {
+            add("Все заведения")
+            addAll(otherEstablishments)
         }
     }
 
-    // Новое: Состояние для поиска и фильтрации
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedStatusFilters by remember { mutableStateOf(setOf<EstablishmentStatus>()) }
-    var showFilterDialog by remember { mutableStateOf(false) }
-
-    // Фильтрованные заведения
-    val filteredEstablishments = establishments
-        .filter { est ->
-            (selectedStatusFilters.isEmpty() || est.status in selectedStatusFilters) &&
-                    (searchQuery.isEmpty() ||
-                            est.name.contains(searchQuery, ignoreCase = true) ||
-                            est.address.contains(searchQuery, ignoreCase = true))
-        }
-
-    // Диалог для выбора фильтров
-    if (showFilterDialog) {
-        FilterDialog(
-            currentSelections = selectedStatusFilters,
-            onDismiss = { showFilterDialog = false },
-            onConfirm = { newSelections ->
-                selectedStatusFilters = newSelections
-                showFilterDialog = false
-            }
-        )
+    LaunchedEffect(user.id) {
+        user.id?.let { establishmentViewModel.fetchEstablishmentsByUserId(it) }
     }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Мои заведения",
-                        color = AppTheme.colors.MainText
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AppTheme.colors.SecondaryContainer,
-                    navigationIconContentColor = AppTheme.colors.MainText,
-                    titleContentColor = AppTheme.colors.MainText,
-                    actionIconContentColor = AppTheme.colors.MainText
-                ),
-                actions = {
-                    IconButton(onClick = { showFilterDialog = true }) {
+            CenterAlignedTopAppBar(
+                title = { Text("Мои заведения", color = AppTheme.colors.MainText) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
-                            Icons.Default.Menu,
-                            contentDescription = "Фильтры",
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Назад",
                             tint = AppTheme.colors.MainText
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = AppTheme.colors.SecondaryContainer
+                ),
+                modifier = Modifier.fillMaxHeight(0.08f)
             )
-        },
-        bottomBar = {
-            BottomButtons(navController = navController)
-        },
-        containerColor = AppTheme.colors.MainContainer
-    ) { paddingValues ->
-        Box(
+        }
+    ) { padding ->
+        Column(
             modifier = Modifier
+                .padding(padding)
                 .fillMaxSize()
                 .background(AppTheme.colors.MainContainer)
-                .padding(paddingValues)
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
+            // Поисковая строка
+            val focusRequester = remember { FocusRequester() }
+            val focusManager = LocalFocusManager.current
+
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .focusRequester(focusRequester),
+                placeholder = { Text("Поиск по названию...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Очистить")
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = AppTheme.colors.SecondaryContainer,
+                    unfocusedContainerColor = AppTheme.colors.SecondaryContainer,
+                    focusedIndicatorColor = AppTheme.colors.MainSuccess,
+                    unfocusedIndicatorColor = AppTheme.colors.MainBorder,
+                    focusedTextColor = AppTheme.colors.MainText,
+                    unfocusedTextColor = AppTheme.colors.MainText,
+                    focusedPlaceholderColor = AppTheme.colors.SecondaryText,
+                    unfocusedPlaceholderColor = AppTheme.colors.SecondaryText
+                )
+            )
+
+            // Фильтры по типу (горизонтальный скролл)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding( bottom = 8.dp,
+                        start = 16.dp,
+                        end = 16.dp
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Поле поиска
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = {
-                        Text(
-                            "Поиск по имени или адресу",
-                            color = AppTheme.colors.SecondaryText
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Поиск",
-                            tint = AppTheme.colors.MainText
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 5.dp, end = 5.dp, top = 16.dp, bottom = 16.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AppTheme.colors.MainBorder,
-                        unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
-                        focusedTextColor = AppTheme.colors.MainText,
-                        unfocusedTextColor = AppTheme.colors.MainText,
-                        focusedLabelColor = AppTheme.colors.SecondaryText,
-                        unfocusedLabelColor = AppTheme.colors.SecondaryText,
-                        cursorColor = AppTheme.colors.MainText
+                FilterChip(
+                    selected = selectedType == null,
+                    onClick = { selectedType = null },
+                    label = { Text("Все") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = AppTheme.colors.MainSuccess.copy(alpha = 0.2f),
+                        selectedLabelColor = AppTheme.colors.MainText
                     )
                 )
+                establishmentTypes.forEach { type ->
+                    FilterChip(
+                        selected = selectedType == type,
+                        onClick = { selectedType = type },
+                        label = { Text(convertTypeToWord(type)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AppTheme.colors.MainSuccess.copy(alpha = 0.2f),
+                            selectedLabelColor = AppTheme.colors.MainText
+                        )
+                    )
+                }
+            }
 
-                when {
-                    isLoading -> {
-                        // Индикатор загрузки
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = AppTheme.colors.MainText
-                            )
-                        }
-                    }
-                    errorMessage != null -> {
-                        // Сообщение об ошибке
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "Ошибка загрузки: $errorMessage",
-                                color = AppTheme.colors.MainFailure,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                            // Кнопка для повторной попытки
-                            Button(
-                                onClick = { userId?.let { viewModel.fetchEstablishmentsByUserId(it) } },
-                                modifier = Modifier.padding(24.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = AppTheme.colors.MainSuccess,
-                                    contentColor = AppTheme.colors.MainText
-                                )
-                            ) {
-                                Text("Повторить")
-                            }
-                        }
-                    }
-                    filteredEstablishments.isEmpty() && !isLoading -> {
-                        // Пустой список
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = "У вас пока нет созданных заведений или ничего не найдено.",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = AppTheme.colors.MainText
-                            )
-                        }
-                    }
-                    else -> {
-                        // Отображение списка
+            // Список с анимацией подгрузки
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = AppTheme.colors.MainSuccess
+                    )
+                } else if (displayList.isEmpty()) {
+                    Text(
+                        "Нет заведений",
+                        modifier = Modifier.align(Alignment.Center),
+                        color = AppTheme.colors.SecondaryText
+                    )
+                } else {
+                    this@Column.AnimatedVisibility(
+                        visible = !isLoading,
+                        enter = fadeIn(animationSpec = tween(500)),
+                        exit = fadeOut(animationSpec = tween(500))
+                    ) {
                         LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 5.dp, end = 5.dp, top = 16.dp, bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(filteredEstablishments) { establishment ->
-                                EstablishmentItem(
-                                    establishment = establishment,
-                                    viewModel = viewModel,
-                                    navController = navController
-                                )
+                            displayList.forEach { item ->
+                                when (item) {
+                                    is String -> {
+                                        item {
+                                            Text(
+                                                text = item,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = AppTheme.colors.MainText,
+                                                modifier = Modifier.padding(vertical = 8.dp)
+                                            )
+                                        }
+                                    }
+
+                                    is EstablishmentDisplayDto -> {
+                                        item {
+                                            EstablishmentItem(
+                                                establishment = item,
+                                                isPinned = item.id in pinnedIds,
+                                                onPinClick = {
+                                                    coroutineScope.launch {
+                                                        pinnedViewModel.togglePin(item.id)
+                                                    }
+                                                },
+                                                onBookingsClick = {
+                                                    navController.navigate(
+                                                        BookingScreens.OwnerBookingsManagement.createRoute(item.id)
+                                                    )
+                                                },
+                                                navController = navController
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun BottomButtons(navController: NavController) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .background(AppTheme.colors.MainContainer),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Button(
-            onClick = {
-                navController.navigate(EstablishmentScreens.ApproveBookings.route)
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppTheme.colors.MainSuccess,
-                contentColor = AppTheme.colors.MainText
-            )
-        ) {
-            Text("Одобрение броней")
-        }
-
-        Button(
-            onClick = {
-                // TODO: Реализовать кнопку для просмотра броней
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppTheme.colors.MainSuccess,
-                contentColor = AppTheme.colors.MainText
-            )
-        ) {
-            Text("Просмотр броней")
         }
     }
 }
@@ -256,220 +248,81 @@ fun BottomButtons(navController: NavController) {
 @Composable
 fun EstablishmentItem(
     establishment: EstablishmentDisplayDto,
-    viewModel: EstablishmentViewModel,
+    isPinned: Boolean,
+    onPinClick: () -> Unit,
+    onBookingsClick: () -> Unit,
     navController: NavController
 ) {
-    val showResubmitButton = establishment.status == EstablishmentStatus.REJECTED
-
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                navController.navigate(
-                    EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id)
-                )
-            },
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = AppTheme.colors.SecondaryContainer
-        ),
-        border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.SecondaryBorder)
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = establishment.name,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = AppTheme.colors.MainText
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = establishment.address,
-                style = MaterialTheme.typography.bodyMedium,
-                color = AppTheme.colors.SecondaryText
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "Статус: ${formatStatus(establishment.status)}",
-                        color = getStatusColor(establishment.status),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "Создано: ${establishment.dateOfCreation}",
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = 4.dp),
-                        color = AppTheme.colors.SecondaryText
-                    )
-                }
-
                 Text(
-                    text = "Рейтинг: ${String.format("%.1f", establishment.rating)}",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = establishment.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = AppTheme.colors.MainText
                 )
+
+                IconButton(
+                    onClick = onPinClick,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isPinned) Icons.Filled.Build else Icons.Outlined.Build,
+                        contentDescription = if (isPinned) "Открепить" else "Закрепить",
+                        tint = if (isPinned) AppTheme.colors.MainSuccess else AppTheme.colors.SecondaryText
+                    )
+                }
             }
 
-            if (showResubmitButton) {
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = establishment.address,
+                style = MaterialTheme.typography.bodyMedium,
+                color = AppTheme.colors.SecondaryText
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Кнопки действий
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(
-                    onClick = {
-                        viewModel.resubmitEstablishmentForReview(establishment.id)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onBookingsClick,
+                    modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AppTheme.colors.MainSuccess,
-                        contentColor = AppTheme.colors.MainText
+                        containerColor = AppTheme.colors.MainSuccess
                     )
                 ) {
-                    Text("Отправить на повторное рассмотрение")
+                    Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Бронирования")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        // Навигация к деталям заведения
+                        navController.navigate("establishment/detail/${establishment.id}")
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Детали")
                 }
             }
         }
     }
-}
-
-/**
- * Вспомогательная функция для форматирования статуса (для UI).
- */
-@Composable
-private fun formatStatus(status: EstablishmentStatus): String {
-    return when (status) {
-        EstablishmentStatus.PENDING_APPROVAL -> "Ожидает одобрения"
-        EstablishmentStatus.ACTIVE -> "Одобрено"
-        EstablishmentStatus.REJECTED -> "Отклонено"
-        else -> "Неизвестный"
-    }
-}
-
-/**
- * Вспомогательная функция для определения цвета статуса.
- */
-@Composable
-private fun getStatusColor(status: EstablishmentStatus): androidx.compose.ui.graphics.Color {
-    return when (status) {
-        EstablishmentStatus.PENDING_APPROVAL -> AppTheme.colors.SecondarySuccess
-        EstablishmentStatus.ACTIVE -> AppTheme.colors.MainSuccess
-        EstablishmentStatus.REJECTED -> AppTheme.colors.MainFailure
-        else -> AppTheme.colors.MainFailure
-    }
-}
-
-/**
- * Диалог для выбора фильтров по статусу
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FilterDialog(
-    currentSelections: Set<EstablishmentStatus>,
-    onDismiss: () -> Unit,
-    onConfirm: (Set<EstablishmentStatus>) -> Unit
-) {
-    var tempSelections by remember { mutableStateOf(currentSelections) }
-    val allStatuses = remember { EstablishmentStatus.entries.toTypedArray() }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                "Фильтр по статусу",
-                color = AppTheme.colors.MainText
-            )
-        },
-        text = {
-            Column {
-                // Кнопки "Выбрать все" / "Очистить"
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TextButton(
-                        onClick = { tempSelections = allStatuses.toSet() }
-                    ) {
-                        Text(
-                            "Выбрать все",
-                            color = AppTheme.colors.MainText
-                        )
-                    }
-                    TextButton(
-                        onClick = { tempSelections = emptySet() }
-                    ) {
-                        Text(
-                            "Очистить",
-                            color = AppTheme.colors.MainText
-                        )
-                    }
-                }
-                HorizontalDivider(
-                    color = AppTheme.colors.SecondaryBorder
-                )
-                // Список статусов с чекбоксами
-                LazyColumn(modifier = Modifier.padding(top = 8.dp)) {
-                    items(allStatuses) { status ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    tempSelections = if (status in tempSelections) {
-                                        tempSelections - status
-                                    } else {
-                                        tempSelections + status
-                                    }
-                                },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = status in tempSelections,
-                                onCheckedChange = { isChecked ->
-                                    tempSelections = if (isChecked) {
-                                        tempSelections + status
-                                    } else {
-                                        tempSelections - status
-                                    }
-                                },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = AppTheme.colors.MainSuccess,
-                                    uncheckedColor = AppTheme.colors.SecondaryBorder,
-                                    checkmarkColor = AppTheme.colors.MainText
-                                )
-                            )
-                            Text(
-                                formatStatus(status),
-                                modifier = Modifier.padding(start = 8.dp),
-                                color = AppTheme.colors.MainText
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(tempSelections) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.colors.MainSuccess,
-                    contentColor = AppTheme.colors.MainText
-                )
-            ) {
-                Text("Применить")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    "Отмена",
-                    color = AppTheme.colors.SecondaryText
-                )
-            }
-        },
-        containerColor = AppTheme.colors.MainContainer
-    )
 }

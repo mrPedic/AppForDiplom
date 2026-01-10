@@ -235,4 +235,15 @@ interface ApiService {
         @Query("status") status: String,
         @Query("ownerId") ownerId: Long
     ): Response<Unit>
+
+    // Добавим в ApiService.kt
+    @GET("bookings/owner/{ownerId}/approved")
+    suspend fun getApprovedBookingsForOwner(
+        @Path("ownerId") ownerId: Long,
+        @Query("establishmentId") establishmentId: Long? = null
+    ): List<OwnerBookingDisplayDto>
+
+    // В ApiService.kt добавьте:
+    @GET("bookings/{bookingId}/details")
+    suspend fun getBookingDetails(@Path("bookingId") bookingId: Long): OwnerBookingDisplayDto
 }

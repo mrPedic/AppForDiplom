@@ -3,7 +3,12 @@ package com.example.roamly.navigation
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -23,6 +28,8 @@ import com.example.roamly.ui.screens.UserBookingsScreen
 import com.example.roamly.ui.screens.admin.PendingListScreen
 import com.example.roamly.ui.screens.booking.CreateBookingScreen
 import com.example.roamly.ui.screens.booking.ApproveBookingsScreen
+import com.example.roamly.ui.screens.booking.OwnerApprovedBookingsScreen
+import com.example.roamly.ui.screens.booking.OwnerBookingsManagementScreen
 import com.example.roamly.ui.screens.establishment.CreateEstablishmentScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentDetailScreen
 import com.example.roamly.ui.screens.establishment.EstablishmentEditScreen
@@ -202,6 +209,72 @@ fun NavGraph(
         // Внутри NavHost, где остальные composable
         composable(EstablishmentScreens.ApproveBookings.route) {
             ApproveBookingsScreen(navController = navController, userViewModel = userViewModel)
+        }
+
+        // Добавим в NavHost компонуемый файл
+        composable(BookingScreens.OwnerBookingsManagement.route) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
+            OwnerBookingsManagementScreen(
+                navController = navController,
+                establishmentId = establishmentId
+            )
+        }
+
+        composable(BookingScreens.OwnerApprovedBookings.route) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
+            OwnerApprovedBookingsScreen(
+                navController = navController,
+                establishmentId = establishmentId
+            )
+        }// Добавим в NavHost компонуемый файл
+        composable(BookingScreens.OwnerBookingsManagement.route) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
+            OwnerBookingsManagementScreen(
+                navController = navController,
+                establishmentId = establishmentId
+            )
+        }
+
+        composable(BookingScreens.OwnerApprovedBookings.route) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
+            OwnerApprovedBookingsScreen(
+                navController = navController,
+                establishmentId = establishmentId
+            )
+        }
+
+        // В NavGraph.kt измените обработку параметров:
+        composable(BookingScreens.OwnerBookingsManagement.route) { backStackEntry ->
+            val establishmentIdStr = backStackEntry.arguments?.getString("establishmentId")
+            val establishmentId = establishmentIdStr?.toLongOrNull() ?: 0L
+
+            if (establishmentId == 0L) {
+                // Обработка ошибки
+                LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Ошибка: неверный ID заведения")
+                }
+            } else {
+                OwnerBookingsManagementScreen(navController = navController, establishmentId = establishmentId)
+            }
+        }
+
+        composable(BookingScreens.OwnerApprovedBookings.route) { backStackEntry ->
+            val establishmentIdStr = backStackEntry.arguments?.getString("establishmentId")
+            val establishmentId = establishmentIdStr?.toLongOrNull() ?: 0L
+
+            if (establishmentId == 0L) {
+                LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Ошибка: неверный ID заведения")
+                }
+            } else {
+                OwnerApprovedBookingsScreen(navController = navController, establishmentId = establishmentId)
+            }
         }
     }
 }

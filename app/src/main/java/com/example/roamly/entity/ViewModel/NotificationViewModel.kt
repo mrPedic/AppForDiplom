@@ -1,6 +1,8 @@
 package com.example.roamly.entity.ViewModel
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,6 +12,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.roamly.entity.DTO.booking.OwnerBookingDisplayDto
 import com.example.roamly.websocket.NotificationHelper
 import com.example.roamly.websocket.SockJSManager
 import com.google.gson.Gson
@@ -492,5 +495,66 @@ class NotificationViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         Log.d("NotificationViewModel", "🛑 NotificationViewModel уничтожается")
+    }
+
+    // Новые состояния для диалога подтверждения брони
+    private val _showBookingDialog = MutableStateFlow(false)
+    val showBookingDialog: StateFlow<Boolean> = _showBookingDialog.asStateFlow()
+
+    private val _selectedBooking = MutableStateFlow<OwnerBookingDisplayDto?>(null)
+    val selectedBooking: StateFlow<OwnerBookingDisplayDto?> = _selectedBooking.asStateFlow()
+
+    // Функция для открытия диалога с бронированием
+    fun showBookingApprovalDialog(booking: OwnerBookingDisplayDto) {
+        _selectedBooking.value = booking
+        _showBookingDialog.value = true
+    }
+
+    // Функция для закрытия диалога
+    fun dismissBookingDialog() {
+        _showBookingDialog.value = false
+        _selectedBooking.value = null
+    }
+
+    // Функция для обработки уведомления
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun handleNotificationClick(notificationId: String, data: Map<String, String>) {
+        viewModelScope.launch {
+            // Пометим уведомление как прочитанное
+            markAsRead(notificationId)
+
+            // Если в данных есть информация о бронировании, показываем диалог
+            val bookingId = data["bookingId"]?.toLongOrNull()
+            val establishmentId = data["establishmentId"]?.toLongOrNull()
+
+            if (bookingId != null && establishmentId != null) {
+                // Здесь нужно загрузить детали бронирования
+                // Временная заглушка - в реальном приложении нужно загрузить из API
+                val booking = OwnerBookingDisplayDto(
+                    id = bookingId,
+                    establishmentId = establishmentId,
+                    establishmentName = data["establishmentName"] ?: "Заведение",
+                    userId = data["userId"]?.toLongOrNull() ?: 0,
+                    userName = data["userName"] ?: "Гость",
+                    userPhone = data["userPhone"],
+                    tableNumber = data["tableNumber"]?.toIntOrNull() ?: 1,
+                    numberOfGuests = data["numberOfGuests"]?.toIntOrNull() ?: 2,
+                    startTime = parseDateTime(data["startTime"]),
+                    endTime = parseDateTime(data["endTime"]),
+                    status = com.example.roamly.entity.DTO.booking.BookingStatus.PENDING
+                )
+
+                showBookingApprovalDialog(booking)
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun parseDateTime(dateTimeStr: String?): java.time.LocalDateTime {
+        return try {
+            java.time.LocalDateTime.parse(dateTimeStr)
+        } catch (e: Exception) {
+            java.time.LocalDateTime.now()
+        }
     }
 }

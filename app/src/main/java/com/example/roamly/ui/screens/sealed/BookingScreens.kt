@@ -1,3 +1,4 @@
+// В файле BookingScreens.kt добавим новые маршруты
 package com.example.roamly.ui.screens.sealed
 
 sealed class BookingScreens(val route : String) {
@@ -12,9 +13,15 @@ sealed class BookingScreens(val route : String) {
 
     object UserBookings : BookingScreens("bookings/list")
 
+    object OwnerBookingsManagement : BookingScreens("owner/bookings/{$ESTABLISHMENT_ID_KEY}") {
+        fun createRoute(establishmentId: Long): String = "owner/bookings/$establishmentId"
+    }
+
+    object OwnerApprovedBookings : BookingScreens("owner/approved/{$ESTABLISHMENT_ID_KEY}") {
+        fun createRoute(establishmentId: Long): String = "owner/approved/$establishmentId"
+    }
+
     object BookingDetail : BookingScreens("booking/detail/{${BOOKING_ID_KEY}}") {
         fun createRoute(id: Long) = "booking/detail/$id"
     }
-
-
 }
