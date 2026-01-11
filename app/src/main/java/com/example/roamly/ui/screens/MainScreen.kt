@@ -9,8 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -18,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,16 +35,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.navigation.NavGraph
-import com.example.roamly.ui.screens.sealed.AdminScreens
-import com.example.roamly.ui.screens.sealed.BookingScreens
-import com.example.roamly.ui.screens.sealed.EstablishmentScreens
-import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.NotificationScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.theme.AppTheme
-import com.example.roamly.ui.theme.AppThemeConfig
 
 @SuppressLint("SuspiciousIndentation")
 @RequiresApi(Build.VERSION_CODES.O)
@@ -55,6 +48,7 @@ import com.example.roamly.ui.theme.AppThemeConfig
 fun MainScreen(
     navController: NavHostController = rememberNavController(),
     userViewModel: UserViewModel = hiltViewModel(),
+    orderViewModel: OrderViewModel = hiltViewModel(),
     establishmentViewModel: EstablishmentViewModel = hiltViewModel()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -96,6 +90,7 @@ fun MainScreen(
         NavGraph(
             navController = navController,
             userViewModel = userViewModel,
+            orderViewModel =  orderViewModel,
             mapRefreshKey = mapRefreshKey,
             onMapRefresh = {
                 establishmentViewModel.fetchEstablishmentMarkers()

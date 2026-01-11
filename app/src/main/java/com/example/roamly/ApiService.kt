@@ -5,6 +5,8 @@ import com.example.roamly.classes.cl_menu.DrinksGroup
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.FoodGroup
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
+import com.example.roamly.entity.CreateOrderRequest
+import com.example.roamly.entity.DTO.OrderNotificationDto
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
@@ -16,6 +18,9 @@ import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.DTO.booking.BookingDisplayDto
 import com.example.roamly.entity.DTO.booking.OwnerBookingDisplayDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
+import com.example.roamly.entity.DeliveryAddressDto
+import com.example.roamly.entity.OrderDto
+import com.example.roamly.entity.UpdateOrderStatusRequest
 import com.example.roamly.entity.classes.EstablishmentEntity
 import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.entity.classes.TableEntity
@@ -246,4 +251,66 @@ interface ApiService {
     // В ApiService.kt добавьте:
     @GET("bookings/{bookingId}/details")
     suspend fun getBookingDetails(@Path("bookingId") bookingId: Long): OwnerBookingDisplayDto
+
+
+    // Добавить в ApiService.kt
+    @POST("orders/create")
+    suspend fun createOrder(@Body request: CreateOrderRequest): OrderDto
+
+    @GET("orders/user/{userId}")
+    suspend fun getUserOrders(@Path("userId") userId: Long): List<OrderDto>
+
+    @GET("orders/establishment/{establishmentId}")
+    suspend fun getEstablishmentOrders(
+        @Path("establishmentId") establishmentId: Long,
+        @Query("status") status: String? = null
+    ): List<OrderDto>
+
+    @PUT("orders/{orderId}/status")
+    suspend fun updateOrderStatus(
+        @Path("orderId") orderId: Long,
+        @Body request: UpdateOrderStatusRequest
+    ): OrderDto
+
+    data class OrderNotification(
+        val orderId: Long,
+        val userId: Long,
+        val establishmentId: Long,
+        val notificationType: String, // "ORDER_CREATED", "ORDER_STATUS_CHANGED"
+        val message: String
+    )
+
+    // Добавьте эти методы в существующий ApiService.kt
+
+    @GET("users/{userId}/delivery-addresses")
+    suspend fun getUserDeliveryAddresses(@Path("userId") userId: Long): List<DeliveryAddressDto>
+
+    @POST("users/{userId}/delivery-addresses")
+    suspend fun createDeliveryAddress(@Path("userId") userId: Long, @Body address: DeliveryAddressDto): DeliveryAddressDto
+
+    @DELETE("users/{userId}/delivery-addresses/{addressId}")
+    suspend fun deleteDeliveryAddress(
+        @Path("userId") userId: Long,
+        @Path("addressId") addressId: Long
+    ): Response<Unit>
+
+    @PUT("users/{userId}/delivery-addresses/{addressId}")
+    suspend fun updateDeliveryAddress(
+        @Path("userId") userId: Long,
+        @Path("addressId") addressId: Long,
+        @Body address: DeliveryAddressDto
+    ): DeliveryAddressDto
+
+    @PUT("users/{userId}/delivery-addresses/{addressId}/set-default")
+    suspend fun setDefaultDeliveryAddress(
+        @Path("userId") userId: Long,
+        @Path("addressId") addressId: Long
+    ): Response<Unit>
+
+    // Эндпоинты для уведомлений о заказах
+    @POST("notifications/order")
+    suspend fun sendOrderNotification(@Body notification: OrderNotification): Response<Unit>
+
+    @GET("notifications/order/user/{userId}")
+    suspend fun getOrderNotifications(@Path("userId") userId: Long): List<OrderNotificationDto>
 }

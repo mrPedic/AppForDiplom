@@ -63,7 +63,7 @@ MainActivity : ComponentActivity() {
                             Log.e("MainActivity", "🔄 SockJS CONNECTING...")
                         }
                         is SockJSManager.ConnectionState.Connected -> {
-                            Log.e("MainActivity", "✅ SockJS CONNECTED")
+                            Log.d("MainActivity", "✅ SockJS CONNECTED")
                         }
                         is SockJSManager.ConnectionState.Disconnected -> {
                             Log.e("MainActivity", "🔴 SockJS DISCONNECTED")

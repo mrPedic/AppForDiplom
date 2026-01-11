@@ -161,6 +161,17 @@ class SockJSManager private constructor() {
                         Log.d(TAG, "📦 Message type: $type")
 
                         when (type) {
+
+
+                            "ORDER_NOTIFICATION" -> {
+                                Log.d(TAG, "🛒 Received order notification")
+                                // Обработка уведомления о заказе
+                                scope.launch {
+                                    _messages.emit(text)
+                                }
+                            }
+
+
                             "ping" -> {
                                 Log.d(TAG, "🏓 Received ping from server")
                                 val pongMsg = JSONObject().apply {
@@ -171,10 +182,14 @@ class SockJSManager private constructor() {
                                 webSocket.send(pongMsg.toString())
                                 Log.d(TAG, "📤 Sent pong response")
                             }
+
+
                             "TEST_NOTIFICATION", "TEST_CHANNEL_NOTIFICATION" -> {
                                 Log.d(TAG, "🎯 RECEIVED TEST NOTIFICATION! Full message:")
                                 Log.d(TAG, "📋 ${json.toString(2)}")
                             }
+
+
                             else -> {
                                 Log.d(TAG, "📄 Other message of type: $type")
                             }

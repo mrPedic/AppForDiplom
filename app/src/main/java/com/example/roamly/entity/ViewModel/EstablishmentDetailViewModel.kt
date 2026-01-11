@@ -151,7 +151,7 @@ class EstablishmentDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun fetchEstablishment(establishmentId: Long) {
+    suspend fun fetchEstablishment(establishmentId: Long) {
         Log.d("EstablishmentDetailViewModel", "Starting fetchEstablishment for ID: $establishmentId")
         try {
             val establishment = withContext(Dispatchers.IO) {

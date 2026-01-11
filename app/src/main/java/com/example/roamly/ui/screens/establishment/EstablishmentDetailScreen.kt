@@ -3,8 +3,6 @@
 package com.example.roamly.ui.screens.establishment
 
 import android.os.Build
-import android.util.Base64
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.*
@@ -27,6 +25,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -35,12 +34,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,9 +56,8 @@ import com.example.roamly.entity.ViewModel.EstablishmentDetailViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.screens.sealed.OrderScreens
 import com.example.roamly.ui.theme.AppTheme
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
@@ -517,6 +513,51 @@ fun DescriptionSection(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text("Забронировать столик")
+        }
+
+        // В DescriptionSection добавьте кнопку рядом с кнопкой бронирования
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    navController.navigate(BookingScreens.CreateBooking.createRoute(establishmentId))
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.MainSuccess,
+                    contentColor = colors.MainText
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = "Забронировать",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Забронировать столик")
+            }
+
+            Button(
+                onClick = {
+                    navController.navigate(OrderScreens.OrderCreation.createRoute(establishmentId))
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.MainBorder,
+                    contentColor = colors.MainText
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ShoppingCart,
+                    contentDescription = "Заказать",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Заказать с доставкой")
+            }
         }
     }
 }

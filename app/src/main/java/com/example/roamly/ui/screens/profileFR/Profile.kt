@@ -31,15 +31,20 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
+import com.example.roamly.entity.OrderDto
+import com.example.roamly.entity.OrderStatus
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.NotificationViewModel
+import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.classes.convertTypeToWord
+import com.example.roamly.entity.toDisplayString
 import com.example.roamly.ui.screens.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.NotificationScreens
+import com.example.roamly.ui.screens.sealed.OrderScreens
 import com.example.roamly.ui.theme.AppTheme
 import com.example.roamly.websocket.SockJSManager
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +57,7 @@ import kotlin.math.min
 fun ProfileScreen(
     navController: NavController,
     userViewModel: UserViewModel,
+    orderViewModel: OrderViewModel,
     establishmentViewModel: EstablishmentViewModel = hiltViewModel(),
     notificationViewModel: NotificationViewModel = hiltViewModel()
 ) {
@@ -84,6 +90,7 @@ fun ProfileScreen(
                 userViewModel = userViewModel,
                 establishmentViewModel = establishmentViewModel,
                 notificationViewModel = notificationViewModel,
+                orderViewModel = orderViewModel,
                 unreadCount = unreadCountState
             )
         } else {
@@ -99,6 +106,7 @@ fun ProfileScreen(
 private fun RegisteredProfileContent(
     navController: NavController,
     userViewModel: UserViewModel,
+    orderViewModel: OrderViewModel,
     establishmentViewModel: EstablishmentViewModel,
     notificationViewModel: NotificationViewModel,
     unreadCount: Int
@@ -204,6 +212,110 @@ private fun RegisteredProfileContent(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        // Заказы
+
+
+        Text(
+            text = "Мои заказы",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = AppTheme.colors.MainText,
+            modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
+        )
+
+        val userOrders by orderViewModel.userOrders.collectAsState()
+        val user = userViewModel.user.collectAsState()
+
+        LaunchedEffect(user.value.id) {
+            user.value.id?.let {
+                orderViewModel.loadUserOrders(it)
+            }
+        }
+
+// Активные заказы (PENDING, CONFIRMED, IN_PROGRESS, OUT_FOR_DELIVERY)
+        val activeOrders = userOrders.filter {
+            it.status == OrderStatus.PENDING ||
+                    it.status == OrderStatus.CONFIRMED ||
+                    it.status == OrderStatus.IN_PROGRESS ||
+                    it.status == OrderStatus.OUT_FOR_DELIVERY
+        }
+
+// Завершенные заказы
+        val completedOrders = userOrders.filter {
+            it.status == OrderStatus.DELIVERED ||
+                    it.status == OrderStatus.CANCELLED ||
+                    it.status == OrderStatus.REJECTED
+        }
+
+        if (activeOrders.isEmpty() && completedOrders.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .background(AppTheme.colors.SecondaryContainer, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("У вас пока нет заказов")
+            }
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (activeOrders.isNotEmpty()) {
+                    Text(
+                        "Активные заказы",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.MainSuccess
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp)
+                    ) {
+                        items(activeOrders) { order ->
+                            OrderPreviewCard(order = order, onClick = {
+                                order.id?.let {
+                                    navController.navigate("order/details/$it")
+                                }
+                            })
+                        }
+                    }
+                }
+
+                if (completedOrders.isNotEmpty()) {
+                    Text(
+                        "Завершенные заказы",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.SecondaryText
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp)
+                    ) {
+                        items(completedOrders) { order ->
+                            OrderPreviewCard(order = order, onClick = {
+                                order.id?.let {
+                                    navController.navigate("order/details/$it")
+                                }
+                            })
+                        }
+                    }
+                }
+            }
+
+            Button(
+                onClick = {
+                    navController.navigate(OrderScreens.OrderList.route)
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Text("Все заказы")
+            }
+        }
 
         // Action Buttons
         Button(
@@ -587,5 +699,49 @@ private fun InfoRow(label: String, value: String) {
             fontWeight = FontWeight.SemiBold,
             color = AppTheme.colors.MainText
         )
+    }
+}
+// Исправленный OrderPreviewCard в Profile.kt
+@Composable
+fun OrderPreviewCard(order: OrderDto, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.width(200.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Text(
+                "Заказ #${order.id}",
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                "${order.items.size} позиций",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                "${order.totalPrice} ₽",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = order.status.toDisplayString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = when (order.status) {
+                    OrderStatus.DELIVERED -> Color.Green
+                    OrderStatus.REJECTED -> Color.Red
+                    else -> AppTheme.colors.MainText
+                }
+            )
+        }
     }
 }

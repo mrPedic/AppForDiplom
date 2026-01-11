@@ -2,7 +2,6 @@ package com.example.roamly.navigation
 
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -15,6 +14,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.ui.screens.AdminPanelScreen
 import com.example.roamly.ui.screens.HomeScreen
 import com.example.roamly.ui.screens.SearchScreen
@@ -37,13 +37,20 @@ import com.example.roamly.ui.screens.establishment.MapPickerScreen
 import com.example.roamly.ui.screens.establishment.MenuEditScreen
 import com.example.roamly.ui.screens.establishment.ReviewCreationScreen
 import com.example.roamly.ui.screens.establishment.UserEstablishmentsScreen
+import com.example.roamly.ui.screens.order.CreateDeliveryAddressScreen
+import com.example.roamly.ui.screens.order.DeliveryAddressScreen
+import com.example.roamly.ui.screens.order.EditDeliveryAddressScreen
+import com.example.roamly.ui.screens.order.OrderCheckoutScreen
+import com.example.roamly.ui.screens.order.OrderCreationMenuScreen
+import com.example.roamly.ui.screens.order.OrderCreationScreen
+import com.example.roamly.ui.screens.order.OrderListScreen
 import com.example.roamly.ui.screens.profileFR.NotificationsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 import com.example.roamly.ui.screens.sealed.AdminScreens
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.NotificationScreens
-import com.example.roamly.ui.theme.AppTheme
+import com.example.roamly.ui.screens.sealed.OrderScreens
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -51,6 +58,7 @@ fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     userViewModel: UserViewModel,
+    orderViewModel: OrderViewModel,
     mapRefreshKey: Boolean,
     onMapRefresh: () -> Unit,
 ) {
@@ -72,7 +80,7 @@ fun NavGraph(
         }
 
         composable(SealedButtonBar.Profile.route) {
-            ProfileScreen(navController, userViewModel)
+            ProfileScreen(navController, userViewModel, orderViewModel)
         }
 
         // --- Экраны авторизации ---
@@ -274,6 +282,85 @@ fun NavGraph(
                 }
             } else {
                 OwnerApprovedBookingsScreen(navController = navController, establishmentId = establishmentId)
+            }
+        }
+
+        // Добавить в навигацию
+        composable(OrderScreens.OrderCreation.route) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
+            establishmentId?.let {
+                OrderCreationScreen(navController, it)
+            }
+        }
+
+        composable("order/checkout/{establishmentId}") { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
+            val userId = userViewModel.getId()
+
+            if (establishmentId != null && userId != null) {
+                OrderCheckoutScreen(navController, establishmentId, userId)
+            }
+        }
+
+        composable(OrderScreens.OrderList.route) {
+            OrderListScreen(navController, userViewModel)
+        }
+
+        composable(OrderScreens.OrderDetails.route) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId")?.toLongOrNull()
+            orderId?.let {
+                // TODO: Создать OrderDetailScreen
+            }
+        }
+
+        // Добавьте эти маршруты в NavGraph
+
+        composable(OrderScreens.OrderCreation.route) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
+            establishmentId?.let {
+                OrderCreationMenuScreen(navController, it)
+            }
+        }
+
+        composable("order/checkout/{establishmentId}") { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
+            val userId = userViewModel.getId()
+
+            if (establishmentId != null && userId != null) {
+                OrderCheckoutScreen(navController, establishmentId, userId)
+            }
+        }
+
+        composable("orders/delivery-addresses/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull()
+            userId?.let {
+                DeliveryAddressScreen(
+                    navController = navController,
+                    userId = it,
+                    onAddressSelected = { address ->
+                        // Сохраняем выбранный адрес и возвращаемся назад
+                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                            "selectedAddress",
+                            address
+                        )
+                        navController.popBackStack()
+                    }
+                )
+            }
+        }
+
+        composable("order/create-address/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull()
+            userId?.let {
+                CreateDeliveryAddressScreen(navController, it)
+            }
+        }
+
+        composable("order/edit-address/{userId}/{addressId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull()
+            val addressId = backStackEntry.arguments?.getString("addressId")?.toLongOrNull()
+            if (userId != null && addressId != null) {
+                EditDeliveryAddressScreen(navController, userId, addressId)
             }
         }
     }
