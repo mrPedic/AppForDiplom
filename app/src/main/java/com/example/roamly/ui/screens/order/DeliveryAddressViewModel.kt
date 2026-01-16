@@ -3,7 +3,7 @@ package com.example.roamly.entity.ViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
-import com.example.roamly.entity.DeliveryAddressDto
+import com.example.roamly.entity.DTO.order.DeliveryAddressDto
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,7 +56,7 @@ class DeliveryAddressViewModel @Inject constructor(
         }
     }
 
-    fun createAddress(userId: Long, address: DeliveryAddressDto, onSuccess: () -> Unit) {
+    fun createAddress(userId: Long, address: DeliveryAddressDto, onSuccess: (DeliveryAddressDto) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
@@ -67,7 +67,7 @@ class DeliveryAddressViewModel @Inject constructor(
                 }
                 _addresses.value = _addresses.value + newAddress
                 _successMessage.value = "Адрес успешно добавлен"
-                onSuccess()
+                onSuccess(newAddress) // ← возвращаем созданный адрес
             } catch (e: Exception) {
                 _error.value = "Ошибка создания адреса: ${e.message}"
             } finally {
@@ -76,7 +76,7 @@ class DeliveryAddressViewModel @Inject constructor(
         }
     }
 
-    fun updateAddress(userId: Long, addressId: Long, address: DeliveryAddressDto, onSuccess: () -> Unit) {
+    fun updateAddress(userId: Long, addressId: Long, address: DeliveryAddressDto, onSuccess: (DeliveryAddressDto) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
@@ -89,7 +89,7 @@ class DeliveryAddressViewModel @Inject constructor(
                     if (it.id == addressId) updatedAddress else it
                 }
                 _successMessage.value = "Адрес успешно обновлен"
-                onSuccess()
+                onSuccess(updatedAddress) // ← возвращаем обновленный адрес
             } catch (e: Exception) {
                 _error.value = "Ошибка обновления адреса: ${e.message}"
             } finally {

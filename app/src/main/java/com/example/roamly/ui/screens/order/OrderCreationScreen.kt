@@ -12,7 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.CreateOrderItem
+import com.example.roamly.entity.DTO.order.CreateOrderItem
 import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.ui.theme.AppTheme
 

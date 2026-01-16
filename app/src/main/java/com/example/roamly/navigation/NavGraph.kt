@@ -14,6 +14,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.roamly.entity.ViewModel.OrderCreationViewModel
 import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.ui.screens.AdminPanelScreen
 import com.example.roamly.ui.screens.HomeScreen
@@ -46,11 +47,7 @@ import com.example.roamly.ui.screens.order.OrderCreationScreen
 import com.example.roamly.ui.screens.order.OrderListScreen
 import com.example.roamly.ui.screens.profileFR.NotificationsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
-import com.example.roamly.ui.screens.sealed.AdminScreens
-import com.example.roamly.ui.screens.sealed.BookingScreens
-import com.example.roamly.ui.screens.sealed.EstablishmentScreens
-import com.example.roamly.ui.screens.sealed.NotificationScreens
-import com.example.roamly.ui.screens.sealed.OrderScreens
+import com.example.roamly.ui.screens.sealed.*
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -60,6 +57,7 @@ fun NavGraph(
     userViewModel: UserViewModel,
     orderViewModel: OrderViewModel,
     mapRefreshKey: Boolean,
+    orderCreationViewModel: OrderCreationViewModel,
     onMapRefresh: () -> Unit,
 ) {
     NavHost(
@@ -112,7 +110,6 @@ fun NavGraph(
         }
 
         // Просмотр и редактирование заведения
-
         composable(
             route = EstablishmentScreens.EstablishmentDetail.route,
             arguments = listOf(
@@ -214,50 +211,18 @@ fun NavGraph(
             }
         }
 
-        // Внутри NavHost, где остальные composable
         composable(EstablishmentScreens.ApproveBookings.route) {
             ApproveBookingsScreen(navController = navController, userViewModel = userViewModel)
         }
 
-        // Добавим в NavHost компонуемый файл
-        composable(BookingScreens.OwnerBookingsManagement.route) { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
-            OwnerBookingsManagementScreen(
-                navController = navController,
-                establishmentId = establishmentId
-            )
-        }
-
-        composable(BookingScreens.OwnerApprovedBookings.route) { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
-            OwnerApprovedBookingsScreen(
-                navController = navController,
-                establishmentId = establishmentId
-            )
-        }// Добавим в NavHost компонуемый файл
-        composable(BookingScreens.OwnerBookingsManagement.route) { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
-            OwnerBookingsManagementScreen(
-                navController = navController,
-                establishmentId = establishmentId
-            )
-        }
-
-        composable(BookingScreens.OwnerApprovedBookings.route) { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
-            OwnerApprovedBookingsScreen(
-                navController = navController,
-                establishmentId = establishmentId
-            )
-        }
-
-        // В NavGraph.kt измените обработку параметров:
-        composable(BookingScreens.OwnerBookingsManagement.route) { backStackEntry ->
-            val establishmentIdStr = backStackEntry.arguments?.getString("establishmentId")
+        composable(
+            route = BookingScreens.OwnerBookingsManagement.route,
+            arguments = listOf(navArgument(BookingScreens.ESTABLISHMENT_ID_KEY) { type = NavType.StringType })
+        ) { backStackEntry ->
+            val establishmentIdStr = backStackEntry.arguments?.getString(BookingScreens.ESTABLISHMENT_ID_KEY)
             val establishmentId = establishmentIdStr?.toLongOrNull() ?: 0L
 
             if (establishmentId == 0L) {
-                // Обработка ошибки
                 LaunchedEffect(Unit) {
                     navController.popBackStack()
                 }
@@ -269,8 +234,11 @@ fun NavGraph(
             }
         }
 
-        composable(BookingScreens.OwnerApprovedBookings.route) { backStackEntry ->
-            val establishmentIdStr = backStackEntry.arguments?.getString("establishmentId")
+        composable(
+            route = BookingScreens.OwnerApprovedBookings.route,
+            arguments = listOf(navArgument(BookingScreens.ESTABLISHMENT_ID_KEY) { type = NavType.StringType })
+        ) { backStackEntry ->
+            val establishmentIdStr = backStackEntry.arguments?.getString(BookingScreens.ESTABLISHMENT_ID_KEY)
             val establishmentId = establishmentIdStr?.toLongOrNull() ?: 0L
 
             if (establishmentId == 0L) {
@@ -285,83 +253,125 @@ fun NavGraph(
             }
         }
 
-        // Добавить в навигацию
-        composable(OrderScreens.OrderCreation.route) { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
-            establishmentId?.let {
-                OrderCreationScreen(navController, it)
-            }
+        // =====================================
+        // Создание заказа - ИСПОЛЬЗУЕМ SEALED CLASSES
+        // =====================================
+        composable(
+            route = OrderScreens.OrderCreation.route,
+            arguments = listOf(
+                navArgument(OrderScreens.ESTABLISHMENT_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong(OrderScreens.ESTABLISHMENT_ID_KEY) ?: return@composable
+            OrderCreationMenuScreen(
+                navController = navController,
+                establishmentId = establishmentId,
+                viewModel = orderCreationViewModel
+            )
         }
 
-        composable("order/checkout/{establishmentId}") { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
+        // =====================================
+        // Оформление заказа
+        // =====================================
+        composable(
+            route = OrderScreens.OrderCheckout.route,
+            arguments = listOf(
+                navArgument(OrderScreens.ESTABLISHMENT_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong(OrderScreens.ESTABLISHMENT_ID_KEY) ?: return@composable
             val userId = userViewModel.getId()
 
-            if (establishmentId != null && userId != null) {
-                OrderCheckoutScreen(navController, establishmentId, userId)
-            }
-        }
-
-        composable(OrderScreens.OrderList.route) {
-            OrderListScreen(navController, userViewModel)
-        }
-
-        composable(OrderScreens.OrderDetails.route) { backStackEntry ->
-            val orderId = backStackEntry.arguments?.getString("orderId")?.toLongOrNull()
-            orderId?.let {
-                // TODO: Создать OrderDetailScreen
-            }
-        }
-
-        // Добавьте эти маршруты в NavGraph
-
-        composable(OrderScreens.OrderCreation.route) { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
-            establishmentId?.let {
-                OrderCreationMenuScreen(navController, it)
-            }
-        }
-
-        composable("order/checkout/{establishmentId}") { backStackEntry ->
-            val establishmentId = backStackEntry.arguments?.getString("establishmentId")?.toLongOrNull()
-            val userId = userViewModel.getId()
-
-            if (establishmentId != null && userId != null) {
-                OrderCheckoutScreen(navController, establishmentId, userId)
-            }
-        }
-
-        composable("orders/delivery-addresses/{userId}") { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull()
-            userId?.let {
-                DeliveryAddressScreen(
+            if (userId != null) {
+                OrderCheckoutScreen(
                     navController = navController,
-                    userId = it,
-                    onAddressSelected = { address ->
-                        // Сохраняем выбранный адрес и возвращаемся назад
-                        navController.previousBackStackEntry?.savedStateHandle?.set(
-                            "selectedAddress",
-                            address
-                        )
-                        navController.popBackStack()
-                    }
+                    establishmentId = establishmentId,
+                    userId = userId,
+                    orderViewModel = orderViewModel,
+                    orderCreationViewModel = orderCreationViewModel
                 )
             }
         }
 
-        composable("order/create-address/{userId}") { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull()
-            userId?.let {
-                CreateDeliveryAddressScreen(navController, it)
+        // =====================================
+        // Список заказов
+        // =====================================
+        composable(OrderScreens.OrderList.route) {
+            OrderListScreen(navController, userViewModel)
+        }
+
+        // Детали заказа
+        composable(
+            route = OrderScreens.OrderDetails.route,
+            arguments = listOf(
+                navArgument(OrderScreens.ORDER_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getLong(OrderScreens.ORDER_ID_KEY)
+            orderId?.let {
+                // TODO: Создать OrderDetailScreen
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Детали заказа #$orderId")
+                }
             }
         }
 
-        composable("order/edit-address/{userId}/{addressId}") { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull()
-            val addressId = backStackEntry.arguments?.getString("addressId")?.toLongOrNull()
-            if (userId != null && addressId != null) {
-                EditDeliveryAddressScreen(navController, userId, addressId)
-            }
+        // =====================================
+        // Адреса доставки
+        // =====================================
+        composable(
+            route = OrderScreens.DeliveryAddresses.route,
+            arguments = listOf(
+                navArgument(OrderScreens.USER_ID_KEY) { type = NavType.LongType },
+                navArgument("isSelectionMode") {
+                    type = NavType.BoolType
+                    defaultValue = true
+                }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getLong(OrderScreens.USER_ID_KEY) ?: return@composable
+            val isSelectionMode = backStackEntry.arguments?.getBoolean("isSelectionMode") ?: true
+
+            DeliveryAddressScreen(
+                navController = navController,
+                userId = userId,
+                isSelectionMode = isSelectionMode,
+                onAddressSelected = { address ->
+                    // Устанавливаем результат и выходим (ОДИН РАЗ)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("selectedAddress", address)
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = OrderScreens.CreateDeliveryAddress.route,
+            arguments = listOf(
+                navArgument(OrderScreens.USER_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getLong(OrderScreens.USER_ID_KEY) ?: return@composable
+            CreateDeliveryAddressScreen(navController, userId)
+        }
+
+        composable(
+            route = OrderScreens.EditDeliveryAddress.route,
+            arguments = listOf(
+                navArgument(OrderScreens.USER_ID_KEY) { type = NavType.LongType },
+                navArgument(OrderScreens.ADDRESS_ID_KEY) { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getLong(OrderScreens.USER_ID_KEY) ?: return@composable
+            val addressId = backStackEntry.arguments?.getLong(OrderScreens.ADDRESS_ID_KEY) ?: return@composable
+            EditDeliveryAddressScreen(navController, userId, addressId)
         }
     }
 }

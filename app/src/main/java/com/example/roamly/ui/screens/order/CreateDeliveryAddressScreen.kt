@@ -14,7 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.DeliveryAddressDto
+import com.example.roamly.entity.DTO.order.DeliveryAddressDto
 import com.example.roamly.entity.ViewModel.DeliveryAddressViewModel
 import com.example.roamly.ui.theme.AppTheme
 
@@ -62,7 +62,11 @@ fun CreateDeliveryAddressScreen(
                                 isDefault = isDefault
                             )
 
-                            viewModel.createAddress(userId, address) {
+                            viewModel.createAddress(userId, address) { createdAddress ->
+                                navController.previousBackStackEntry?.savedStateHandle?.set(
+                                    "selectedAddress",
+                                    createdAddress
+                                )
                                 navController.popBackStack()
                             }
                         },

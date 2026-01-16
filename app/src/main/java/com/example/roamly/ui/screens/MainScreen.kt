@@ -5,6 +5,7 @@ package com.example.roamly.ui.screens
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.collection.orderedScatterSetOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
+import com.example.roamly.entity.ViewModel.OrderCreationViewModel
 import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.navigation.NavGraph
@@ -49,6 +51,7 @@ fun MainScreen(
     navController: NavHostController = rememberNavController(),
     userViewModel: UserViewModel = hiltViewModel(),
     orderViewModel: OrderViewModel = hiltViewModel(),
+    orderCreationViewModel: OrderCreationViewModel = hiltViewModel(),
     establishmentViewModel: EstablishmentViewModel = hiltViewModel()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -92,6 +95,7 @@ fun MainScreen(
             userViewModel = userViewModel,
             orderViewModel =  orderViewModel,
             mapRefreshKey = mapRefreshKey,
+            orderCreationViewModel = orderCreationViewModel,
             onMapRefresh = {
                 establishmentViewModel.fetchEstablishmentMarkers()
                 mapRefreshKey = !mapRefreshKey

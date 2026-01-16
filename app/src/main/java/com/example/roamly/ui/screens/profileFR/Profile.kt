@@ -31,15 +31,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
-import com.example.roamly.entity.OrderDto
-import com.example.roamly.entity.OrderStatus
+import com.example.roamly.entity.DTO.order.OrderDto
+import com.example.roamly.entity.DTO.order.OrderStatus
 import com.example.roamly.entity.Role
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.NotificationViewModel
 import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.classes.convertTypeToWord
-import com.example.roamly.entity.toDisplayString
+import com.example.roamly.entity.DTO.order.toDisplayString
 import com.example.roamly.ui.screens.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.LogSinUpScreens
@@ -333,109 +333,6 @@ private fun RegisteredProfileContent(
             Text(text = "Мои Заведения")
         }
 
-        // 🆕 Кнопка диагностики WebSocket
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Кнопка диагностики SockJS
-            Button(
-                onClick = {
-                    Log.d("Profile", "=== SockJS Diagnosis ===")
-                    val sockJSManager = SockJSManager.getInstance()
-                    Log.d("Profile", sockJSManager.diagnoseConnection())
-
-                    currentUser.id?.let { userId ->
-                        CoroutineScope(Dispatchers.IO).launch {
-                            sockJSManager.connectWithUser(userId.toString())
-                        }
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Cyan,
-                    contentColor = Color.Black
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("🔍 Diagnose SockJS")
-            }
-
-            // Кнопка переподключения
-            Button(
-                onClick = {
-                    Log.d("Profile", "Reconnecting SockJS...")
-                    val sockJSManager = SockJSManager.getInstance()
-                    sockJSManager.disconnect()
-
-                    currentUser.id?.let { userId ->
-                        CoroutineScope(Dispatchers.IO).launch {
-                            delay(2000)
-                            sockJSManager.connectWithUser(userId.toString())
-                        }
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Red,
-                    contentColor = Color.White
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("🔄 Reconnect SockJS")
-            }
-        }
-
-        // 🔥 Добавим кнопку для тестирования уведомлений
-        Button(
-            onClick = {
-                notificationViewModel.sendTestMessage()
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Green,
-                contentColor = Color.White
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp)
-        ) {
-            Text("🎯 Отправить тестовое сообщение")
-        }
-
-        // 🔥 Панель отладки WebSocket
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(150.dp)
-                .padding(bottom = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.8f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = "WebSocket Status: $connectionState",
-                    color = Color.White,
-                    fontSize = 10.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Последнее сообщение: ${lastMessage?.take(100) ?: "нет"}",
-                    color = Color.White,
-                    fontSize = 10.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Непрочитанные уведомления: $unreadCount",
-                    color = Color.White,
-                    fontSize = 10.sp
-                )
-            }
-        }
-
         // 🆕 Кнопка уведомлений
         Box(modifier = Modifier.fillMaxWidth()) {
             Button(
@@ -492,7 +389,25 @@ private fun RegisteredProfileContent(
             Text(text = "Создать свое заведение")
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        // Кнопка управления адресами доставки
+        Button(
+            onClick = {
+                currentUser.id?.let { userId ->
+                    navController.navigate(OrderScreens.DeliveryAddresses.createRoute(userId, false))
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AppTheme.colors.SecondaryContainer,
+                contentColor = AppTheme.colors.MainText
+            )
+        ) {
+            Text(text = "Мои адреса доставки")
+        }
+
+        Spacer(modifier = Modifier.height(50.dp))
 
         // Logout -> Destructive Action
         Button(

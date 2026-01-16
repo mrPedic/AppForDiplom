@@ -1,6 +1,7 @@
-package com.example.roamly.entity
+package com.example.roamly.entity.DTO.order
 
-import java.time.LocalDateTime
+import android.os.Parcelable
+import kotlinx.android.parcel.Parcelize
 
 // Модель заказа
 data class OrderDto(
@@ -35,6 +36,8 @@ data class OrderItemDto(
 )
 
 // Адрес доставки
+// DeliveryAddressDto.kt в клиентской части
+@Parcelize
 data class DeliveryAddressDto(
     val id: Long? = null,
     val userId: Long,
@@ -45,8 +48,9 @@ data class DeliveryAddressDto(
     val entrance: String? = null,
     val floor: String? = null,
     val comment: String? = null,
-    val isDefault: Boolean = false
-)
+    val isDefault: Boolean = false,
+    val createdAt: String? = null
+) : Parcelable
 
 // Создание заказа
 data class CreateOrderRequest(
@@ -88,7 +92,6 @@ enum class OrderStatus {
 enum class PaymentMethod {
     CASH,         // Наличными
     CARD,         // Картой курьеру
-    ONLINE        // Онлайн оплата
 }
 
 enum class MenuItemType {

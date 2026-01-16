@@ -5,8 +5,7 @@ import com.example.roamly.classes.cl_menu.DrinksGroup
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.FoodGroup
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
-import com.example.roamly.entity.CreateOrderRequest
-import com.example.roamly.entity.DTO.OrderNotificationDto
+import com.example.roamly.entity.DTO.order.CreateOrderRequest
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
@@ -18,9 +17,10 @@ import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.DTO.booking.BookingDisplayDto
 import com.example.roamly.entity.DTO.booking.OwnerBookingDisplayDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
-import com.example.roamly.entity.DeliveryAddressDto
-import com.example.roamly.entity.OrderDto
-import com.example.roamly.entity.UpdateOrderStatusRequest
+import com.example.roamly.entity.DTO.order.DeliveryAddressDto
+import com.example.roamly.entity.DTO.order.OrderDto
+import com.example.roamly.entity.DTO.order.OrderNotificationDto
+import com.example.roamly.entity.DTO.order.UpdateOrderStatusRequest
 import com.example.roamly.entity.classes.EstablishmentEntity
 import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.entity.classes.TableEntity
@@ -254,7 +254,7 @@ interface ApiService {
 
 
     // Добавить в ApiService.kt
-    @POST("orders/create")
+    @POST("/api/orders")  // Исправленный путь
     suspend fun createOrder(@Body request: CreateOrderRequest): OrderDto
 
     @GET("orders/user/{userId}")
@@ -285,14 +285,10 @@ interface ApiService {
     @GET("users/{userId}/delivery-addresses")
     suspend fun getUserDeliveryAddresses(@Path("userId") userId: Long): List<DeliveryAddressDto>
 
+    // Должно соответствовать пути на сервере
+    // ApiService.kt
     @POST("users/{userId}/delivery-addresses")
     suspend fun createDeliveryAddress(@Path("userId") userId: Long, @Body address: DeliveryAddressDto): DeliveryAddressDto
-
-    @DELETE("users/{userId}/delivery-addresses/{addressId}")
-    suspend fun deleteDeliveryAddress(
-        @Path("userId") userId: Long,
-        @Path("addressId") addressId: Long
-    ): Response<Unit>
 
     @PUT("users/{userId}/delivery-addresses/{addressId}")
     suspend fun updateDeliveryAddress(
@@ -300,6 +296,13 @@ interface ApiService {
         @Path("addressId") addressId: Long,
         @Body address: DeliveryAddressDto
     ): DeliveryAddressDto
+
+
+    @DELETE("users/{userId}/delivery-addresses/{addressId}")
+    suspend fun deleteDeliveryAddress(
+        @Path("userId") userId: Long,
+        @Path("addressId") addressId: Long
+    ): Response<Unit>
 
     @PUT("users/{userId}/delivery-addresses/{addressId}/set-default")
     suspend fun setDefaultDeliveryAddress(

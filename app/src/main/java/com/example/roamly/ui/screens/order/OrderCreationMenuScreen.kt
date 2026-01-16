@@ -1,27 +1,28 @@
 package com.example.roamly.ui.screens.order
 
+import android.util.Log
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.Drink
-import com.example.roamly.classes.cl_menu.DrinkOption
-import com.example.roamly.entity.CreateOrderItem
-import com.example.roamly.entity.MenuItemType
+import com.example.roamly.entity.DTO.order.CreateOrderItem
+import com.example.roamly.entity.DTO.order.MenuItemType
 import com.example.roamly.entity.ViewModel.OrderCreationViewModel
 import com.example.roamly.ui.theme.AppTheme
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,16 +38,29 @@ fun OrderCreationMenuScreen(
     val selectedDrinkGroup by viewModel.selectedDrinkGroup.collectAsState()
     val colors = AppTheme.colors
 
-    val coroutineScope = rememberCoroutineScope()
-
     LaunchedEffect(establishmentId) {
+        Log.d("OrderCreationMenuScreen", "Загружаем меню для заведения $establishmentId")
         viewModel.loadMenu(establishmentId)
+    }
+
+    // Получаем общую стоимость заказа
+    val totalPrice by remember(cartItems) {
+        derivedStateOf {
+            val total = viewModel.calculateTotal()
+            Log.d("OrderCreationMenuScreen", "Корзина: ${cartItems.size} позиций, сумма: $total")
+            total
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Выберите блюда", color = colors.MainText) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад", tint = colors.MainText)
+                    }
+                },
                 actions = {
                     if (cartItems.isNotEmpty()) {
                         Badge(
@@ -94,7 +108,7 @@ fun OrderCreationMenuScreen(
                                 color = colors.SecondaryText
                             )
                             Text(
-                                "Итого: ${viewModel.calculateTotal()} ₽",
+                                "Итого: ${String.format("%.2f", totalPrice)} р.",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.MainText
@@ -102,7 +116,8 @@ fun OrderCreationMenuScreen(
                         }
                         Button(
                             onClick = {
-                                navController.navigate("order/checkout/$establishmentId")
+                                Log.d("OrderCreationMenuScreen", "Переход к оформлению. Корзина: ${cartItems.size} позиций")
+                                navController.navigate("order/checkout/${establishmentId}")
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = colors.MainSuccess,
@@ -157,7 +172,7 @@ fun OrderCreationMenuScreen(
                         }
 
                         items(group.items) { food ->
-                            FoodItemCard(food, viewModel)
+                            FoodItemCard(food = food, viewModel = viewModel, cartItems = cartItems)
                         }
                     }
                 }
@@ -186,7 +201,7 @@ fun OrderCreationMenuScreen(
                         }
 
                         items(group.items) { drink ->
-                            DrinkItemCard(drink, viewModel)
+                            DrinkItemCard(drink = drink, viewModel = viewModel, cartItems = cartItems)
                         }
                     }
                 }
@@ -196,9 +211,106 @@ fun OrderCreationMenuScreen(
 }
 
 @Composable
-fun FoodItemCard(food: Food, viewModel: OrderCreationViewModel) {
-    val quantity = remember { mutableStateOf(0) }
+fun FoodItemCard(
+    food: Food,
+    viewModel: OrderCreationViewModel,
+    cartItems: List<CreateOrderItem>
+) {
     val colors = AppTheme.colors
+
+    // Находим текущее количество этого продукта в корзине
+    val quantity = cartItems
+        .filter { it.menuItemId == food.id && it.menuItemType == MenuItemType.FOOD }
+        .sumOf { it.quantity }
+
+    var showEditDialog by remember { mutableStateOf(false) }
+    var tempQuantity by remember { mutableStateOf(quantity.toString()) }
+    val focusRequester = remember { FocusRequester() }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Изменить количество", color = colors.MainText) },
+            text = {
+                Column {
+                    Text("${food.name ?: "Блюдо"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.MainText)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tempQuantity,
+                        onValueChange = {
+                            if (it.isEmpty() || it.all { char -> char.isDigit() }) {
+                                tempQuantity = it
+                            }
+                        },
+                        label = { Text("Количество", color = colors.SecondaryText) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.MainBorder,
+                            unfocusedBorderColor = colors.SecondaryBorder,
+                            focusedTextColor = colors.MainText,
+                            unfocusedTextColor = colors.MainText
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newQuantity = tempQuantity.toIntOrNull() ?: 0
+                        if (newQuantity > 0) {
+                            // Удаляем все текущие записи этого продукта
+                            cartItems.filter { it.menuItemId == food.id && it.menuItemType == MenuItemType.FOOD }
+                                .forEach { viewModel.removeCartItem(it) }
+
+                            // Добавляем новую запись с нужным количеством
+                            viewModel.addToCart(CreateOrderItem(
+                                menuItemId = food.id ?: 0,
+                                menuItemType = MenuItemType.FOOD,
+                                quantity = newQuantity
+                            ))
+                        } else {
+                            // Удаляем все записи этого продукта
+                            cartItems.filter { it.menuItemId == food.id && it.menuItemType == MenuItemType.FOOD }
+                                .forEach { viewModel.removeCartItem(it) }
+                        }
+                        showEditDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.MainSuccess,
+                        contentColor = colors.MainText
+                    ),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showEditDialog = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.SecondaryContainer,
+                        contentColor = colors.MainText
+                    ),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text("Отмена")
+                }
+            },
+            containerColor = colors.MainContainer,
+            titleContentColor = colors.MainText,
+            textContentColor = colors.MainText
+        )
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -224,53 +336,78 @@ fun FoodItemCard(food: Food, viewModel: OrderCreationViewModel) {
                     color = colors.MainText
                 )
                 Text(
-                    "${food.weight}г • ${food.cost} ₽",
+                    "${food.weight}г • ${food.cost} р.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.SecondaryText
                 )
             }
 
-            if (quantity.value > 0) {
+            if (quantity > 0) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     IconButton(
                         onClick = {
-                            quantity.value--
-                            viewModel.removeFromCart(CreateOrderItem(
-                                menuItemId = food.id ?: 0,
-                                menuItemType = MenuItemType.FOOD,
-                                quantity = 1
-                            ))
-                        }
+                            // Быстрое уменьшение количества на 1
+                            if (quantity > 1) {
+                                viewModel.removeFromCart(CreateOrderItem(
+                                    menuItemId = food.id ?: 0,
+                                    menuItemType = MenuItemType.FOOD,
+                                    quantity = 1
+                                ))
+                            } else {
+                                // Если количество 1, полностью удаляем
+                                cartItems.filter { it.menuItemId == food.id && it.menuItemType == MenuItemType.FOOD }
+                                    .forEach { viewModel.removeCartItem(it) }
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
-                        Icon(Icons.Default.Build, contentDescription = "Уменьшить", tint = colors.MainText)
+                        Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Уменьшить", tint = colors.MainText)
                     }
 
+                    // Кликабельное количество для редактирования
                     Text(
-                        text = quantity.value.toString(),
+                        text = quantity.toString(),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 8.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable {
+                                tempQuantity = quantity.toString()
+                                showEditDialog = true
+                            },
                         color = colors.MainText
                     )
 
                     IconButton(
                         onClick = {
-                            quantity.value++
+                            // Быстрое увеличение количества на 1
                             viewModel.addToCart(CreateOrderItem(
                                 menuItemId = food.id ?: 0,
                                 menuItemType = MenuItemType.FOOD,
                                 quantity = 1
                             ))
-                        }
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Увеличить", tint = colors.MainText)
+                    }
+
+                    // Кнопка удаления всего блюда
+                    IconButton(
+                        onClick = {
+                            cartItems.filter { it.menuItemId == food.id && it.menuItemType == MenuItemType.FOOD }
+                                .forEach { viewModel.removeCartItem(it) }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Удалить", tint = colors.MainFailure)
                     }
                 }
             } else {
                 Button(
                     onClick = {
-                        quantity.value = 1
                         viewModel.addToCart(CreateOrderItem(
                             menuItemId = food.id ?: 0,
                             menuItemType = MenuItemType.FOOD,
@@ -291,12 +428,125 @@ fun FoodItemCard(food: Food, viewModel: OrderCreationViewModel) {
 }
 
 @Composable
-fun DrinkItemCard(drink: Drink, viewModel: OrderCreationViewModel) {
-    val quantity = remember { mutableStateOf(0) }
+fun DrinkItemCard(
+    drink: Drink,
+    viewModel: OrderCreationViewModel,
+    cartItems: List<CreateOrderItem>
+) {
     var showOptionsDialog by remember { mutableStateOf(false) }
-    val selectedOption = remember { mutableStateOf<DrinkOption?>(null) }
+    var showEditDialog by remember { mutableStateOf(false) }
     val colors = AppTheme.colors
 
+    // Находим все элементы этого напитка в корзине (с учетом выбранного размера)
+    val drinkCartItems = cartItems.filter {
+        it.menuItemId == drink.id && it.menuItemType == MenuItemType.DRINK
+    }
+
+    // Определяем, есть ли хотя бы один выбранный размер в корзине
+    val hasSelectedDrink = drinkCartItems.isNotEmpty()
+    val totalQuantity = drinkCartItems.sumOf { it.quantity }
+
+    // Если есть выбранный напиток, получаем выбранный размер из первого элемента
+    val currentSelectedOption = if (hasSelectedDrink) {
+        drinkCartItems.firstOrNull()?.selectedOptions?.get("size")?.let { sizeStr ->
+            drink.options.find { it.sizeMl.toString() == sizeStr }
+        }
+    } else {
+        null
+    }
+
+    var tempQuantity by remember { mutableStateOf(totalQuantity.toString()) }
+    val focusRequester = remember { FocusRequester() }
+
+    // Диалог редактирования количества
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Изменить количество", color = colors.MainText) },
+            text = {
+                Column {
+                    Text("${drink.name ?: "Напиток"} ${currentSelectedOption?.let { "(${it.sizeMl} мл)" } ?: ""}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.MainText)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tempQuantity,
+                        onValueChange = {
+                            if (it.isEmpty() || it.all { char -> char.isDigit() }) {
+                                tempQuantity = it
+                            }
+                        },
+                        label = { Text("Количество", color = colors.SecondaryText) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.MainBorder,
+                            unfocusedBorderColor = colors.SecondaryBorder,
+                            focusedTextColor = colors.MainText,
+                            unfocusedTextColor = colors.MainText
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newQuantity = tempQuantity.toIntOrNull() ?: 0
+                        if (newQuantity > 0 && currentSelectedOption != null) {
+                            // Удаляем все текущие записи этого напитка
+                            drinkCartItems.forEach { viewModel.removeCartItem(it) }
+
+                            // Добавляем новую запись с нужным количеством
+                            viewModel.addToCart(CreateOrderItem(
+                                menuItemId = drink.id ?: 0,
+                                menuItemType = MenuItemType.DRINK,
+                                quantity = newQuantity,
+                                selectedOptions = mapOf(
+                                    "size" to currentSelectedOption.sizeMl.toString(),
+                                    "price" to currentSelectedOption.cost.toString()
+                                )
+                            ))
+                        } else {
+                            // Удаляем все записи этого напитка
+                            drinkCartItems.forEach { viewModel.removeCartItem(it) }
+                        }
+                        showEditDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.MainSuccess,
+                        contentColor = colors.MainText
+                    ),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showEditDialog = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.SecondaryContainer,
+                        contentColor = colors.MainText
+                    ),
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text("Отмена")
+                }
+            },
+            containerColor = colors.MainContainer,
+            titleContentColor = colors.MainText,
+            textContentColor = colors.MainText
+        )
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    // Диалог выбора размера напитка
     if (showOptionsDialog) {
         AlertDialog(
             onDismissRequest = { showOptionsDialog = false },
@@ -306,9 +556,14 @@ fun DrinkItemCard(drink: Drink, viewModel: OrderCreationViewModel) {
                     drink.options.forEach { option ->
                         Card(
                             onClick = {
-                                selectedOption.value = option
-                                showOptionsDialog = false
-                                quantity.value = 1
+                                // Удаляем все старые варианты этого напитка
+                                drinkCartItems.forEach { cartItem ->
+                                    repeat(cartItem.quantity) {
+                                        viewModel.removeFromCart(cartItem.copy(quantity = 1))
+                                    }
+                                }
+
+                                // Добавляем новый с выбранным размером
                                 viewModel.addToCart(CreateOrderItem(
                                     menuItemId = drink.id ?: 0,
                                     menuItemType = MenuItemType.DRINK,
@@ -318,6 +573,7 @@ fun DrinkItemCard(drink: Drink, viewModel: OrderCreationViewModel) {
                                         "price" to option.cost.toString()
                                     )
                                 ))
+                                showOptionsDialog = false
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -334,7 +590,11 @@ fun DrinkItemCard(drink: Drink, viewModel: OrderCreationViewModel) {
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("${option.sizeMl} мл", color = colors.MainText)
-                                Text("${option.cost} ₽", color = colors.MainText)
+
+                                // ✅ Добавьте этот Spacer для отступа
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Text("${option.cost} р.", color = colors.MainText)
                             }
                         }
                     }
@@ -382,55 +642,78 @@ fun DrinkItemCard(drink: Drink, viewModel: OrderCreationViewModel) {
                     color = colors.MainText
                 )
                 Text(
-                    "от ${drink.options.minByOrNull { it.cost }?.cost ?: 0.0} ₽",
+                    "от ${drink.options.minByOrNull { it.cost }?.cost ?: 0.0} р.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.SecondaryText
                 )
+
+                // Показываем выбранный размер, если есть
+                currentSelectedOption?.let { option ->
+                    Text(
+                        "Выбран размер: ${option.sizeMl} мл",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.SecondarySuccess
+                    )
+                }
             }
 
-            if (quantity.value > 0) {
+            if (hasSelectedDrink && totalQuantity > 0) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     IconButton(
                         onClick = {
-                            quantity.value--
-                            viewModel.removeFromCart(CreateOrderItem(
-                                menuItemId = drink.id ?: 0,
-                                menuItemType = MenuItemType.DRINK,
-                                quantity = 1,
-                                selectedOptions = mapOf(
-                                    "size" to selectedOption.value?.sizeMl.toString(),
-                                    "price" to selectedOption.value?.cost.toString()
-                                )
-                            ))
-                        }
+                            // Быстрое уменьшение количества на 1
+                            if (totalQuantity > 1) {
+                                val cartItemToRemove = drinkCartItems.firstOrNull()?.copy(quantity = 1)
+                                cartItemToRemove?.let {
+                                    viewModel.removeFromCart(it)
+                                }
+                            } else {
+                                // Если количество 1, полностью удаляем
+                                drinkCartItems.forEach { viewModel.removeCartItem(it) }
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
-                        Icon(Icons.Default.Build, contentDescription = "Уменьшить", tint = colors.MainText)
+                        Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Уменьшить", tint = colors.MainText)
                     }
 
+                    // Кликабельное количество для редактирования
                     Text(
-                        text = quantity.value.toString(),
+                        text = totalQuantity.toString(),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 8.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable {
+                                tempQuantity = totalQuantity.toString()
+                                showEditDialog = true
+                            },
                         color = colors.MainText
                     )
 
                     IconButton(
                         onClick = {
-                            quantity.value++
-                            viewModel.addToCart(CreateOrderItem(
-                                menuItemId = drink.id ?: 0,
-                                menuItemType = MenuItemType.DRINK,
-                                quantity = 1,
-                                selectedOptions = mapOf(
-                                    "size" to selectedOption.value?.sizeMl.toString(),
-                                    "price" to selectedOption.value?.cost.toString()
-                                )
-                            ))
-                        }
+                            // Быстрое увеличение количества на 1
+                            val cartItemToAdd = drinkCartItems.firstOrNull()?.copy(quantity = 1)
+                            cartItemToAdd?.let {
+                                viewModel.addToCart(it)
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Увеличить", tint = colors.MainText)
+                    }
+
+                    // Кнопка удаления всего напитка
+                    IconButton(
+                        onClick = {
+                            drinkCartItems.forEach { viewModel.removeCartItem(it) }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Удалить", tint = colors.MainFailure)
                     }
                 }
             } else {
