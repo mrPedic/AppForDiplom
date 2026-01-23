@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -557,99 +555,6 @@ fun DescriptionSection(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Заказать с доставкой")
-            }
-        }
-    }
-}
-
-@Composable
-fun MenuSection(menu: MenuOfEstablishment) {
-    val colors = AppTheme.colors
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp) // Добавляем отступ снизу для навигации
-    ) {
-        // Раздел еды
-        if (menu.foodGroups.isNotEmpty()) {
-            Text(
-                "Еда",
-                style = MaterialTheme.typography.headlineSmall,
-                color = colors.MainText,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            menu.foodGroups.forEach { group ->
-                if (group.items.isNotEmpty()) {
-                    Text(
-                        group.name ?: "Группа",
-                        fontWeight = FontWeight.Bold,
-                        color = colors.MainText,
-                        modifier = Modifier.padding(bottom = 8.dp, top = 4.dp)
-                    )
-
-                    LazyRow(
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        items(group.items) { food ->
-                            SimpleFoodCard(food = food)
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                    }
-                }
-            }
-        }
-
-        // Раздел напитков
-        if (menu.drinksGroups.isNotEmpty()) {
-            Text(
-                "Напитки",
-                style = MaterialTheme.typography.headlineSmall,
-                color = colors.MainText,
-                modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
-            )
-
-            menu.drinksGroups.forEach { group ->
-                if (group.items.isNotEmpty()) {
-                    Text(
-                        group.name ?: "Группа",
-                        fontWeight = FontWeight.Bold,
-                        color = colors.MainText,
-                        modifier = Modifier.padding(bottom = 8.dp, top = 4.dp)
-                    )
-
-                    LazyRow(
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        items(group.items) { drink ->
-                            SimpleDrinkCard(drink = drink)
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                    }
-                }
-            }
-        }
-
-        // Если меню пустое
-        if (menu.foodGroups.isEmpty() && menu.drinksGroups.isEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(4.dp),
-                colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "Меню пока не добавлено",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.SecondaryText
-                    )
-                }
             }
         }
     }

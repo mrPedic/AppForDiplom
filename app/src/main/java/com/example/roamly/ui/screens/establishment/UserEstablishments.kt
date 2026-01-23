@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -277,7 +279,7 @@ fun EstablishmentItem(
                     modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
-                        imageVector = if (isPinned) Icons.Filled.Build else Icons.Outlined.Build,
+                        imageVector = if (isPinned) Icons.Filled.Check else Icons.Outlined.Clear,
                         contentDescription = if (isPinned) "Открепить" else "Закрепить",
                         tint = if (isPinned) AppTheme.colors.MainSuccess else AppTheme.colors.SecondaryText
                     )
