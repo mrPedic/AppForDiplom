@@ -14,7 +14,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.roamly.entity.ViewModel.UserViewModel
-import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.screens.sealed.ProfileScreens
 import com.example.roamly.ui.theme.AppTheme
 
 @Composable
@@ -155,7 +155,7 @@ fun LoginScreen(
             Text(
                 modifier = Modifier.clickable {
                     navController.popBackStack()
-                    navController.navigate(route = LogSinUpScreens.SingUp.route)
+                    navController.navigate(route = ProfileScreens.SingUp.route)
                 },
                 text = "Создать новый аккаунт",
                 color = AppTheme.colors.MainBorder, // Accent link color

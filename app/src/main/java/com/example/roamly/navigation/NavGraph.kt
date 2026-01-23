@@ -22,7 +22,7 @@ import com.example.roamly.ui.screens.SearchScreen
 import com.example.roamly.ui.screens.profileFR.SingUpScreen
 import com.example.roamly.ui.screens.profileFR.LoginScreen
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
-import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.screens.sealed.ProfileScreens
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.BookingDetailScreen
 import com.example.roamly.ui.screens.UserBookingsScreen
@@ -45,6 +45,7 @@ import com.example.roamly.ui.screens.order.OrderCheckoutScreen
 import com.example.roamly.ui.screens.order.OrderCreationMenuScreen
 import com.example.roamly.ui.screens.order.OrderDetailsScreen
 import com.example.roamly.ui.screens.order.OrderListScreen
+import com.example.roamly.ui.screens.profileFR.EditProfileScreen
 import com.example.roamly.ui.screens.profileFR.NotificationsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
 import com.example.roamly.ui.screens.sealed.*
@@ -82,10 +83,10 @@ fun NavGraph(
         }
 
         // --- Экраны авторизации ---
-        composable(LogSinUpScreens.SingUp.route) {
+        composable(ProfileScreens.SingUp.route) {
             SingUpScreen(navController, userViewModel)
         }
-        composable(LogSinUpScreens.Login.route) {
+        composable(ProfileScreens.Login.route) {
             LoginScreen(navController, userViewModel)
         }
 
@@ -107,6 +108,15 @@ fun NavGraph(
 
         composable(route = NotificationScreens.Notifications.route) {
             NotificationsScreen(navController = navController)
+        }
+
+        // NavGraph.kt (добавьте composable для EditProfile в NavHost)
+
+        composable(ProfileScreens.EditProfile.route) {
+            EditProfileScreen(
+                navController = navController,
+                userViewModel = userViewModel
+            )
         }
 
         // Просмотр и редактирование заведения

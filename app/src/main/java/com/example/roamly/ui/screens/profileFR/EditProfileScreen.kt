@@ -188,17 +188,17 @@ fun EditProfileScreen(
                     }
 
                     if (nameError == null && loginError == null && passwordError == null && confirmPasswordError == null && hasChanges) {
-//                        userViewModel.updateUserProfile(
-//                            newName = if (name != user.name) name else null,
-//                            newLogin = if (login != user.login) login else null,
-//                            newPassword = if (password.isNotEmpty()) password else null,
-//                            onSuccess = {
-//                                successMessage = "Профиль успешно обновлен"
-//                            },
-//                            onError = { error ->
-//                                serverError = error ?: "Ошибка обновления профиля"
-//                            }
-//                        )
+                        userViewModel.updateUserProfile(
+                            newName = if (name != user.name) name else null,
+                            newLogin = if (login != user.login) login else null,
+                            newPassword = if (password.isNotEmpty()) password else null,
+                            onSuccess = {
+                                successMessage = "Профиль успешно обновлен"
+                            },
+                            onError = { error ->
+                                serverError = error ?: "Ошибка обновления профиля"
+                            }
+                        )
                     } else if (!hasChanges) {
                         serverError = "Нет изменений для сохранения"
                     }

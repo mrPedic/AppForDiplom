@@ -319,4 +319,11 @@ interface ApiService {
     // БЕЗ начального слеша
     @GET("api/orders/{orderId}")
     suspend fun getOrderById(@Path("orderId") orderId: Long): OrderDto
+
+    // RetrofitFactory.kt (добавьте эти методы в интерфейс API)
+    @PUT("users/me")
+    suspend fun updateUser(@Body user: User): Unit
+
+    @PUT("users/me/password")
+    suspend fun updateUserPassword(@Body user: User): Unit
 }

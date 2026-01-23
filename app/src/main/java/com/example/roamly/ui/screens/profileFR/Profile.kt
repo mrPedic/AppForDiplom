@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -17,8 +18,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -36,7 +40,7 @@ import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.entity.DTO.order.toDisplayString
 import com.example.roamly.ui.screens.base64ToByteArray
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
-import com.example.roamly.ui.screens.sealed.LogSinUpScreens
+import com.example.roamly.ui.screens.sealed.ProfileScreens
 import com.example.roamly.ui.screens.sealed.NotificationScreens
 import com.example.roamly.ui.screens.sealed.OrderScreens
 import com.example.roamly.ui.theme.AppTheme
@@ -96,12 +100,15 @@ private fun RegisteredProfileContent(
     val favorites by establishmentViewModel.favoriteEstablishmentsList.collectAsState()
     val orders by orderViewModel.userOrders.collectAsState()
     val buttonBarHeight = 102.dp
-    val error by orderViewModel.error.collectAsState()  // Добавлено для отладки
+    val error by orderViewModel.error.collectAsState()
+
+    // Получаем цвета внутри композиции
+    val colors = AppTheme.colors
 
     LaunchedEffect(currentUser.id) {
         if (currentUser.id != null) {
             establishmentViewModel.fetchFavoriteEstablishmentsList(currentUser.id!!)
-            orderViewModel.loadUserOrders(currentUser.id!!)  // Добавляем загрузку заказов
+            orderViewModel.loadUserOrders(currentUser.id!!)
         }
     }
 
@@ -115,28 +122,33 @@ private fun RegisteredProfileContent(
         error?.let {
             Text(
                 text = "Ошибка: $it",
-                color = AppTheme.colors.MainFailure,
+                color = colors.MainFailure,
                 modifier = Modifier.padding(16.dp)
             )
             LaunchedEffect(Unit) {
                 orderViewModel.clearError()
             }
         }
+
         // Заголовок
         Text(
             text = "Ваш Профиль",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = AppTheme.colors.MainText,
+            color = colors.MainText,
             modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
         )
 
-        // Карточка информации о пользователе
+        // Карточка информации о пользователе (сделаем её кликабельной для редактирования)
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    navController.navigate(ProfileScreens.EditProfile.route)
+                },
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(4.dp),
-            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
+            colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -148,14 +160,19 @@ private fun RegisteredProfileContent(
                         text = "Информация о пользователе",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.MainText
+                        color = colors.MainText
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Редактировать профиль",
+                        tint = colors.MainBorder
                     )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Divider(
                     thickness = 1.dp,
-                    color = AppTheme.colors.MainBorder.copy(alpha = 0.5f)
+                    color = colors.MainBorder.copy(alpha = 0.5f)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -233,7 +250,7 @@ private fun RegisteredProfileContent(
                         "Активные заказы",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.MainSuccess,
+                        color = colors.MainSuccess,
                         modifier = Modifier.padding(start = 4.dp)
                     )
 
@@ -259,7 +276,7 @@ private fun RegisteredProfileContent(
                         "Завершенные заказы",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.SecondaryText,
+                        color = colors.SecondaryText,
                         modifier = Modifier.padding(start = 4.dp)
                     )
 
@@ -284,40 +301,49 @@ private fun RegisteredProfileContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Панель действий
+        // Панель действий с кнопкой редактирования профиля
         ActionGrid(
-            items = listOf(
-                ActionItem(
-                    title = "Управление заведениями",
-                    onClick = { navController.navigate(EstablishmentScreens.UserEstablishments.route) },
-                    containerColor = AppTheme.colors.SecondaryContainer,
-                    contentColor = AppTheme.colors.MainText
-                ),
-                ActionItem(
-                    title = "Уведомления",
-                    icon = Icons.Default.Notifications,
-                    badgeCount = unreadCount,
-                    onClick = { navController.navigate(NotificationScreens.Notifications.route) },
-                    containerColor = AppTheme.colors.MainBorder,
-                    contentColor = AppTheme.colors.MainText
-                ),
-                ActionItem(
-                    title = "Создать заведение",
-                    onClick = { navController.navigate(EstablishmentScreens.CreateEstablishment.route) },
-                    containerColor = AppTheme.colors.MainSuccess,
-                    contentColor = AppTheme.colors.MainText
-                ),
-                ActionItem(
-                    title = "Адреса доставки",
-                    onClick = {
-                        currentUser.id?.let { userId ->
-                            navController.navigate(OrderScreens.DeliveryAddresses.createRoute(userId, false))
-                        }
-                    },
-                    containerColor = AppTheme.colors.SecondaryContainer,
-                    contentColor = AppTheme.colors.MainText
+            items = remember(colors, unreadCount) {
+                listOf(
+                    ActionItem(
+                        title = "Редактировать профиль",
+                        icon = Icons.Default.Edit,
+                        onClick = { navController.navigate(ProfileScreens.EditProfile.route) },
+                        containerColor = colors.SecondaryContainer,
+                        contentColor = colors.MainText
+                    ),
+                    ActionItem(
+                        title = "Уведомления",
+                        icon = Icons.Default.Notifications,
+                        badgeCount = unreadCount,
+                        onClick = { navController.navigate(NotificationScreens.Notifications.route) },
+                        containerColor = colors.MainBorder,
+                        contentColor = colors.MainText
+                    ),
+                    ActionItem(
+                        title = "Управление заведениями",
+                        onClick = { navController.navigate(EstablishmentScreens.UserEstablishments.route) },
+                        containerColor = colors.SecondaryContainer,
+                        contentColor = colors.MainText
+                    ),
+                    ActionItem(
+                        title = "Создать заведение",
+                        onClick = { navController.navigate(EstablishmentScreens.CreateEstablishment.route) },
+                        containerColor = colors.MainSuccess,
+                        contentColor = colors.MainText
+                    ),
+                    ActionItem(
+                        title = "Адреса доставки",
+                        onClick = {
+                            currentUser.id?.let { userId ->
+                                navController.navigate(OrderScreens.DeliveryAddresses.createRoute(userId, false))
+                            }
+                        },
+                        containerColor = colors.SecondaryContainer,
+                        contentColor = colors.MainText
+                    )
                 )
-            )
+            }
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -333,7 +359,7 @@ private fun RegisteredProfileContent(
                 .padding(bottom = buttonBarHeight),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = AppTheme.colors.MainFailure
+                contentColor = colors.MainFailure
             ),
             border = ButtonDefaults.outlinedButtonBorder
         ) {
@@ -506,7 +532,7 @@ private fun UnRegisteredProfileContent(
             text = "Чтобы получить доступ ко всем функциям приложения",
             style = MaterialTheme.typography.bodyMedium,
             color = AppTheme.colors.SecondaryText,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(48.dp))
@@ -519,7 +545,7 @@ private fun UnRegisteredProfileContent(
             // Кнопка входа
             Button(
                 onClick = {
-                    navController.navigate(route = LogSinUpScreens.Login.route)
+                    navController.navigate(route = ProfileScreens.Login.route)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -542,7 +568,7 @@ private fun UnRegisteredProfileContent(
             // Кнопка регистрации
             OutlinedButton(
                 onClick = {
-                    navController.navigate(route = LogSinUpScreens.SingUp.route)
+                    navController.navigate(route = ProfileScreens.SingUp.route)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -730,11 +756,11 @@ private fun EmptyStateCard(
 
 data class ActionItem(
     val title: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    val icon: ImageVector? = null,
     val badgeCount: Int = 0,
     val onClick: () -> Unit,
-    val containerColor: androidx.compose.ui.graphics.Color,
-    val contentColor: androidx.compose.ui.graphics.Color
+    val containerColor: Color,
+    val contentColor: Color
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

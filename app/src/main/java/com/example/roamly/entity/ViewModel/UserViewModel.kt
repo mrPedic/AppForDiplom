@@ -138,6 +138,57 @@ class UserViewModel @Inject constructor(
         "Name: ${it.name}, Role: ${it.role}, Login: ${it.login}, Password: [HIDDEN], Id: ${it.id}"
     }
 
+    fun updateUserProfile(
+        newName: String?,
+        newLogin: String?,
+        newPassword: String?,
+        onSuccess: () -> Unit,
+        onError: (String?) -> Unit
+    ) {
+        val currentUser = user.value
+        val userId = currentUser.id ?: return onError("Пользователь не авторизован")
+
+        viewModelScope.launch {
+            try {
+                // Сначала обновляем основные данные, если есть изменения
+                val hasProfileChanges = newName != null || newLogin != null
+                if (hasProfileChanges) {
+                    val updateData = User(
+                        id = userId,
+                        name = newName ?: currentUser.name,
+                        login = newLogin ?: currentUser.login,
+                        role = currentUser.role
+                    )
+                    withContext(Dispatchers.IO) {
+                        apiService.updateUser(updateData)
+                    }
+                }
+
+                // Затем обновляем пароль, если указан
+                if (newPassword != null) {
+                    val passwordUpdate = User(id = userId, password = newPassword)
+                    withContext(Dispatchers.IO) {
+                        apiService.updateUserPassword(passwordUpdate)
+                    }
+                }
+
+                // Обновляем локальное состояние
+                val updatedUser = currentUser.copy(
+                    name = newName ?: currentUser.name,
+                    login = newLogin ?: currentUser.login
+                )
+                userDataSource.saveUserState(updatedUser)
+
+                onSuccess()
+                Log.d("UserViewModel", "Профиль обновлен: ${getAllData()}")
+
+            } catch (e: Exception) {
+                Log.e("UserViewModel", "Ошибка обновления профиля: ${e.message}")
+                onError(e.message)
+            }
+        }
+    }
+
     private val apiService by lazy {
         RetrofitFactory.create()
     }
