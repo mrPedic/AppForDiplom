@@ -7,12 +7,14 @@ import kotlinx.android.parcel.Parcelize
 data class OrderDto(
     val id: Long? = null,
     val establishmentId: Long,
+    val establishmentName: String? = null,  // Добавлено для соответствия серверу
     val userId: Long,
+    val userName: String? = null,  // Добавлено для соответствия серверу
     val status: OrderStatus,
     val deliveryAddressId: Long? = null,
     val deliveryAddress: DeliveryAddressDto? = null,
     val items: List<OrderItemDto>,
-    val isContactless: Boolean = false,
+    val contactless: Boolean = false,  // Переименовано с isContactless для соответствия JSON
     val paymentMethod: PaymentMethod,
     val deliveryTime: String, // ISO format
     val comments: String? = null,
@@ -32,7 +34,7 @@ data class OrderItemDto(
     val quantity: Int,
     val pricePerUnit: Double,
     val totalPrice: Double,
-    val options: String? = null // JSON с выбранными опциями (для напитков)
+    val options: Map<String, String>? = null  // Изменено с String? на Map для десериализации объектов
 )
 
 // Адрес доставки
@@ -54,11 +56,12 @@ data class DeliveryAddressDto(
 
 // Создание заказа
 data class CreateOrderRequest(
+    val userId: Long, // <--- ДОБАВИТЬ ЭТО ПОЛЕ
     val establishmentId: Long,
     val deliveryAddressId: Long? = null,
     val deliveryAddress: DeliveryAddressDto? = null,
     val items: List<CreateOrderItem>,
-    val isContactless: Boolean = false,
+    val contactless: Boolean = false,  // Переименовано с isContactless
     val paymentMethod: PaymentMethod,
     val deliveryTime: String, // ISO format
     val comments: String? = null

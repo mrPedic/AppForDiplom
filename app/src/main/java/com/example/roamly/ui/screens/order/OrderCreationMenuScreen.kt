@@ -550,7 +550,7 @@ fun DrinkItemCard(
     if (showOptionsDialog) {
         AlertDialog(
             onDismissRequest = { showOptionsDialog = false },
-            title = { Text("Выберите размер", color = colors.MainText) },
+            title = { Text("Выберите объем", color = colors.MainText) },
             text = {
                 Column {
                     drink.options.forEach { option ->
@@ -650,7 +650,7 @@ fun DrinkItemCard(
                 // Показываем выбранный размер, если есть
                 currentSelectedOption?.let { option ->
                     Text(
-                        "Выбран размер: ${option.sizeMl} мл",
+                        "Выбран объем: ${option.sizeMl} мл",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.SecondarySuccess
                     )

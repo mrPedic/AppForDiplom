@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,8 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -32,10 +31,12 @@ import com.example.roamly.entity.ViewModel.OrderCreationViewModel
 import com.example.roamly.entity.ViewModel.OrderViewModel
 import com.example.roamly.ui.screens.sealed.OrderScreens
 import com.example.roamly.ui.screens.establishment.toMap
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.SealedButtonBar
 import com.example.roamly.ui.theme.AppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -64,30 +65,38 @@ fun OrderCheckoutScreen(
     var selectedTime by remember { mutableStateOf<String?>(null) }
     var comments by remember { mutableStateOf("") }
 
+    // --- ИЗМЕНЕНИЕ 1: Список доступных дат (2 недели) ---
+    val availableDates = remember {
+        val today = LocalDate.now()
+        (0..14).map { today.plusDays(it.toLong()) }
+    }
+
+    // Выбранная дата (по умолчанию сегодня)
+    var orderDate by remember { mutableStateOf(LocalDate.now()) }
+
     val colors = AppTheme.colors
 
-    // Получаем корзину и меню из OrderCreationViewModel
+    // Get Cart and Menu
     val cartItems by orderCreationViewModel.cartItems.collectAsState()
     val menu by orderCreationViewModel.menu.collectAsState()
     val totalPrice by remember(cartItems) {
         derivedStateOf {
             val total = orderCreationViewModel.calculateTotal()
-            Log.d("OrderCheckoutScreen", "Корзина на экране оформления: ${cartItems.size} позиций, сумма: $total")
             total
         }
     }
 
-    // Получаем данные заведения
+    // Get Establishment Data
     val establishmentState by establishmentDetailViewModel.establishmentState.collectAsState()
 
-    // Состояния из OrderViewModel
+    // OrderViewModel States
     val isOrderLoading by orderViewModel.isLoading.collectAsState()
     val orderError by orderViewModel.error.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // Показываем ошибку в Snackbar
+    // Show Error Snackbar
     LaunchedEffect(orderError) {
         orderError?.let { errorMsg ->
             scope.launch {
@@ -98,11 +107,9 @@ fun OrderCheckoutScreen(
     }
 
     LaunchedEffect(Unit) {
-        Log.d("OrderCheckoutScreen", "Загружаем адреса для пользователя $userId")
         deliveryAddressViewModel.loadUserAddresses(userId)
 
         if (menu == null) {
-            Log.d("OrderCheckoutScreen", "Загружаем меню для заведения $establishmentId")
             orderCreationViewModel.loadMenu(establishmentId)
         }
 
@@ -114,14 +121,6 @@ fun OrderCheckoutScreen(
     LaunchedEffect(addresses) {
         if (selectedAddress == null) {
             selectedAddress = addresses.find { it.isDefault } ?: addresses.firstOrNull()
-            Log.d("OrderCheckoutScreen", "Выбран адрес: ${selectedAddress?.street ?: "не выбран"}")
-        }
-    }
-
-    LaunchedEffect(cartItems) {
-        Log.d("OrderCheckoutScreen", "Корзина обновилась: ${cartItems.size} позиций")
-        cartItems.forEachIndexed { index, item ->
-            Log.d("OrderCheckoutScreen", "  Позиция $index: ID=${item.menuItemId}, тип=${item.menuItemType}, кол-во=${item.quantity}")
         }
     }
 
@@ -129,7 +128,6 @@ fun OrderCheckoutScreen(
         savedSelectedAddress?.let { address ->
             selectedAddress = address
             currentSavedState?.remove<DeliveryAddressDto>("selectedAddress")
-            Log.d("OrderCheckoutScreen", "Выбран новый адрес из savedStateHandle: ${address.street}")
         }
     }
 
@@ -137,21 +135,53 @@ fun OrderCheckoutScreen(
         (establishmentState as LoadState.Success).data
     } else null
 
-    // Получаем сегодняшние часы работы
-    val todayDay = LocalDate.now().dayOfWeek.name.lowercase(Locale.getDefault()).replaceFirstChar {
-        if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+    // 1. Helper to map English DayOfWeek to Russian keys in JSON
+    fun getRussianDayKey(day: DayOfWeek): String {
+        return when (day) {
+            DayOfWeek.MONDAY -> "Пн"
+            DayOfWeek.TUESDAY -> "Вт"
+            DayOfWeek.WEDNESDAY -> "Ср"
+            DayOfWeek.THURSDAY -> "Чт"
+            DayOfWeek.FRIDAY -> "Пт"
+            DayOfWeek.SATURDAY -> "Сб"
+            DayOfWeek.SUNDAY -> "Вс"
+        }
     }
-    val hoursStr = establishment?.operatingHoursString?.toMap()?.get(todayDay) ?: "10:00-22:00"
-    val parts = hoursStr.split("-")
-    val openingTime = if (parts.size >= 2) LocalTime.parse(parts[0]) else LocalTime.of(10, 0)
-    val closingTime = if (parts.size >= 2) LocalTime.parse(parts[1]) else LocalTime.of(22, 0)
 
-    // Генерируем слоты времени
-    val timeSlots = remember(establishment) {
+    // 2. Generate Time Slots logic
+    val timeSlots = remember(establishment, orderDate) {
+        if (establishment == null) return@remember emptyList<String>()
+
+        val russianDayKey = getRussianDayKey(orderDate.dayOfWeek)
+        // Получаем часы работы для конкретного дня недели
+        val hoursStr = establishment.operatingHoursString?.toMap()?.get(russianDayKey) ?: "10:00-22:00"
+
+        val parts = hoursStr.split("-")
+        // Если заведение закрыто в этот день (например, "Выходной" или пустая строка), возвращаем пустой список
+        if (parts.size < 2) return@remember emptyList<String>()
+
+        val openingTime = try { LocalTime.parse(parts[0]) } catch (e: Exception) { LocalTime.of(10, 0) }
+        val closingTime = try { LocalTime.parse(parts[1]) } catch (e: Exception) { LocalTime.of(22, 0) }
+
+        // Determine "Start Calculation Time"
+        val isToday = orderDate.isEqual(LocalDate.now())
+        val startCalculationTime = if (isToday) LocalTime.now().plusMinutes(45) else openingTime
+
         generateTimeSlots(
+            startCalculationTime = startCalculationTime,
             openingTime = openingTime,
             closingTime = closingTime
         )
+    }
+
+    // 3. Auto-switch logic (если сегодня уже поздно, переключаем на завтра)
+    // Изменено: срабатывает только если выбрана дата "Сегодня" и слотов нет
+    LaunchedEffect(establishment, timeSlots) {
+        if (establishment != null && timeSlots.isEmpty() && orderDate.isEqual(LocalDate.now())) {
+            Log.d("OrderCheckout", "No slots for today, switching to tomorrow")
+            orderDate = LocalDate.now().plusDays(1)
+            selectedTime = null
+        }
     }
 
     Scaffold(
@@ -186,8 +216,6 @@ fun OrderCheckoutScreen(
                 Button(
                     onClick = {
                         selectedTime?.let { time ->
-                            Log.d("OrderCheckoutScreen", "Подтверждение заказа: время=$time, адрес=${selectedAddress?.id}, позиций=${cartItems.size}")
-
                             val orderItems: List<CreateOrderItem> = cartItems.map { item ->
                                 CreateOrderItem(
                                     menuItemId = item.menuItemId,
@@ -197,25 +225,24 @@ fun OrderCheckoutScreen(
                                 )
                             }
 
-                            // Парсим время в ISO формат
-                            val parsedTime = parseTimeSlotToIso(time)
+                            val parsedTime = parseTimeSlotToIso(time, orderDate)
 
                             val orderRequest = CreateOrderRequest(
+                                userId = userId,
                                 establishmentId = establishmentId,
                                 deliveryAddressId = selectedAddress?.id,
                                 deliveryAddress = selectedAddress,
                                 items = orderItems,
-                                isContactless = false,
+                                contactless = false,
                                 paymentMethod = paymentMethod,
                                 deliveryTime = parsedTime,
                                 comments = comments
                             )
 
                             orderViewModel.createOrder(orderRequest) { order ->
-                                Log.d("OrderCheckoutScreen", "Заказ создан: ID=${order.id}")
                                 orderCreationViewModel.clearCart()
                                 navController.navigate(OrderScreens.OrderDetails.createRoute(order.id!!)) {
-                                    popUpTo(SealedButtonBar.Home.route) { inclusive = false }
+                                    popUpTo(EstablishmentScreens.EstablishmentDetail.createRoute(establishmentId)) { inclusive = false }
                                 }
                             }
                         }
@@ -227,7 +254,7 @@ fun OrderCheckoutScreen(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = colors.MainSuccess,
                         contentColor = colors.MainText,
-                        disabledContainerColor = colors.SecondaryBorder,
+                        disabledContainerColor = colors.SecondaryContainer,
                         disabledContentColor = colors.SecondaryText
                     ),
                     shape = MaterialTheme.shapes.medium
@@ -253,7 +280,7 @@ fun OrderCheckoutScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Корзина
+            // Basket (Code remains same)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -276,95 +303,49 @@ fun OrderCheckoutScreen(
                     cartItems.forEach { item ->
                         val (name, price) = orderCreationViewModel.getCartItemDetails(item)
                         val itemTotal = price * item.quantity
-
-                        OrderItemRow(
-                            name = name,
-                            quantity = item.quantity,
-                            price = price,
-                            totalPrice = itemTotal
-                        )
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 8.dp),
-                            color = colors.SecondaryBorder
-                        )
+                        OrderItemRow(name, item.quantity, price, itemTotal)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = colors.SecondaryBorder)
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            "Итого:",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.MainText
-                        )
-                        Text(
-                            "${String.format("%.2f", totalPrice)} р.",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.MainText
-                        )
+                        Text("Итого:", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colors.MainText)
+                        Text("${String.format("%.2f", totalPrice)} р.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colors.MainText)
                     }
                 }
             }
 
-            // Адрес доставки
+            // Address Card (Code remains same)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clickable {
-                        navController.navigate(
-                            OrderScreens.DeliveryAddresses.createRoute(
-                                userId = userId,
-                                isSelectionMode = true
-                            )
-                        )
-                    },
-                colors = CardDefaults.cardColors(
-                    containerColor = colors.SecondaryContainer,
-                    contentColor = colors.MainText
-                ),
+                    .clickable { navController.navigate(OrderScreens.DeliveryAddresses.createRoute(userId = userId, isSelectionMode = true)) },
+                colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer, contentColor = colors.MainText),
                 shape = MaterialTheme.shapes.medium,
                 elevation = CardDefaults.cardElevation(2.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = colors.MainText
-                    )
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = colors.MainText)
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
+                        Text("Адрес доставки", style = MaterialTheme.typography.titleMedium, color = colors.MainText)
                         Text(
-                            "Адрес доставки",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.MainText
-                        )
-                        Text(
-                            selectedAddress?.let { addr ->
-                                "${addr.street}, д. ${addr.house}${addr.building?.let { ", к.$it" } ?: ""}, кв. ${addr.apartment}"
-                            } ?: "Выберите адрес",
+                            selectedAddress?.let { addr -> "${addr.street}, д. ${addr.house}${addr.building?.let { ", к.$it" } ?: ""}, кв. ${addr.apartment}" } ?: "Выберите адрес",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (selectedAddress != null) colors.MainText else colors.SecondaryText
                         )
                     }
-                    Icon(
-                        Icons.Default.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = colors.MainText
-                    )
+                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = colors.MainText)
                 }
             }
 
-            // Способ оплаты
+            // --- ИЗМЕНЕНИЕ 2: Карточка выбора Даты и Времени ---
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -376,16 +357,142 @@ fun OrderCheckoutScreen(
                 shape = MaterialTheme.shapes.medium,
                 elevation = CardDefaults.cardElevation(2.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
+                Column(modifier = Modifier.padding(vertical = 16.dp)) {
                     Text(
-                        "Способ оплаты",
+                        "Время доставки",
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                        color = colors.MainText
+                        color = colors.MainText,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Выбор Даты (Горизонтальный список)
+                    Text(
+                        "Дата",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.SecondaryText,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(availableDates) { date ->
+                            val isSelected = orderDate.isEqual(date)
+                            val isToday = date.isEqual(LocalDate.now())
+                            val isTomorrow = date.isEqual(LocalDate.now().plusDays(1))
+
+                            val dateText = when {
+                                isToday -> "Сегодня"
+                                isTomorrow -> "Завтра"
+                                else -> date.format(DateTimeFormatter.ofPattern("d MMM", Locale("ru")))
+                            }
+
+                            val dayOfWeekText = if (isToday || isTomorrow) {
+                                date.format(DateTimeFormatter.ofPattern("d.MM"))
+                            } else {
+                                date.format(DateTimeFormatter.ofPattern("EEE", Locale("ru")))
+                                    .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+                            }
+
+                            Card(
+                                onClick = {
+                                    if (!isSelected) {
+                                        orderDate = date
+                                        selectedTime = null // Сброс времени при смене даты
+                                    }
+                                },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) colors.MainSuccess else colors.MainContainer,
+                                    contentColor = colors.MainText
+                                ),
+                                border = if (isSelected) BorderStroke(1.dp, colors.MainSuccess) else BorderStroke(1.dp, colors.SecondaryBorder),
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = dateText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                    Text(
+                                        text = dayOfWeekText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (isSelected) colors.MainText.copy(alpha = 0.8f) else colors.SecondaryText
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Выбор Времени (Слоты)
+                    Text(
+                        "Время",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.SecondaryText,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+
+                    if (timeSlots.isEmpty()) {
+                        Text(
+                            "Нет доступных слотов на выбранную дату",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.SecondaryText,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    } else {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(timeSlots.size) { index ->
+                                val slot = timeSlots[index]
+                                val isSelected = selectedTime == slot
+
+                                Card(
+                                    onClick = { selectedTime = slot },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) colors.MainSuccess else colors.MainContainer,
+                                        contentColor = colors.MainText
+                                    ),
+                                    shape = MaterialTheme.shapes.small,
+                                    elevation = CardDefaults.cardElevation(if (isSelected) 4.dp else 0.dp),
+                                    border = if (isSelected) BorderStroke(1.dp, colors.MainSuccess) else BorderStroke(1.dp, colors.SecondaryBorder)
+                                ) {
+                                    Text(
+                                        slot,
+                                        modifier = Modifier.padding(16.dp, 12.dp),
+                                        color = colors.MainText,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Payment Method (Code remains same)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = colors.SecondaryContainer,
+                    contentColor = colors.MainText
+                ),
+                shape = MaterialTheme.shapes.medium,
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Способ оплаты", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp), color = colors.MainText)
                     PaymentMethod.values().forEach { method ->
                         Row(
                             modifier = Modifier
@@ -397,18 +504,14 @@ fun OrderCheckoutScreen(
                             RadioButton(
                                 selected = paymentMethod == method,
                                 onClick = { paymentMethod = method },
-                                colors = RadioButtonDefaults.colors(
-                                    selectedColor = colors.MainSuccess,
-                                    unselectedColor = colors.SecondaryText
-                                )
+                                colors = RadioButtonDefaults.colors(selectedColor = colors.MainSuccess, unselectedColor = colors.SecondaryText)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 when (method) {
                                     PaymentMethod.CASH -> "Наличными курьеру"
                                     PaymentMethod.CARD -> "Картой курьеру"
-                                    else -> method.name.replace("_", " ").lowercase()
-                                        .replaceFirstChar { it.uppercase() }
+                                    else -> method.name
                                 },
                                 color = colors.MainText
                             )
@@ -417,95 +520,22 @@ fun OrderCheckoutScreen(
                 }
             }
 
-            // Время доставки
+            // Comments (Code remains same)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = colors.SecondaryContainer,
-                    contentColor = colors.MainText
-                ),
+                colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer, contentColor = colors.MainText),
                 shape = MaterialTheme.shapes.medium,
                 elevation = CardDefaults.cardElevation(2.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        "Время доставки",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                        color = colors.MainText
-                    )
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(timeSlots.size) { index ->
-                            val slot = timeSlots[index]
-                            val isSelected = selectedTime == slot
-
-                            Card(
-                                onClick = { selectedTime = slot },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) {
-                                        colors.MainSuccess
-                                    } else {
-                                        colors.SecondaryContainer
-                                    },
-                                    contentColor = colors.MainText
-                                ),
-                                shape = MaterialTheme.shapes.small,
-                                elevation = CardDefaults.cardElevation(if (isSelected) 4.dp else 1.dp),
-                                border = if (isSelected) BorderStroke(
-                                    2.dp,
-                                    colors.MainSuccess
-                                ) else null
-                            ) {
-                                Text(
-                                    slot,
-                                    modifier = Modifier.padding(16.dp, 12.dp),
-                                    color = colors.MainText
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Комментарий
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = colors.SecondaryContainer,
-                    contentColor = colors.MainText
-                ),
-                shape = MaterialTheme.shapes.medium,
-                elevation = CardDefaults.cardElevation(2.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        "Комментарий к заказу",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                        color = colors.MainText
-                    )
-
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Комментарий к заказу", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp), color = colors.MainText)
                     OutlinedTextField(
                         value = comments,
                         onValueChange = { comments = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = {
-                            Text(
-                                "Например: позвонить за 5 минут до доставки, не звонить в домофон, оставить у двери и т.д.",
-                                color = colors.SecondaryText
-                            )
-                        },
+                        placeholder = { Text("Например: позвонить за 5 минут до доставки...", color = colors.SecondaryText) },
                         maxLines = 3,
                         shape = MaterialTheme.shapes.small,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -517,8 +547,6 @@ fun OrderCheckoutScreen(
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 }
@@ -581,16 +609,21 @@ fun OrderItemRow(
 
 @RequiresApi(Build.VERSION_CODES.O)
 private fun generateTimeSlots(
+    startCalculationTime: LocalTime,
     openingTime: LocalTime,
     closingTime: LocalTime
 ): List<String> {
     val slots = mutableListOf<String>()
     val formatter = DateTimeFormatter.ofPattern("HH:mm")
 
-    val now = LocalTime.now()
-    var startTime = if (now.isBefore(openingTime)) openingTime else now
+    var startTime = startCalculationTime
 
-    // Округляем startTime до следующего 15-минутного интервала
+    // Ensure we don't start before opening
+    if (startTime.isBefore(openingTime)) {
+        startTime = openingTime
+    }
+
+    // Round up to next 15 minutes
     val minutes = startTime.minute
     val remainder = minutes % 15
     if (remainder != 0) {
@@ -598,8 +631,13 @@ private fun generateTimeSlots(
     }
 
     var current = startTime
-    while (current.isBefore(closingTime.minusMinutes(30))) {
+    // Logic: check if slot ENDS before closing
+    // We stop generating if the slot would end after closing - 30 mins
+    while (current.isBefore(closingTime.minusMinutes(30)) || current.equals(closingTime.minusMinutes(30))) {
         val end = current.plusMinutes(30)
+        // Double check strict closing time
+        if (end.isAfter(closingTime)) break
+
         slots.add("${current.format(formatter)} - ${end.format(formatter)}")
         current = current.plusMinutes(15)
     }
@@ -608,11 +646,9 @@ private fun generateTimeSlots(
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
-private fun parseTimeSlotToIso(timeSlot: String): String {
-    // Пример: "19:00 - 19:30" -> берём начало как время доставки
+private fun parseTimeSlotToIso(timeSlot: String, date: LocalDate): String {
     val startTimeStr = timeSlot.split(" - ")[0]
-    val today = LocalDate.now()
     val startTime = LocalTime.parse(startTimeStr)
-    val dateTime = LocalDateTime.of(today, startTime)
+    val dateTime = LocalDateTime.of(date, startTime)
     return dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
 }

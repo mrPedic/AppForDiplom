@@ -144,8 +144,13 @@ fun DeliveryAddressScreen(
     showDeleteDialog?.let { addressId ->
         AlertDialog(
             onDismissRequest = { viewModel.hideDeleteConfirmation() },
-            title = { Text("Удалить адрес?") },
-            text = { Text("Вы уверены, что хотите удалить этот адрес? Это действие нельзя отменить.") },
+            title = {
+                Text("Удалить адрес?", color = colors.MainText)  // ✅ Добавить цвет
+            },
+            text = {
+                Text("Вы уверены, что хотите удалить этот адрес? Это действие нельзя отменить.",
+                    color = colors.SecondaryText)  // ✅ Добавить цвет
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -157,10 +162,16 @@ fun DeliveryAddressScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.hideDeleteConfirmation() }) {
+                TextButton(
+                    onClick = { viewModel.hideDeleteConfirmation() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.MainText)  // ✅ Добавить цвет
+                ) {
                     Text("Отмена")
                 }
-            }
+            },
+            containerColor = colors.MainContainer,  // ✅ Добавить цвет фона
+            titleContentColor = colors.MainText,    // ✅ Добавить цвет заголовка
+            textContentColor = colors.MainText      // ✅ Добавить цвет текста
         )
     }
 
@@ -184,7 +195,10 @@ fun DeliveryAddressScreen(
                 TextButton(onClick = { viewModel.hideSetDefaultConfirmation() }) {
                     Text("Отмена")
                 }
-            }
+            },
+            containerColor = colors.MainContainer,
+            titleContentColor = colors.MainText,
+            textContentColor = colors.MainText
         )
     }
 }

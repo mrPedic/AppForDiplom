@@ -43,7 +43,7 @@ import com.example.roamly.ui.screens.order.DeliveryAddressScreen
 import com.example.roamly.ui.screens.order.EditDeliveryAddressScreen
 import com.example.roamly.ui.screens.order.OrderCheckoutScreen
 import com.example.roamly.ui.screens.order.OrderCreationMenuScreen
-import com.example.roamly.ui.screens.order.OrderCreationScreen
+import com.example.roamly.ui.screens.order.OrderDetailsScreen
 import com.example.roamly.ui.screens.order.OrderListScreen
 import com.example.roamly.ui.screens.profileFR.NotificationsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
@@ -315,10 +315,10 @@ fun NavGraph(
         ) { backStackEntry ->
             val orderId = backStackEntry.arguments?.getLong(OrderScreens.ORDER_ID_KEY)
             orderId?.let {
-                // TODO: Создать OrderDetailScreen
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Детали заказа #$orderId")
-                }
+                OrderDetailsScreen(
+                    navController = navController,
+                    orderId = orderId
+                )
             }
         }
 

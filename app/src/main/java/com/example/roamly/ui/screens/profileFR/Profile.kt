@@ -1,6 +1,5 @@
 package com.example.roamly.ui.screens.profileFR
 
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,19 +13,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -46,13 +40,9 @@ import com.example.roamly.ui.screens.sealed.LogSinUpScreens
 import com.example.roamly.ui.screens.sealed.NotificationScreens
 import com.example.roamly.ui.screens.sealed.OrderScreens
 import com.example.roamly.ui.theme.AppTheme
-import com.example.roamly.websocket.SockJSManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.min
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     navController: NavController,
@@ -63,23 +53,14 @@ fun ProfileScreen(
 ) {
     val user by userViewModel.user.collectAsState()
     val isLoggedIn = user.role != Role.UnRegistered
-
-    // Получаем StateFlow значения как State
     val unreadCountState by notificationViewModel.unreadCount.collectAsState()
 
-    LaunchedEffect(unreadCountState) {
-        Log.d("ProfileScreen", "🔄 Unread count updated: $unreadCountState")
-    }
-
-    // 🔥 НОВОЕ: Обновляем уведомления при каждом открытии экрана профиля
     LaunchedEffect(Unit) {
         if (isLoggedIn) {
             notificationViewModel.refresh()
         }
     }
-    val connectionState by notificationViewModel.connectionState.collectAsState()
 
-    // Base background matching Booking.kt
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = AppTheme.colors.MainContainer
@@ -113,56 +94,68 @@ private fun RegisteredProfileContent(
 ) {
     val currentUser by userViewModel.user.collectAsState()
     val favorites by establishmentViewModel.favoriteEstablishmentsList.collectAsState()
+    val orders by orderViewModel.userOrders.collectAsState()
+    val buttonBarHeight = 102.dp
+    val error by orderViewModel.error.collectAsState()  // Добавлено для отладки
 
-    // 🔥 НОВОЕ: Обновляем избранные заведения при каждом открытии
     LaunchedEffect(currentUser.id) {
         if (currentUser.id != null) {
             establishmentViewModel.fetchFavoriteEstablishmentsList(currentUser.id!!)
+            orderViewModel.loadUserOrders(currentUser.id!!)  // Добавляем загрузку заказов
         }
     }
-
-    // 🔥 НОВОЕ: Обновляем уведомления при каждом открытии
-    LaunchedEffect(Unit) {
-        notificationViewModel.refresh()
-    }
-
-    val connectionState by notificationViewModel.connectionState.collectAsState()
-    val lastMessage = notificationViewModel.lastMessage
-
-    val buttonBarHeight = 102.dp
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 5.dp),
+            .padding(horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        error?.let {
+            Text(
+                text = "Ошибка: $it",
+                color = AppTheme.colors.MainFailure,
+                modifier = Modifier.padding(16.dp)
+            )
+            LaunchedEffect(Unit) {
+                orderViewModel.clearError()
+            }
+        }
+        // Заголовок
         Text(
             text = "Ваш Профиль",
-            style = MaterialTheme.typography.headlineLarge,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = AppTheme.colors.MainText,
             modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
         )
 
-        // User Info Card -> Matches BookingItemCard style
+        // Карточка информации о пользователе
         Card(
             modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(4.dp),
             colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Информация о пользователе",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = AppTheme.colors.MainText,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                HorizontalDivider(
-                    color = AppTheme.colors.MainBorder.copy(alpha = 0.5f),
-                    thickness = DividerDefaults.Thickness
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Информация о пользователе",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.MainText
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Divider(
+                    thickness = 1.dp,
+                    color = AppTheme.colors.MainBorder.copy(alpha = 0.5f)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -174,27 +167,17 @@ private fun RegisteredProfileContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Избранные заведения",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = AppTheme.colors.MainText,
-            modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
+        // Раздел избранных заведений
+        SectionHeader(
+            title = "Избранные заведения",
+            showAllButton = false
         )
 
         if (favorites.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .background(AppTheme.colors.SecondaryContainer, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Список избранного пуст",
-                    color = AppTheme.colors.SecondaryText
-                )
-            }
+            EmptyStateCard(
+                text = "Список избранного пуст",
+                modifier = Modifier.fillMaxWidth()
+            )
         } else {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -213,27 +196,16 @@ private fun RegisteredProfileContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Заказы
-
-
-        Text(
-            text = "Мои заказы",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = AppTheme.colors.MainText,
-            modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
+        // Раздел заказов
+        SectionHeader(
+            title = "Мои заказы",
+            showAllButton = true,
+            onAllClick = {
+                navController.navigate(OrderScreens.OrderList.route)
+            }
         )
 
-        val userOrders by orderViewModel.userOrders.collectAsState()
-        val user = userViewModel.user.collectAsState()
-
-        LaunchedEffect(user.value.id) {
-            user.value.id?.let {
-                orderViewModel.loadUserOrders(it)
-            }
-        }
-
-// Активные заказы (PENDING, CONFIRMED, IN_PROGRESS, OUT_FOR_DELIVERY)
+        val userOrders = orders
         val activeOrders = userOrders.filter {
             it.status == OrderStatus.PENDING ||
                     it.status == OrderStatus.CONFIRMED ||
@@ -241,7 +213,6 @@ private fun RegisteredProfileContent(
                     it.status == OrderStatus.OUT_FOR_DELIVERY
         }
 
-// Завершенные заказы
         val completedOrders = userOrders.filter {
             it.status == OrderStatus.DELIVERED ||
                     it.status == OrderStatus.CANCELLED ||
@@ -249,25 +220,21 @@ private fun RegisteredProfileContent(
         }
 
         if (activeOrders.isEmpty() && completedOrders.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .background(AppTheme.colors.SecondaryContainer, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("У вас пока нет заказов")
-            }
+            EmptyStateCard(
+                text = "У вас пока нет заказов",
+                modifier = Modifier.fillMaxWidth()
+            )
         } else {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (activeOrders.isNotEmpty()) {
                     Text(
                         "Активные заказы",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.MainSuccess
+                        color = AppTheme.colors.MainSuccess,
+                        modifier = Modifier.padding(start = 4.dp)
                     )
 
                     LazyRow(
@@ -275,11 +242,14 @@ private fun RegisteredProfileContent(
                         contentPadding = PaddingValues(bottom = 8.dp)
                     ) {
                         items(activeOrders) { order ->
-                            OrderPreviewCard(order = order, onClick = {
-                                order.id?.let {
-                                    navController.navigate("order/details/$it")
+                            OrderPreviewCard(
+                                order = order,
+                                onClick = {
+                                    order.id?.let {
+                                        navController.navigate("order/details/$it")
+                                    }
                                 }
-                            })
+                            )
                         }
                     }
                 }
@@ -289,7 +259,8 @@ private fun RegisteredProfileContent(
                         "Завершенные заказы",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.SecondaryText
+                        color = AppTheme.colors.SecondaryText,
+                        modifier = Modifier.padding(start = 4.dp)
                     )
 
                     LazyRow(
@@ -297,160 +268,109 @@ private fun RegisteredProfileContent(
                         contentPadding = PaddingValues(bottom = 8.dp)
                     ) {
                         items(completedOrders) { order ->
-                            OrderPreviewCard(order = order, onClick = {
-                                order.id?.let {
-                                    navController.navigate("order/details/$it")
+                            OrderPreviewCard(
+                                order = order,
+                                onClick = {
+                                    order.id?.let {
+                                        navController.navigate("order/details/$it")
+                                    }
                                 }
-                            })
+                            )
                         }
                     }
                 }
             }
-
-            Button(
-                onClick = {
-                    navController.navigate(OrderScreens.OrderList.route)
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            ) {
-                Text("Все заказы")
-            }
         }
 
-        // Action Buttons
-        Button(
-            onClick = {
-                navController.navigate(EstablishmentScreens.UserEstablishments.route)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppTheme.colors.SecondaryContainer,
-                contentColor = AppTheme.colors.MainText
-            )
-        ) {
-            Text(text = "Мои Заведения")
-        }
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // 🆕 Кнопка уведомлений
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = {
-                    navController.navigate(NotificationScreens.Notifications.route)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                colors = ButtonDefaults.buttonColors(
+        // Панель действий
+        ActionGrid(
+            items = listOf(
+                ActionItem(
+                    title = "Управление заведениями",
+                    onClick = { navController.navigate(EstablishmentScreens.UserEstablishments.route) },
+                    containerColor = AppTheme.colors.SecondaryContainer,
+                    contentColor = AppTheme.colors.MainText
+                ),
+                ActionItem(
+                    title = "Уведомления",
+                    icon = Icons.Default.Notifications,
+                    badgeCount = unreadCount,
+                    onClick = { navController.navigate(NotificationScreens.Notifications.route) },
                     containerColor = AppTheme.colors.MainBorder,
                     contentColor = AppTheme.colors.MainText
+                ),
+                ActionItem(
+                    title = "Создать заведение",
+                    onClick = { navController.navigate(EstablishmentScreens.CreateEstablishment.route) },
+                    containerColor = AppTheme.colors.MainSuccess,
+                    contentColor = AppTheme.colors.MainText
+                ),
+                ActionItem(
+                    title = "Адреса доставки",
+                    onClick = {
+                        currentUser.id?.let { userId ->
+                            navController.navigate(OrderScreens.DeliveryAddresses.createRoute(userId, false))
+                        }
+                    },
+                    containerColor = AppTheme.colors.SecondaryContainer,
+                    contentColor = AppTheme.colors.MainText
                 )
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = "Уведомления",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Уведомления")
-                }
-            }
-
-            // Бейдж с количеством непрочитанных
-            if (unreadCount > 0) {
-                Badge(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = (-8).dp, y = 8.dp)
-                ) {
-                    Text(min(unreadCount, 99).toString())
-                }
-            }
-        }
-
-        Button(
-            onClick = {
-                navController.navigate(EstablishmentScreens.CreateEstablishment.route)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppTheme.colors.MainSuccess,
-                contentColor = AppTheme.colors.MainText
             )
-        ) {
-            Text(text = "Создать свое заведение")
-        }
+        )
 
-        // Кнопка управления адресами доставки
-        Button(
-            onClick = {
-                currentUser.id?.let { userId ->
-                    navController.navigate(OrderScreens.DeliveryAddresses.createRoute(userId, false))
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppTheme.colors.SecondaryContainer,
-                contentColor = AppTheme.colors.MainText
-            )
-        ) {
-            Text(text = "Мои адреса доставки")
-        }
+        Spacer(modifier = Modifier.height(32.dp))
 
-        Spacer(modifier = Modifier.height(50.dp))
-
-        // Logout -> Destructive Action
-        Button(
+        // Кнопка выхода
+        OutlinedButton(
             onClick = {
                 userViewModel.logout()
                 notificationViewModel.disconnect()
             },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = AppTheme.colors.MainFailure,
-                contentColor = AppTheme.colors.MainText
-            ),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = buttonBarHeight)
+                .padding(bottom = buttonBarHeight),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = AppTheme.colors.MainFailure
+            ),
+            border = ButtonDefaults.outlinedButtonBorder
         ) {
-            Text(text = "Выйти из аккаунта")
+            Text(
+                text = "Выйти из аккаунта",
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FavoriteEstablishmentCard(
+private fun FavoriteEstablishmentCard(
     item: EstablishmentFavoriteDto,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .width(160.dp)
+            .width(180.dp)
+            .height(200.dp)
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(4.dp),
         colors = CardDefaults.cardColors(containerColor = AppTheme.colors.SecondaryContainer)
     ) {
-        Column {
-            val imageBytes = remember(item.photoBase64) {
-                if (!item.photoBase64.isNullOrBlank()) base64ToByteArray(item.photoBase64) else null
-            }
-
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Изображение
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(100.dp)
-                    .background(AppTheme.colors.MainContainer)
+                    .height(120.dp)
             ) {
+                val imageBytes = remember(item.photoBase64) {
+                    if (!item.photoBase64.isNullOrBlank()) base64ToByteArray(item.photoBase64) else null
+                }
+
                 if (imageBytes != null) {
                     Image(
                         painter = rememberAsyncImagePainter(model = imageBytes),
@@ -460,7 +380,9 @@ fun FavoriteEstablishmentCard(
                     )
                 } else {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(AppTheme.colors.MainContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -471,25 +393,25 @@ fun FavoriteEstablishmentCard(
                     }
                 }
 
-                // Rating Badge
+                // Рейтинг
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp),
-                    shape = RoundedCornerShape(4.dp),
-                    color = AppTheme.colors.MainContainer.copy(alpha = 0.8f)
+                        .padding(8.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = AppTheme.colors.MainContainer.copy(alpha = 0.9f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = null,
                             tint = AppTheme.colors.MainSuccess,
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(Modifier.width(2.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             text = String.format("%.1f", item.rating),
                             color = AppTheme.colors.MainText,
@@ -500,30 +422,37 @@ fun FavoriteEstablishmentCard(
                 }
             }
 
-            // Info Section
-            Column(modifier = Modifier.padding(8.dp)) {
-                Text(
-                    text = item.name,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = AppTheme.colors.MainText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = convertTypeToWord(item.type),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = AppTheme.colors.SecondaryText,
-                    maxLines = 1
-                )
-                Spacer(Modifier.height(2.dp))
+            // Информация
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = item.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.MainText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = convertTypeToWord(item.type),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.SecondaryText,
+                        maxLines = 1
+                    )
+                }
+
                 Text(
                     text = item.address,
                     style = MaterialTheme.typography.bodySmall,
                     color = AppTheme.colors.SecondaryText,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = MaterialTheme.typography.bodySmall.fontSize * 0.9f
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -533,7 +462,7 @@ fun FavoriteEstablishmentCard(
 // ----------------------------------------------------
 // NOT LOGGED IN CONTENT
 // ----------------------------------------------------
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UnRegisteredProfileContent(
     navController: NavController,
@@ -542,121 +471,329 @@ private fun UnRegisteredProfileContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Иконка профиля
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(AppTheme.colors.SecondaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Notifications,
+                contentDescription = null,
+                tint = AppTheme.colors.MainText,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         Text(
-            text = "Профиль",
-            style = MaterialTheme.typography.headlineLarge,
+            text = "Войдите в аккаунт",
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = AppTheme.colors.MainText
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Вы не авторизованы",
-            style = MaterialTheme.typography.titleMedium,
-            color = AppTheme.colors.SecondaryText
+            text = "Чтобы получить доступ ко всем функциям приложения",
+            style = MaterialTheme.typography.bodyMedium,
+            color = AppTheme.colors.SecondaryText,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Кнопка входа
             Button(
-                modifier = Modifier
-                    .fillMaxWidth(0.8f)
-                    .padding(bottom = 16.dp),
-                onClick = {
-                    navController.navigate(route = LogSinUpScreens.SingUp.route)
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.colors.MainSuccess,
-                    contentColor = AppTheme.colors.MainText
-                )
-            ) {
-                Text(text = "Создать аккаунт")
-            }
-
-            Button(
-                modifier = Modifier.fillMaxWidth(0.8f),
                 onClick = {
                     navController.navigate(route = LogSinUpScreens.Login.route)
                 },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AppTheme.colors.MainBorder,
-                    contentColor = AppTheme.colors.MainText
+                    containerColor = AppTheme.colors.MainSuccess
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 4.dp,
+                    pressedElevation = 8.dp
                 )
             ) {
-                Text(text = "Войти в аккаунт")
+                Text(
+                    text = "Войти",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            // Кнопка регистрации
+            OutlinedButton(
+                onClick = {
+                    navController.navigate(route = LogSinUpScreens.SingUp.route)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = AppTheme.colors.MainBorder
+                ),
+                border = ButtonDefaults.outlinedButtonBorder
+            ) {
+                Text(
+                    text = "Создать аккаунт",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------
+// ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ
+// ----------------------------------------------------
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = AppTheme.colors.SecondaryText
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = AppTheme.colors.MainText
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OrderPreviewCard(order: OrderDto, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .width(200.dp)
+            .height(120.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colors.SecondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Заказ #${order.id ?: "???"}",
+                    fontWeight = FontWeight.Bold,
+                    color = colors.MainText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = "${order.totalPrice} р.",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.MainSuccess
+                )
+            }
+
+            Column {
+                Text(
+                    text = "${order.items?.size ?: 0} позиций",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.SecondaryText
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Статус заказа
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = when (order.status) {
+                        OrderStatus.DELIVERED -> colors.MainSuccess.copy(alpha = 0.2f)
+                        OrderStatus.CANCELLED, OrderStatus.REJECTED -> colors.MainFailure.copy(alpha = 0.2f)
+                        else -> colors.MainBorder.copy(alpha = 0.2f)
+                    }
+                ) {
+                    Text(
+                        text = order.status.toDisplayString(),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.MainText,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
+private fun SectionHeader(
+    title: String,
+    showAllButton: Boolean = false,
+    onAllClick: (() -> Unit)? = null
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(bottom = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = AppTheme.colors.SecondaryText
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
             color = AppTheme.colors.MainText
         )
+
+        if (showAllButton && onAllClick != null) {
+            TextButton(
+                onClick = onAllClick,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = AppTheme.colors.MainBorder
+                )
+            ) {
+                Text(
+                    text = "Все →",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
     }
 }
-// Исправленный OrderPreviewCard в Profile.kt
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrderPreviewCard(order: OrderDto, onClick: () -> Unit) {
+private fun EmptyStateCard(
+    text: String,
+    modifier: Modifier = Modifier
+) {
     Card(
-        onClick = onClick,
-        modifier = Modifier.width(200.dp)
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AppTheme.colors.SecondaryContainer.copy(alpha = 0.5f)
+        )
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
         ) {
             Text(
-                "Заказ #${order.id}",
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = text,
+                color = AppTheme.colors.SecondaryText,
+                style = MaterialTheme.typography.bodyMedium
             )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(4.dp))
+data class ActionItem(
+    val title: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    val badgeCount: Int = 0,
+    val onClick: () -> Unit,
+    val containerColor: androidx.compose.ui.graphics.Color,
+    val contentColor: androidx.compose.ui.graphics.Color
+)
 
-            Text(
-                "${order.items.size} позиций",
-                style = MaterialTheme.typography.bodySmall
-            )
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActionGrid(
+    items: List<ActionItem>
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items.forEach { item ->
+            Button(
+                onClick = item.onClick,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = item.containerColor
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 2.dp,
+                    pressedElevation = 4.dp
+                )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        item.icon?.let { icon ->
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
+                        Text(
+                            text = item.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
 
-            Text(
-                "${order.totalPrice} ₽",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = order.status.toDisplayString(),
-                style = MaterialTheme.typography.labelSmall,
-                color = when (order.status) {
-                    OrderStatus.DELIVERED -> Color.Green
-                    OrderStatus.REJECTED -> Color.Red
-                    else -> AppTheme.colors.MainText
+                    if (item.badgeCount > 0) {
+                        Badge(
+                            modifier = Modifier
+                        ) {
+                            Text(
+                                text = min(item.badgeCount, 99).toString(),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                 }
-            )
+            }
         }
     }
 }

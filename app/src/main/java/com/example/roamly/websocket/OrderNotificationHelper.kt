@@ -7,6 +7,7 @@ import com.example.roamly.entity.DTO.order.OrderDto
 import com.example.roamly.entity.DTO.order.OrderItemDto
 import com.example.roamly.entity.DTO.order.OrderStatus
 import com.example.roamly.entity.DTO.order.PaymentMethod
+import com.example.roamly.ui.screens.establishment.toMap
 import org.json.JSONObject
 
 class OrderNotificationHelper(private val context: Context) {
@@ -115,7 +116,7 @@ class OrderNotificationHelper(private val context: Context) {
                     quantity = itemJson.getInt("quantity"),
                     pricePerUnit = itemJson.getDouble("pricePerUnit"),
                     totalPrice = itemJson.getDouble("totalPrice"),
-                    options = if (itemJson.has("options")) itemJson.getString("options") else null
+                    options = if (itemJson.has("options")) itemJson.getString("options").toMap() else null
                 )
                 items.add(item)
             }
@@ -147,7 +148,7 @@ class OrderNotificationHelper(private val context: Context) {
             deliveryAddressId = deliveryAddressId,
             deliveryAddress = deliveryAddress,
             items = items,
-            isContactless = isContactless,
+            contactless = isContactless,
             paymentMethod = paymentMethod,
             deliveryTime = deliveryTime,
             comments = comments,

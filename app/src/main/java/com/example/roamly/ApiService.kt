@@ -252,20 +252,6 @@ interface ApiService {
     @GET("bookings/{bookingId}/details")
     suspend fun getBookingDetails(@Path("bookingId") bookingId: Long): OwnerBookingDisplayDto
 
-
-    // Добавить в ApiService.kt
-    @POST("/api/orders")  // Исправленный путь
-    suspend fun createOrder(@Body request: CreateOrderRequest): OrderDto
-
-    @GET("orders/user/{userId}")
-    suspend fun getUserOrders(@Path("userId") userId: Long): List<OrderDto>
-
-    @GET("orders/establishment/{establishmentId}")
-    suspend fun getEstablishmentOrders(
-        @Path("establishmentId") establishmentId: Long,
-        @Query("status") status: String? = null
-    ): List<OrderDto>
-
     @PUT("orders/{orderId}/status")
     suspend fun updateOrderStatus(
         @Path("orderId") orderId: Long,
@@ -306,8 +292,7 @@ interface ApiService {
 
     @PUT("users/{userId}/delivery-addresses/{addressId}/set-default")
     suspend fun setDefaultDeliveryAddress(
-        @Path("userId") userId: Long,
-        @Path("addressId") addressId: Long
+        @Path("userId") userId: Long,        @Path("addressId") addressId: Long
     ): Response<Unit>
 
     // Эндпоинты для уведомлений о заказах
@@ -316,4 +301,22 @@ interface ApiService {
 
     @GET("notifications/order/user/{userId}")
     suspend fun getOrderNotifications(@Path("userId") userId: Long): List<OrderNotificationDto>
+
+    // Если этот метод нужен для админки/владельца:
+    @GET("api/orders/establishment/{establishmentId}")
+    suspend fun getEstablishmentOrders(
+        @Path("establishmentId") establishmentId: Long,
+        @Query("status") status: String? = null
+    ): List<OrderDto>
+
+    @POST("api/orders")
+    suspend fun createOrder(@Body request: CreateOrderRequest): OrderDto
+
+    // БЕЗ начального слеша
+    @GET("api/orders/user/{userId}")
+    suspend fun getUserOrders(@Path("userId") userId: Long): List<OrderDto>
+
+    // БЕЗ начального слеша
+    @GET("api/orders/{orderId}")
+    suspend fun getOrderById(@Path("orderId") orderId: Long): OrderDto
 }
