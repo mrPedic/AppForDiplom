@@ -10,7 +10,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -139,51 +141,6 @@ private fun RegisteredProfileContent(
             modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
         )
 
-        // Карточка информации о пользователе (сделаем её кликабельной для редактирования)
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    navController.navigate(ProfileScreens.EditProfile.route)
-                },
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(4.dp),
-            colors = CardDefaults.cardColors(containerColor = colors.SecondaryContainer)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Информация о пользователе",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.MainText
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Редактировать профиль",
-                        tint = colors.MainBorder
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                Divider(
-                    thickness = 1.dp,
-                    color = colors.MainBorder.copy(alpha = 0.5f)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                InfoRow(label = "Имя:", value = currentUser.name ?: "Не указано")
-                InfoRow(label = "Логин:", value = currentUser.login)
-                InfoRow(label = "Роль:", value = currentUser.role.toString())
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         // Раздел избранных заведений
         SectionHeader(
             title = "Избранные заведения",
@@ -215,7 +172,7 @@ private fun RegisteredProfileContent(
 
         // Раздел заказов
         SectionHeader(
-            title = "Мои заказы",
+            title = "Заказы",
             showAllButton = true,
             onAllClick = {
                 navController.navigate(OrderScreens.OrderList.route)
@@ -306,9 +263,16 @@ private fun RegisteredProfileContent(
             items = remember(colors, unreadCount) {
                 listOf(
                     ActionItem(
-                        title = "Редактировать профиль",
-                        icon = Icons.Default.Edit,
-                        onClick = { navController.navigate(ProfileScreens.EditProfile.route) },
+                        title = "Управление заведениями",
+                        icon = Icons.Default.Home,
+                        onClick = { navController.navigate(EstablishmentScreens.UserEstablishments.route) },
+                        containerColor = colors.SecondaryContainer,
+                        contentColor = colors.MainText
+                    ),
+                    ActionItem(
+                        title = "Создать заведение",
+                        icon = Icons.Default.Add,
+                        onClick = { navController.navigate(EstablishmentScreens.CreateEstablishment.route) },
                         containerColor = colors.SecondaryContainer,
                         contentColor = colors.MainText
                     ),
@@ -317,23 +281,12 @@ private fun RegisteredProfileContent(
                         icon = Icons.Default.Notifications,
                         badgeCount = unreadCount,
                         onClick = { navController.navigate(NotificationScreens.Notifications.route) },
-                        containerColor = colors.MainBorder,
-                        contentColor = colors.MainText
-                    ),
-                    ActionItem(
-                        title = "Управление заведениями",
-                        onClick = { navController.navigate(EstablishmentScreens.UserEstablishments.route) },
                         containerColor = colors.SecondaryContainer,
                         contentColor = colors.MainText
                     ),
                     ActionItem(
-                        title = "Создать заведение",
-                        onClick = { navController.navigate(EstablishmentScreens.CreateEstablishment.route) },
-                        containerColor = colors.MainSuccess,
-                        contentColor = colors.MainText
-                    ),
-                    ActionItem(
                         title = "Адреса доставки",
+                        icon = Icons.Default.Edit,
                         onClick = {
                             currentUser.id?.let { userId ->
                                 navController.navigate(OrderScreens.DeliveryAddresses.createRoute(userId, false))
@@ -341,7 +294,14 @@ private fun RegisteredProfileContent(
                         },
                         containerColor = colors.SecondaryContainer,
                         contentColor = colors.MainText
-                    )
+                    ),
+                    ActionItem(
+                        title = "Редактировать профиль",
+                        icon = Icons.Default.Edit,
+                        onClick = { navController.navigate(ProfileScreens.EditProfile.route) },
+                        containerColor = colors.SecondaryContainer,
+                        contentColor = colors.MainText
+                    ),
                 )
             }
         )
