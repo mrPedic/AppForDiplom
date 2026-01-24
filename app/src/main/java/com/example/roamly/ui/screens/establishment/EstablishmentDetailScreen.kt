@@ -52,6 +52,7 @@ import com.example.roamly.entity.LoadState
 import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.entity.ViewModel.EstablishmentDetailViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.screens.sealed.OrderScreens
@@ -453,7 +454,7 @@ fun DescriptionSection(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Адрес: ${desc.address}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
                 Text("Рейтинг: ${desc.rating}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
-                Text("Тип: ${desc.type}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
+                Text("Тип: ${convertTypeToWord(desc.type)}", style = MaterialTheme.typography.bodyMedium, color = colors.SecondaryText)
 
                 // Улучшенное отображение времени работы
                 desc.operatingHoursString?.let { operatingHours ->

@@ -2,6 +2,7 @@ package com.example.roamly.entity.classes
 
 import android.graphics.Color
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 
 data class EstablishmentEntity(
     val id: Long,
@@ -82,6 +83,29 @@ fun convertTypeToColor(typeOfEstablishment: TypeOfEstablishment): Int {
 
 fun convertTypeToWord(typeOfEstablishment: TypeOfEstablishment): String{
     return when(typeOfEstablishment){
+        TypeOfEstablishment.Restaurant -> "Ресторан"
+        TypeOfEstablishment.Cafe -> "Кафе"
+        TypeOfEstablishment.Pub -> "Бар" // Или "Паб"
+        TypeOfEstablishment.Canteen -> "Столовая"
+        TypeOfEstablishment.FastFood -> "Фастфуд"
+        TypeOfEstablishment.CoffeeHouse -> "Кофейня"
+        TypeOfEstablishment.Pizzeria -> "Пиццерия"
+        TypeOfEstablishment.Bakery -> "Пекарня / Булочная"
+        TypeOfEstablishment.SushiBar -> "Суши-бар"
+        TypeOfEstablishment.GrillBar -> "Гриль-бар / Стейкхаус"
+        TypeOfEstablishment.Confectionery -> "Кондитерская"
+        TypeOfEstablishment.Diner -> "Закусочная / Бистро"
+        TypeOfEstablishment.TeaHouse -> "Чайная"
+        TypeOfEstablishment.PancakeHouse -> "Блинная"
+        TypeOfEstablishment.IceCreamParlor -> "Кафе-мороженое"
+        TypeOfEstablishment.FoodTruck -> "Фудтрак / Киоск"
+        TypeOfEstablishment.Gastropub -> "Гастропаб"
+        else -> "Неизвестный тип заведения"
+    }
+}
+
+fun DescriptionDTO.toRussianWorld(): String{
+    return when(this.type){
         TypeOfEstablishment.Restaurant -> "Ресторан"
         TypeOfEstablishment.Cafe -> "Кафе"
         TypeOfEstablishment.Pub -> "Бар" // Или "Паб"
