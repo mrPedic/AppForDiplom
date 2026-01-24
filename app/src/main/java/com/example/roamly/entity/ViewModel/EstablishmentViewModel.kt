@@ -23,6 +23,7 @@ import com.example.roamly.entity.DTO.establishment.EstablishmentFavoriteDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentMarkerDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentSearchResultDto
 import com.example.roamly.entity.DTO.TableCreationDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentWithCountsDto
 import com.example.roamly.entity.classes.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.classes.EstablishmentStatus
@@ -1055,4 +1056,25 @@ class EstablishmentViewModel @Inject constructor(
         return locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) ?: false ||
                 locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ?: false
     }
+
+
+
+    private val _userEstablishmentsWithCounts = MutableStateFlow<List<EstablishmentWithCountsDto>>(emptyList())
+    val userEstablishmentsWithCounts: StateFlow<List<EstablishmentWithCountsDto>> = _userEstablishmentsWithCounts.asStateFlow()
+
+    private val _countsLoading = MutableStateFlow(false)
+    val countsLoading: StateFlow<Boolean> = _countsLoading.asStateFlow()
+
+    suspend fun fetchEstablishmentsWithCountsByUserId(userId: Long) {
+        _countsLoading.value = true
+        try {
+            val establishments = apiService.getEstablishmentsWithCountsByUserId(userId)
+            _userEstablishmentsWithCounts.value = establishments
+        } catch (e: Exception) {
+            Log.e("EstablishmentViewModel", "Error fetching establishments with counts", e)
+        } finally {
+            _countsLoading.value = false
+        }
+    }
+
 }

@@ -23,8 +23,12 @@ sealed class OrderScreens(val route: String) {
 
     object OrderList : OrderScreens("orders/list")
 
+    object OwnerOrdersManagement : OrderScreens("owner/orders/{$ESTABLISHMENT_ID_KEY}") {
+        fun createRoute(establishmentId: Long): String = "owner/orders/$establishmentId"
+    }
+
     object DeliveryAddresses : OrderScreens("orders/delivery-addresses/{$USER_ID_KEY}?isSelectionMode={isSelectionMode}") {
-        fun createRoute(userId: Long, isSelectionMode: Boolean ): String =
+        fun createRoute(userId: Long, isSelectionMode: Boolean): String =
             "orders/delivery-addresses/$userId?isSelectionMode=$isSelectionMode"
     }
 

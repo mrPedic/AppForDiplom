@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,8 +16,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Build
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +29,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentWithCountsDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserEstablishmentsViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
@@ -38,6 +37,7 @@ import com.example.roamly.entity.classes.TypeOfEstablishment
 import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.screens.sealed.EstablishmentScreens
+import com.example.roamly.ui.screens.sealed.OrderScreens
 import com.example.roamly.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 
@@ -50,29 +50,29 @@ fun UserEstablishmentsScreen(
     pinnedViewModel: UserEstablishmentsViewModel = hiltViewModel()
 ) {
     val user by userViewModel.user.collectAsState()
-    val establishments by establishmentViewModel.userEstablishments.collectAsState(emptyList())
+    // Используем establishments с количеством
+    val establishmentsWithCounts by establishmentViewModel.userEstablishmentsWithCounts.collectAsState(emptyList())
     val pinnedIds by pinnedViewModel.pinnedEstablishments.collectAsState()
-    val isLoading by establishmentViewModel.isLoading.collectAsState()
+    val isLoading by establishmentViewModel.countsLoading.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
     // Поиск и фильтрация на клиенте
     var searchQuery by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<TypeOfEstablishment?>(null) }
 
-    // Список типов типов из enum, исключая Error
     val establishmentTypes = TypeOfEstablishment.values().filter { it != TypeOfEstablishment.Error }
 
-    // Фильтрация заведений на клиенте
-    val filteredEstablishments = establishments.filter { est ->
+    // Фильтрация заведений
+    val filteredEstablishments = establishmentsWithCounts.filter { est ->
         (searchQuery.isEmpty() || est.name.contains(searchQuery, ignoreCase = true)) &&
                 (selectedType == null || est.type == selectedType)
     }
 
-    // Разделяем на закрепленные и обычные после фильтрации
+    // Разделяем на закрепленные и обычные
     val pinnedEstablishments = filteredEstablishments.filter { it.id in pinnedIds }
     val otherEstablishments = filteredEstablishments.filter { it.id !in pinnedIds }
 
-    // Объединенный список с заголовками (показываем заголовок только если раздел не пуст)
+    // Объединенный список
     val displayList = buildList {
         if (pinnedEstablishments.isNotEmpty()) {
             add("Закрепленные")
@@ -85,13 +85,15 @@ fun UserEstablishmentsScreen(
     }
 
     LaunchedEffect(user.id) {
-        user.id?.let { establishmentViewModel.fetchEstablishmentsByUserId(it) }
+        user.id?.let { establishmentViewModel.fetchEstablishmentsWithCountsByUserId(it) }
     }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Мои заведения", color = AppTheme.colors.MainText) },
+                title = {
+                    Text("Мои заведения", color = AppTheme.colors.MainText)
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
@@ -149,12 +151,13 @@ fun UserEstablishmentsScreen(
                 )
             )
 
-            // Фильтры по типу (горизонтальный скролл)
+            // Фильтры по типу
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding( bottom = 8.dp,
+                    .padding(
+                        bottom = 8.dp,
                         start = 16.dp,
                         end = 16.dp
                     ),
@@ -219,19 +222,24 @@ fun UserEstablishmentsScreen(
                                         }
                                     }
 
-                                    is EstablishmentDisplayDto -> {
+                                    is EstablishmentWithCountsDto -> {
                                         item {
                                             EstablishmentItem(
                                                 establishment = item,
                                                 isPinned = item.id in pinnedIds,
-                                                onPinClick = {
+                                                onPinClick = { clickedId ->
                                                     coroutineScope.launch {
-                                                        pinnedViewModel.togglePin(item.id)
+                                                        pinnedViewModel.togglePin(clickedId)
                                                     }
                                                 },
-                                                onBookingsClick = {
+                                                onBookingsClick = { clickedId ->
                                                     navController.navigate(
-                                                        BookingScreens.OwnerBookingsManagement.createRoute(item.id)
+                                                        BookingScreens.OwnerBookingsManagement.createRoute(clickedId)
+                                                    )
+                                                },
+                                                onOrdersClick = { clickedId ->
+                                                    navController.navigate(
+                                                        OrderScreens.OwnerOrdersManagement.createRoute(clickedId)
                                                     )
                                                 },
                                                 navController = navController
@@ -250,14 +258,21 @@ fun UserEstablishmentsScreen(
 
 @Composable
 fun EstablishmentItem(
-    establishment: EstablishmentDisplayDto,
+    establishment: EstablishmentWithCountsDto,
     isPinned: Boolean,
-    onPinClick: () -> Unit,
-    onBookingsClick: () -> Unit,
+    onPinClick: (Long) -> Unit,
+    onBookingsClick: (Long) -> Unit,
+    onOrdersClick: (Long) -> Unit,
     navController: NavController
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                navController.navigate(
+                    EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id)
+                )
+            },
         colors = CardDefaults.cardColors(
             containerColor = AppTheme.colors.SecondaryContainer
         )
@@ -276,7 +291,7 @@ fun EstablishmentItem(
                 )
 
                 IconButton(
-                    onClick = onPinClick,
+                    onClick = { onPinClick(establishment.id) },
                     modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
@@ -297,33 +312,64 @@ fun EstablishmentItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Кнопки действий
+            // Кнопки действий с бейджами
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = onBookingsClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AppTheme.colors.MainSuccess
-                    )
-                ) {
-                    Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Бронирования")
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        // Навигация к деталям заведения
-                        navController.navigate(EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id))
-                    },
+                // Кнопка бронирований с бейджем
+                Box(
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Детали", color = AppTheme.colors.MainText)
+                    Button(
+                        onClick = { onBookingsClick(establishment.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.MainSuccess
+                        )
+                    ) {
+                        Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Бронирования")
+                    }
+
+                    // Бейдж для бронирований
+                    if (establishment.pendingBookingsCount > 0) {
+                        Badge(
+                            modifier = Modifier.align(Alignment.TopEnd)
+                        ) {
+                            Text(
+                                text = establishment.pendingBookingsCount.toString(),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+
+                // Кнопка заказов с бейджем
+                Box(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedButton(
+                        onClick = { onOrdersClick(establishment.id) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Заказы", color = AppTheme.colors.MainText)
+                    }
+
+                    // Бейдж для заказов
+                    if (establishment.pendingOrdersCount > 0) {
+                        Badge(
+                            modifier = Modifier.align(Alignment.TopEnd)
+                        ) {
+                            Text(
+                                text = establishment.pendingOrdersCount.toString(),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                 }
             }
         }

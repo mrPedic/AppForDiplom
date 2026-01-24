@@ -16,10 +16,12 @@ import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
 import com.example.roamly.entity.DTO.TableCreationDto
 import com.example.roamly.entity.DTO.booking.BookingDisplayDto
 import com.example.roamly.entity.DTO.booking.OwnerBookingDisplayDto
+import com.example.roamly.entity.DTO.establishment.EstablishmentWithCountsDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.DTO.order.DeliveryAddressDto
 import com.example.roamly.entity.DTO.order.OrderDto
 import com.example.roamly.entity.DTO.order.OrderNotificationDto
+import com.example.roamly.entity.DTO.order.OrderStatus
 import com.example.roamly.entity.DTO.order.UpdateOrderStatusRequest
 import com.example.roamly.entity.classes.EstablishmentEntity
 import com.example.roamly.entity.classes.ReviewEntity
@@ -252,12 +254,6 @@ interface ApiService {
     @GET("bookings/{bookingId}/details")
     suspend fun getBookingDetails(@Path("bookingId") bookingId: Long): OwnerBookingDisplayDto
 
-    @PUT("orders/{orderId}/status")
-    suspend fun updateOrderStatus(
-        @Path("orderId") orderId: Long,
-        @Body request: UpdateOrderStatusRequest
-    ): OrderDto
-
     data class OrderNotification(
         val orderId: Long,
         val userId: Long,
@@ -302,13 +298,6 @@ interface ApiService {
     @GET("notifications/order/user/{userId}")
     suspend fun getOrderNotifications(@Path("userId") userId: Long): List<OrderNotificationDto>
 
-    // Если этот метод нужен для админки/владельца:
-    @GET("api/orders/establishment/{establishmentId}")
-    suspend fun getEstablishmentOrders(
-        @Path("establishmentId") establishmentId: Long,
-        @Query("status") status: String? = null
-    ): List<OrderDto>
-
     @POST("api/orders")
     suspend fun createOrder(@Body request: CreateOrderRequest): OrderDto
 
@@ -326,4 +315,31 @@ interface ApiService {
 
     @PUT("users/me/password")
     suspend fun updateUserPassword(@Body user: User): Unit
+
+    // ApiService.kt - исправь эти методы:
+
+
+    @PUT("api/orders/{orderId}/status")
+    suspend fun updateOrderStatus(
+        @Path("orderId") orderId: Long,
+        @Body request: UpdateOrderStatusRequest
+    ): OrderDto
+
+    @GET("api/orders/establishment/{establishmentId}")
+    suspend fun getEstablishmentOrders(
+        @Path("establishmentId") establishmentId: Long,
+        @Query("status") status: String? = null
+    ): List<OrderDto>
+
+    // В ApiService.kt добавить следующие методы:
+
+    @GET("api/orders/establishment/{establishmentId}/count-pending")
+    suspend fun getPendingOrderCount(@Path("establishmentId") establishmentId: Long): Int
+
+    @GET("bookings/establishment/{establishmentId}/count-pending")
+    suspend fun getPendingBookingCount(@Path("establishmentId") establishmentId: Long): Int
+
+    // Также обновим существующий метод для получения всех заведений пользователя:
+    @GET("establishments/user/{userId}/with-counts")
+    suspend fun getEstablishmentsWithCountsByUserId(@Path("userId") userId: Long): List<EstablishmentWithCountsDto>
 }

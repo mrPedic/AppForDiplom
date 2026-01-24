@@ -45,6 +45,7 @@ import com.example.roamly.ui.screens.order.OrderCheckoutScreen
 import com.example.roamly.ui.screens.order.OrderCreationMenuScreen
 import com.example.roamly.ui.screens.order.OrderDetailsScreen
 import com.example.roamly.ui.screens.order.OrderListScreen
+import com.example.roamly.ui.screens.order.OwnerOrdersManagementScreen
 import com.example.roamly.ui.screens.profileFR.EditProfileScreen
 import com.example.roamly.ui.screens.profileFR.NotificationsScreen
 import com.example.roamly.ui.screens.profileFR.ProfileScreen
@@ -330,6 +331,24 @@ fun NavGraph(
                     orderId = orderId
                 )
             }
+        }
+
+        composable(
+            route = OrderScreens.OwnerOrdersManagement.route,
+            arguments = listOf(
+                navArgument(OrderScreens.ESTABLISHMENT_ID_KEY) {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong(
+                OrderScreens.ESTABLISHMENT_ID_KEY
+            ) ?: return@composable
+
+            OwnerOrdersManagementScreen(
+                navController = navController,
+                establishmentId = establishmentId
+            )
         }
 
         // =====================================
