@@ -104,29 +104,6 @@ fun convertTypeToWord(typeOfEstablishment: TypeOfEstablishment): String{
     }
 }
 
-fun DescriptionDTO.toRussianWorld(): String{
-    return when(this.type){
-        TypeOfEstablishment.Restaurant -> "Ресторан"
-        TypeOfEstablishment.Cafe -> "Кафе"
-        TypeOfEstablishment.Pub -> "Бар" // Или "Паб"
-        TypeOfEstablishment.Canteen -> "Столовая"
-        TypeOfEstablishment.FastFood -> "Фастфуд"
-        TypeOfEstablishment.CoffeeHouse -> "Кофейня"
-        TypeOfEstablishment.Pizzeria -> "Пиццерия"
-        TypeOfEstablishment.Bakery -> "Пекарня / Булочная"
-        TypeOfEstablishment.SushiBar -> "Суши-бар"
-        TypeOfEstablishment.GrillBar -> "Гриль-бар / Стейкхаус"
-        TypeOfEstablishment.Confectionery -> "Кондитерская"
-        TypeOfEstablishment.Diner -> "Закусочная / Бистро"
-        TypeOfEstablishment.TeaHouse -> "Чайная"
-        TypeOfEstablishment.PancakeHouse -> "Блинная"
-        TypeOfEstablishment.IceCreamParlor -> "Кафе-мороженое"
-        TypeOfEstablishment.FoodTruck -> "Фудтрак / Киоск"
-        TypeOfEstablishment.Gastropub -> "Гастропаб"
-        else -> "Неизвестный тип заведения"
-    }
-}
-
 fun EstablishmentEntity.toDisplayDto(): EstablishmentDisplayDto {
     return EstablishmentDisplayDto(
         id = this.id,

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
@@ -500,13 +501,13 @@ fun DescriptionSection(
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = colors.MainSuccess,
+                containerColor = colors.SecondaryContainer,
                 contentColor = colors.MainText
             ),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Build, // Нужно добавить этот иконку в импорты
+                imageVector = Icons.Default.DateRange, // Нужно добавить этот иконку в импорты
                 contentDescription = "Забронировать",
                 modifier = Modifier.size(20.dp)
             )
@@ -516,36 +517,13 @@ fun DescriptionSection(
 
         // В DescriptionSection добавьте кнопку рядом с кнопкой бронирования
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    navController.navigate(BookingScreens.CreateBooking.createRoute(establishmentId))
-                },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.MainSuccess,
-                    contentColor = colors.MainText
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Build,
-                    contentDescription = "Забронировать",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Забронировать столик")
-            }
-
-            Button(
+        Button(
                 onClick = {
                     navController.navigate(OrderScreens.OrderCreation.createRoute(establishmentId))
                 },
-                modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.MainBorder,
+                    containerColor = colors.SecondaryContainer,
                     contentColor = colors.MainText
                 )
             ) {
@@ -557,7 +535,6 @@ fun DescriptionSection(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Заказать с доставкой")
             }
-        }
     }
 }
 

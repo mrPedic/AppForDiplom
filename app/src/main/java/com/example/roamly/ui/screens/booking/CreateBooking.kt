@@ -33,6 +33,7 @@ import com.example.roamly.entity.classes.TableEntity
 import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
+import com.example.roamly.icons_image_vector.Remove
 import com.example.roamly.ui.theme.AppTheme
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -444,7 +445,7 @@ fun CreateBookingScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            Icons.Default.Build,
+                            Icons.Default.Refresh,
                             contentDescription = null,
                             tint = AppTheme.colors.MainFailure,
                             modifier = Modifier.size(64.dp).padding(bottom = 16.dp)
@@ -831,7 +832,7 @@ fun GuestCountSelector(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Default.Build,
+                            Icons.Default.Remove,
                             contentDescription = "Уменьшить количество гостей",
                             modifier = Modifier.size(24.dp),
                             tint = if (numPeople > 1) AppTheme.colors.MainText
@@ -939,7 +940,7 @@ fun TableSelector(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.Default.Build,
+                                Icons.Default.Person,
                                 "Вместимость",
                                 tint = if (fitsCapacity) AppTheme.colors.MainText else AppTheme.colors.MainFailure,
                                 modifier = Modifier.size(16.dp).padding(end = 4.dp)

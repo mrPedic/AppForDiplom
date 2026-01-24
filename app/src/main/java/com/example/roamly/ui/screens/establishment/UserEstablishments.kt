@@ -37,6 +37,7 @@ import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.classes.TypeOfEstablishment
 import com.example.roamly.entity.classes.convertTypeToWord
 import com.example.roamly.ui.screens.sealed.BookingScreens
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 
@@ -308,7 +309,7 @@ fun EstablishmentItem(
                         containerColor = AppTheme.colors.MainSuccess
                     )
                 ) {
-                    Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Бронирования")
                 }
@@ -316,13 +317,13 @@ fun EstablishmentItem(
                 OutlinedButton(
                     onClick = {
                         // Навигация к деталям заведения
-                        navController.navigate("establishment/detail/${establishment.id}")
+                        navController.navigate(EstablishmentScreens.EstablishmentDetail.createRoute(establishment.id))
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Детали")
+                    Text("Детали", color = AppTheme.colors.MainText)
                 }
             }
         }

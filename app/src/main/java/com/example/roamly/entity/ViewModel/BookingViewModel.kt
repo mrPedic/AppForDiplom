@@ -1,6 +1,7 @@
 // BookingViewModel.kt — финальная рабочая версия
 package com.example.roamly.entity.ViewModel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
@@ -58,6 +59,26 @@ class BookingViewModel @Inject constructor(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    // В BookingViewModel.kt добавьте эти поля и методы
+
+    private val _currentEstablishmentName = MutableStateFlow("")
+    val currentEstablishmentName: StateFlow<String> = _currentEstablishmentName.asStateFlow()
+
+    fun fetchEstablishmentName(establishmentId: Long) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val establishment = apiService.getEstablishmentById(establishmentId)
+                _currentEstablishmentName.value = establishment.name
+            } catch (e: Exception) {
+                Log.e("BookingViewModel", "Ошибка загрузки названия заведения: ${e.message}")
+                _errorMessage.value = "Не удалось загрузить название заведения"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
 
     // Загрузка деталей заведения
     fun fetchEstablishmentDetails(establishmentId: Long) {

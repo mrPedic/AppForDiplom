@@ -12,11 +12,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
+import com.example.roamly.ui.screens.sealed.BookingScreens
 import com.example.roamly.ui.theme.AppTheme
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -32,18 +34,18 @@ fun OwnerBookingsManagementScreen(
     val pendingBookings by bookingViewModel.ownerPendingBookings.collectAsState()
     val isLoading by bookingViewModel.isLoading.collectAsState()
     val error by bookingViewModel.errorMessage.collectAsState()
+    val establishmentName by bookingViewModel.currentEstablishmentName.collectAsState()
 
-    // Получаем название заведения для отображения
-    var establishmentName by remember { mutableStateOf("") }
-
-    LaunchedEffect(user.id) {
-        user.id?.let { bookingViewModel.fetchPendingBookingsForOwner(it) }
+    // Получаем название заведения и бронирования
+    LaunchedEffect(establishmentId, user.id) {
+        user.id?.let {
+            bookingViewModel.fetchEstablishmentName(establishmentId)
+            bookingViewModel.fetchPendingBookingsForOwner(it)
+        }
     }
 
-    // Получаем название заведения из списка бронирований
-    LaunchedEffect(pendingBookings) {
-        val booking = pendingBookings.firstOrNull { it.establishmentId == establishmentId }
-        establishmentName = booking?.establishmentName ?: "Заведение #$establishmentId"
+    val displayName = remember(establishmentName, establishmentId) {
+        if (establishmentName.isNotBlank()) establishmentName else "Заведение #$establishmentId"
     }
 
     Scaffold(
@@ -51,7 +53,7 @@ fun OwnerBookingsManagementScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        "Бронирования: $establishmentName",
+                        text = "Бронирования: $displayName",
                         color = AppTheme.colors.MainText
                     )
                 },
@@ -65,7 +67,7 @@ fun OwnerBookingsManagementScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = AppTheme.colors.SecondaryContainer, // ФОН ДОБАВЛЕН
+                    containerColor = AppTheme.colors.SecondaryContainer,
                     titleContentColor = AppTheme.colors.MainText,
                     navigationIconContentColor = AppTheme.colors.MainText,
                     actionIconContentColor = AppTheme.colors.MainText
@@ -73,19 +75,11 @@ fun OwnerBookingsManagementScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            navController.navigate(
-                                "owner/approved/$establishmentId"
-                            )
+                            user.id?.let {
+                                bookingViewModel.fetchEstablishmentName(establishmentId)
+                                bookingViewModel.fetchPendingBookingsForOwner(it)
+                            }
                         }
-                    ) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = "Одобренные брони",
-                            tint = AppTheme.colors.MainText
-                        )
-                    }
-                    IconButton(
-                        onClick = { user.id?.let { bookingViewModel.fetchPendingBookingsForOwner(it) } }
                     ) {
                         Icon(
                             Icons.Default.Refresh,
@@ -120,7 +114,12 @@ fun OwnerBookingsManagementScreen(
                         )
                         Spacer(Modifier.height(16.dp))
                         Button(
-                            onClick = { user.id?.let { bookingViewModel.fetchPendingBookingsForOwner(it) } },
+                            onClick = {
+                                user.id?.let {
+                                    bookingViewModel.fetchEstablishmentName(establishmentId)
+                                    bookingViewModel.fetchPendingBookingsForOwner(it)
+                                }
+                            },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = AppTheme.colors.MainSuccess
                             )
@@ -130,43 +129,87 @@ fun OwnerBookingsManagementScreen(
                     }
                 }
 
-                pendingBookings.filter { it.establishmentId == establishmentId }.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Build,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = AppTheme.colors.SecondaryText
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "Нет новых броней на рассмотрение",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = AppTheme.colors.SecondaryText
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "Все брони обработаны",
-                            color = AppTheme.colors.SecondaryText
-                        )
-                    }
-                }
-
                 else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
                     ) {
-                        items(pendingBookings.filter { it.establishmentId == establishmentId }) { booking ->
-                            OwnerBookingCard(
-                                booking = booking,
-                                onApprove = { bookingViewModel.approveBooking(booking.id, user.id!!) },
-                                onReject = { bookingViewModel.rejectBooking(booking.id, user.id!!) }
+                        // Кнопка для перехода к одобренным бронированиям
+                        Button(
+                            onClick = {
+                                navController.navigate(
+                                    BookingScreens.OwnerApprovedBookings.createRoute(establishmentId)
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppTheme.colors.MainSuccess,
+                                contentColor = AppTheme.colors.MainText
                             )
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Просмотреть одобренные брони",
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        // Список бронирований или заглушка
+                        val filteredBookings = pendingBookings.filter { it.establishmentId == establishmentId }
+
+                        if (filteredBookings.isEmpty()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .weight(1f),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    Icons.Default.Build,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = AppTheme.colors.SecondaryText
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    text = "Нет новых броней на рассмотрение",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = AppTheme.colors.SecondaryText
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = "Все брони обработаны",
+                                    color = AppTheme.colors.SecondaryText
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(filteredBookings) { booking ->
+                                    OwnerBookingCard(
+                                        booking = booking,
+                                        onApprove = { bookingViewModel.approveBooking(booking.id, user.id!!) },
+                                        onReject = { bookingViewModel.rejectBooking(booking.id, user.id!!) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
