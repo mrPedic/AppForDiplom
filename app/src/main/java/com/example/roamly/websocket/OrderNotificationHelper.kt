@@ -7,6 +7,7 @@ import com.example.roamly.entity.DTO.order.OrderDto
 import com.example.roamly.entity.DTO.order.OrderItemDto
 import com.example.roamly.entity.DTO.order.OrderStatus
 import com.example.roamly.entity.DTO.order.PaymentMethod
+import com.example.roamly.entity.DTO.order.toDisplayString
 import com.example.roamly.ui.screens.establishment.toMap
 import org.json.JSONObject
 
@@ -37,35 +38,34 @@ class OrderNotificationHelper(private val context: Context) {
     }
 
     private fun showOrderCreatedNotification(order: OrderDto) {
+        // ВМЕСТО order.status.name используем order.status.toDisplayString()
+        val message = "Новый заказ #${order.id}. Статус: ${order.status.toDisplayString()}"
+
         notificationHelper.showNotification(
-            title = "Новый заказ #${order.id}",
-            message = "Заказ создан и ожидает подтверждения",
-            notificationId = "order_${order.id}"
+            title = "Новый заказ",
+            message = message,
+            notificationId = "ORDER_NEW_${order.id}"
         )
     }
 
     private fun showOrderStatusChangedNotification(order: OrderDto) {
-        val statusText = when (order.status) {
-            OrderStatus.CONFIRMED -> "подтвержден"
-            OrderStatus.IN_PROGRESS -> "готовится"
-            OrderStatus.OUT_FOR_DELIVERY -> "в доставке"
-            OrderStatus.DELIVERED -> "доставлен"
-            OrderStatus.REJECTED -> "отклонен"
-            else -> "обновлен"
-        }
+        // Используем красивый перевод из Enum
+        val message = "Статус заказа #${order.id} изменен на: ${order.status.toDisplayString()}"
 
         notificationHelper.showNotification(
-            title = "Заказ #${order.id} $statusText",
-            message = order.rejectionReason ?: "Статус вашего заказа изменен",
-            notificationId = "order_${order.id}_status"
+            title = "Обновление заказа",
+            message = message,
+            notificationId = "ORDER_STATUS_${order.id}"
         )
     }
 
     private fun showOrderCancelledNotification(order: OrderDto) {
+        val message = "Заказ #${order.id} был отменен. Статус: ${order.status.toDisplayString()}"
+
         notificationHelper.showNotification(
-            title = "Заказ #${order.id} отменен",
-            message = "Ваш заказ был отменен",
-            notificationId = "order_${order.id}_cancelled"
+            title = "Заказ отменен",
+            message = message,
+            notificationId = "ORDER_CANCEL_${order.id}"
         )
     }
 
