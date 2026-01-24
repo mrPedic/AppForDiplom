@@ -580,7 +580,7 @@ fun ReviewsSection(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 5.dp, vertical = 8.dp),
+                    .padding(horizontal = 3.dp, vertical = 8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = colors.MainSuccess.copy(alpha = 0.1f),
                     contentColor = colors.MainSuccess

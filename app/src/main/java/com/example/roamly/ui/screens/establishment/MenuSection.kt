@@ -345,6 +345,7 @@ fun MenuSection(menu: MenuOfEstablishment) {
     // BottomSheet для напитков
     if (selectedDrink != null) {
         ModalBottomSheet(
+            containerColor = colors.SecondaryContainer,
             onDismissRequest = { selectedDrink = null },
             sheetState = sheetState
         ) {
