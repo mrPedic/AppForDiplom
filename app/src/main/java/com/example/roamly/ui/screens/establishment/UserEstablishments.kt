@@ -24,11 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.roamly.R
 import com.example.roamly.entity.DTO.establishment.EstablishmentWithCountsDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.ViewModel.UserEstablishmentsViewModel
@@ -295,7 +297,7 @@ fun EstablishmentItem(
                     modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
-                        imageVector = if (isPinned) Icons.Filled.Check else Icons.Outlined.Clear,
+                        painter = painterResource(id = if (isPinned) R.drawable.keep_24px else R.drawable.keep_off_24px), // Изменено
                         contentDescription = if (isPinned) "Открепить" else "Закрепить",
                         tint = if (isPinned) AppTheme.colors.MainSuccess else AppTheme.colors.SecondaryText
                     )

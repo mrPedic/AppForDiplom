@@ -20,10 +20,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.roamly.entity.DTO.establishment.EstablishmentMarkerDto
 import com.example.roamly.entity.ViewModel.EstablishmentViewModel
 import com.example.roamly.entity.classes.convertTypeToColor
+import com.example.roamly.ui.theme.AppTheme
 import org.osmdroid.bonuspack.clustering.RadiusMarkerClusterer
 import org.osmdroid.bonuspack.clustering.StaticCluster
 import org.osmdroid.util.GeoPoint
@@ -37,7 +41,20 @@ import org.osmdroid.views.overlay.Marker
 class PointBuilder(
     private val mapView: MapView
 ) {
+    private var clusterColorInt: Int = Color.GRAY // Цвет по умолчанию
     private val markerClusterer: RadiusMarkerClusterer
+
+    // Функция для обновления цвета из Compose темы
+    fun updateClusterColor(@ColorInt color: Int) {
+        clusterColorInt = color
+        updateClusterIcon()
+    }
+
+    private fun updateClusterIcon() {
+        val clusterIconBitmap = createClusterIconBitmap(mapView.context)
+        markerClusterer.setIcon(clusterIconBitmap)
+        mapView.invalidate()
+    }
 
     init {
         requireNotNull(mapView.context) { "MapView context must not be null" }
@@ -85,10 +102,11 @@ class PointBuilder(
 
     private fun createClusterIconBitmap(context: Context): Bitmap {
         try {
-            val sizePx = 40.dpToPx()
+            val sizePx = 35.dpToPx()
             val clusterBackground = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#FF6200EE")) // Можете использовать MaterialTheme
+                // Используем сохраненный цвет
+                setColor(clusterColorInt)
                 setBounds(0, 0, sizePx, sizePx)
             }
             return createBitmapFromDrawable(clusterBackground)
@@ -98,19 +116,23 @@ class PointBuilder(
         }
     }
 
-
-
     @Composable
     fun BuildAllMarkers(
         viewModel: EstablishmentViewModel = hiltViewModel()
     ) {
+        // Получаем цвет из темы Compose и конвертируем в Int
+        val clusterColor = AppTheme.colors.SecondaryText.toArgb()
+
         // establishmentMarkers - это List<EstablishmentMarkerDto>
         val establishments by viewModel.establishmentMarkers.collectAsState(initial = emptyList())
         val isLoading by viewModel.isLoading.collectAsState(initial = false)
         val errorMessage by viewModel.errorMessage.collectAsState(initial = null)
 
-        // ⭐ ИЗМЕНЕНИЕ 1: Загружаем данные ОДИН РАЗ при инициализации
-        // (или используем LaunchedEffect(Unit) для однократного запуска)
+        // Обновляем цвет кластера при изменении темы
+        LaunchedEffect(clusterColor) {
+            updateClusterColor(clusterColor)
+        }
+
         LaunchedEffect(Unit) {
             Log.d("PointBuilder", "Первоначальная загрузка маркеров.")
             viewModel.fetchEstablishmentMarkers()
@@ -118,7 +140,6 @@ class PointBuilder(
 
         if (!isLoading && errorMessage == null) {
             // ⭐ ИЗМЕНЕНИЕ 2: Перестроение маркеров только при изменении списка establishments
-            // (Это произойдет после fetchEstablishmentMarkers)
             LaunchedEffect(establishments) {
                 try {
                     // Если список изменился, мы перерисовываем
@@ -194,7 +215,9 @@ class PointBuilder(
             position = geoPoint
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
 
-            val customIcon = getMarkerDrawableWithColor(convertTypeToColor(establishment.type))
+            // Конвертируем цвет типа заведения в @ColorInt
+            val typeColor = convertTypeToColor(establishment.type)
+            val customIcon = getMarkerDrawableWithColor(typeColor)
             if (customIcon != null) {
                 icon = customIcon
             }

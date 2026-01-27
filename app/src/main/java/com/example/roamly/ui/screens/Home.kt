@@ -394,7 +394,7 @@ fun AsyncEstablishmentImage(
 }
 
 @Composable
-private fun InfoRow(
+fun InfoRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     text: String,
     color: Color = AppTheme.colors.MainText

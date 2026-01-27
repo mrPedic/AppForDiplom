@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.preference.PreferenceManager
+import com.example.roamly.R
 import com.example.roamly.entity.DTO.booking.BookingDisplayDto
 import com.example.roamly.entity.ViewModel.BookingViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
@@ -178,25 +180,26 @@ private fun BookingDetailContent(
 
         Spacer(Modifier.height(32.dp))
 
-        InfoRow(icon = Icons.Default.Build, label = "Дата и время") {
+
+        InfoRow(icon = R.drawable.date_range_24px, label = "Дата и время") {
             val date = booking.startTime.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale("ru")))
             val time = booking.startTime.format(DateTimeFormatter.ofPattern("HH:mm"))
             Text("$date в $time", fontWeight = FontWeight.Medium, color = AppTheme.colors.MainText)
         }
 
-        InfoRow(icon = Icons.Default.Build, label = "Длительность") {
+        InfoRow(icon = R.drawable.timelapse_24px, label = "Длительность") {
             Text("${booking.durationMinutes} минут", color = AppTheme.colors.MainText)
         }
 
-        InfoRow(icon = Icons.Default.Build, label = "Столик") {
+        InfoRow(icon = R.drawable.table_restaurant_24px, label = "Столик") {
             Text(booking.tableName, fontWeight = FontWeight.Medium, color = AppTheme.colors.MainText)
         }
 
-        InfoRow(icon = Icons.Default.Build, label = "Гостей") {
+        InfoRow(icon = R.drawable.diversity_3_24px, label = "Гостей") {
             Text(booking.tableMaxCapacity.toString(), color = AppTheme.colors.MainText)
         }
 
-        InfoRow(icon = Icons.Default.Info, label = "Статус") {
+        InfoRow(icon = R.drawable.info_i_24px, label = "Статус") {
             val (text, statusColor) = when (booking.status.uppercase()) {
                 "PENDING" -> "Ожидает подтверждения" to AppTheme.colors.SecondarySuccess
                 "CONFIRMED" -> "Подтверждено" to AppTheme.colors.MainSuccess
@@ -251,9 +254,9 @@ private fun BookingDetailContent(
 
 @Composable
 private fun InfoRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: Int,  // Изменено с ImageVector на Int
     label: String,
-    content: @Composable () -> Unit
+    content: @Composable (() -> Unit)
 ) {
     Row(
         modifier = Modifier
@@ -262,7 +265,7 @@ private fun InfoRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = icon,
+            painter = painterResource(id = icon),  // Изменено с imageVector на painter
             contentDescription = null,
             tint = AppTheme.colors.MainBorder,
             modifier = Modifier.size(28.dp)
