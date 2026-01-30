@@ -5,12 +5,13 @@ package com.example.roamly.ui.screens
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.collection.orderedScatterSetOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -134,15 +136,20 @@ fun FloatingButtonBar(
         screens.add(SealedButtonBar.AdminPanel)
     }
 
+    val maxWidth = (screens.size * 80).dp
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
     Surface(
-        modifier = modifier.border(
-            width = 1.dp,
-            color = AppTheme.colors.MainBorder,
-            shape = MaterialTheme.shapes.extraLarge
-        ),
+        modifier = modifier
+            .widthIn(max = maxWidth)
+            .height(80.dp)
+            .border(
+                width = 1.dp,
+                color = AppTheme.colors.MainBorder,
+                shape = MaterialTheme.shapes.extraLarge
+            ),
         shape = MaterialTheme.shapes.extraLarge,
         color = AppTheme.colors.MainContainer.copy(alpha = 0.95f),
         tonalElevation = 8.dp,
@@ -158,7 +165,7 @@ fun FloatingButtonBar(
                         unselectedIconColor = AppTheme.colors.SecondaryText,
                         selectedTextColor = AppTheme.colors.MainSuccess,
                         unselectedTextColor = AppTheme.colors.SecondaryText,
-                        indicatorColor = AppTheme.colors.SecondarySuccess.copy(alpha = 0.3f)
+                        indicatorColor = Color.Transparent
                     ),
                     icon = {
                         Icon(
@@ -166,7 +173,7 @@ fun FloatingButtonBar(
                             contentDescription = screen.title
                         )
                     },
-                    label = { Text(text = screen.title) },
+                    label = { Text(text = screen.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                     onClick = {
                         navController.navigate(screen.route) {
