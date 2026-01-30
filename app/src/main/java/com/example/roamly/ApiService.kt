@@ -5,6 +5,7 @@ import com.example.roamly.classes.cl_menu.DrinksGroup
 import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.FoodGroup
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
+import com.example.roamly.entity.DTO.AdminQueryDto
 import com.example.roamly.entity.DTO.order.CreateOrderRequest
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
@@ -31,6 +32,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -342,4 +344,19 @@ interface ApiService {
     // Также обновим существующий метод для получения всех заведений пользователя:
     @GET("establishments/user/{userId}/with-counts")
     suspend fun getEstablishmentsWithCountsByUserId(@Path("userId") userId: Long): List<EstablishmentWithCountsDto>
+
+    // === SQL ADMIN PANEL ===
+    @GET("admin/sql/queries")
+    suspend fun getAdminQueries(): List<AdminQueryDto>
+
+    @POST("admin/sql/queries")
+    suspend fun saveAdminQuery(@Body query: AdminQueryDto): AdminQueryDto
+
+    @DELETE("admin/sql/queries/{id}")
+    suspend fun deleteAdminQuery(@Path("id") id: Long): Response<Unit>
+
+    // Возвращает List<Map<String, Any?>>. Retrofit спарсит это как List<Map<String, String>> (упрощенно)
+    @POST("admin/sql/execute")
+    @Headers("Content-Type: text/plain") // Важно, так как шлем просто строку
+    suspend fun executeRawSql(@Body sql: String): List<Map<String, Any?>>
 }

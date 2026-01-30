@@ -27,6 +27,8 @@ import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.BookingDetailScreen
 import com.example.roamly.ui.screens.UserBookingsScreen
 import com.example.roamly.ui.screens.admin.PendingListScreen
+import com.example.roamly.ui.screens.admin.SqlDetailScreen
+import com.example.roamly.ui.screens.admin.SqlListScreen
 import com.example.roamly.ui.screens.booking.CreateBookingScreen
 import com.example.roamly.ui.screens.booking.ApproveBookingsScreen
 import com.example.roamly.ui.screens.booking.OwnerApprovedBookingsScreen
@@ -401,6 +403,27 @@ fun NavGraph(
             val userId = backStackEntry.arguments?.getLong(OrderScreens.USER_ID_KEY) ?: return@composable
             val addressId = backStackEntry.arguments?.getLong(OrderScreens.ADDRESS_ID_KEY) ?: return@composable
             EditDeliveryAddressScreen(navController, userId, addressId)
+        }
+
+        composable(AdminScreens.SqlList.route) {
+            SqlListScreen(navController)
+        }
+
+        // Внутри NavHost
+        composable(
+            route = AdminScreens.SqlDetail.route, // Это "admin/sql_detail/{queryId}"
+            arguments = listOf(
+                navArgument("queryId") { type = NavType.LongType } // Обязательно укажите тип Long
+            )
+        ) { backStackEntry ->
+            // Получаем ID из аргументов
+            val queryId = backStackEntry.arguments?.getLong("queryId") ?: 0L
+
+            // Передаем в экран
+            SqlDetailScreen(
+                navController = navController,
+                queryId = queryId
+            )
         }
     }
 }

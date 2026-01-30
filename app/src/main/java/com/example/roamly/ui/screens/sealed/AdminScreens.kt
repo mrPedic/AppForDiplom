@@ -13,4 +13,9 @@ sealed class AdminScreens(val route: String) {
     object Reports : AdminScreens("admin/reports")
     object Notifications : AdminScreens("admin/notifications")
     object Backup : AdminScreens("admin/backup")
+
+    object SqlList : AdminScreens("admin/sql_list")
+    object SqlDetail : AdminScreens("admin/sql_detail/{queryId}") {
+        fun createRoute(queryId: Long) = "admin/sql_detail/$queryId"
+    }
 }
