@@ -26,6 +26,7 @@ import com.example.roamly.ui.screens.sealed.ProfileScreens
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.BookingDetailScreen
 import com.example.roamly.ui.screens.UserBookingsScreen
+import com.example.roamly.ui.screens.admin.NotificationsScreen
 import com.example.roamly.ui.screens.admin.PendingListScreen
 import com.example.roamly.ui.screens.admin.SqlDetailScreen
 import com.example.roamly.ui.screens.admin.SqlListScreen
@@ -411,9 +412,9 @@ fun NavGraph(
 
         // Внутри NavHost
         composable(
-            route = AdminScreens.SqlDetail.route, // Это "admin/sql_detail/{queryId}"
+            route = AdminScreens.SqlDetail.route,
             arguments = listOf(
-                navArgument("queryId") { type = NavType.LongType } // Обязательно укажите тип Long
+                navArgument("queryId") { type = NavType.LongType }
             )
         ) { backStackEntry ->
             // Получаем ID из аргументов
@@ -425,5 +426,14 @@ fun NavGraph(
                 queryId = queryId
             )
         }
+
+        composable(AdminScreens.PendingList.route) {
+            PendingListScreen()
+        }
+
+        composable(AdminScreens.Notifications.route) {
+            NotificationsScreen()
+        }
+
     }
 }

@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 
 class SockJSManager private constructor() {
 
+
     companion object {
         private const val TAG = "SockJSManager"
 
@@ -38,6 +39,7 @@ class SockJSManager private constructor() {
     private var isConnecting = false
     private var lastConnectionTime: Long = 0
     private val RECONNECT_DELAY = 3000L
+    private var notificationHelper: NotificationHelper? = null
 
     private var lastMessageHash: Int = 0
 
@@ -63,6 +65,10 @@ class SockJSManager private constructor() {
     private fun getWebSocketUrl(userId: String): String {
         val serverUrl = BASE_URL.replace("https://", "").replace("http://", "")
         return "ws://$serverUrl/ws/notifications?userId=$userId&token=android_token_$userId"
+    }
+
+    fun setNotificationHelper(helper: NotificationHelper) {
+        this.notificationHelper = helper
     }
 
     fun connectWithUser(userId: String) {
@@ -170,6 +176,23 @@ class SockJSManager private constructor() {
                                     _messages.emit(text)
                                 }
                             }
+
+
+                            "GLOBAL_NOTIFICATION" -> {
+                                val title = json.optString("title", "Roamly")
+                                val message = json.optString("message", "")
+
+                            Log.d(TAG, "🌍 Global Notification: $title - $message")
+
+                                    // ВЫЗОВ СИСТЕМНОГО УВЕДОМЛЕНИЯ
+                                    notificationHelper?.showNotification(
+                                        title = title,
+                                        message =  message,
+                                        notificationId = "GLOBAL_${System.currentTimeMillis()}"  // Добавьте это
+                                    )
+
+                                scope.launch { _messages.emit(text) }
+                        }
 
 
                             "ping" -> {

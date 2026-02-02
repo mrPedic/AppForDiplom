@@ -28,6 +28,7 @@ import com.example.roamly.ui.screens.MainScreen
 import com.example.roamly.ui.theme.ColorViewModel
 import com.example.roamly.ui.theme.LocalAppColors
 import com.example.roamly.ui.theme.getColorsByConfig
+import com.example.roamly.websocket.NotificationHelper
 import com.example.roamly.websocket.SockJSManager
 import com.example.roamly.websocket.WebSocketService
 import dagger.hilt.android.AndroidEntryPoint
@@ -37,6 +38,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class
 MainActivity : ComponentActivity() {
+    @Inject lateinit var notificationHelper: NotificationHelper
 
     @Inject
     lateinit var webSocketService: WebSocketService
@@ -46,6 +48,7 @@ MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SockJSManager.getInstance().setNotificationHelper(notificationHelper)
         enableEdgeToEdge()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

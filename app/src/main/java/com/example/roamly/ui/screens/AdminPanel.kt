@@ -1,3 +1,4 @@
+// Updated AdminPanel.kt
 package com.example.roamly.ui.screens
 
 import androidx.compose.foundation.clickable
@@ -29,42 +30,15 @@ fun AdminPanelScreen(
             route = AdminScreens.PendingList.route
         ),
         AdminAction(
-            title = "Все заведения",
-            description = "Просмотр, редактирование и удаление всех заведений",
-            route = AdminScreens.AllEstablishments.route
-        ),
-        AdminAction(
-            title = "Управление пользователями",
-            description = "Просмотр пользователей, изменение ролей, блокировка",
-            route = AdminScreens.UsersManagement.route
-        ),
-        AdminAction(
-            title = "Бронирования",
-            description = "Просмотр и управление всеми бронированиями системы",
-            route = AdminScreens.AllBookings.route
-        ),
-        AdminAction(
-            title = "Модерация отзывов",
-            description = "Проверка и управление пользовательскими отзывами",
-            route = AdminScreens.ReviewsModeration.route
-        ),
-        AdminAction(
-            title = "Настройки системы",
-            description = "Общие настройки приложения и параметры работы",
-            route = AdminScreens.SystemSettings.route
-        ),
-        AdminAction(
             title = "Уведомления",
             description = "Рассылка уведомлений пользователям и заведениям",
             route = AdminScreens.Notifications.route
         ),
-
         AdminAction(
             title = "SQL Консоль",
             description = "Прямое управление базой данных (ОСТОРОЖНО!)",
             route = AdminScreens.SqlList.route
         )
-
     )
 
     LazyColumn(

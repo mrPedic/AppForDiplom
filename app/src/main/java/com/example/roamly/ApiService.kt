@@ -28,6 +28,7 @@ import com.example.roamly.entity.classes.EstablishmentEntity
 import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.entity.classes.TableEntity
 import com.example.roamly.entity.User
+import com.example.roamly.entity.ViewModel.GlobalNotificationDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -359,4 +360,8 @@ interface ApiService {
     @POST("admin/sql/execute")
     @Headers("Content-Type: text/plain") // Важно, так как шлем просто строку
     suspend fun executeRawSql(@Body sql: String): List<Map<String, Any?>>
+
+    // Updated ApiService.kt (добавьте этот метод в интерфейс)
+    @POST("notifications/global")
+    suspend fun sendGlobalNotification(@Body notification: GlobalNotificationDto): Response<Unit>
 }
