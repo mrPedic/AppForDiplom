@@ -6,6 +6,7 @@ import com.example.roamly.classes.cl_menu.Food
 import com.example.roamly.classes.cl_menu.FoodGroup
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
 import com.example.roamly.entity.DTO.AdminQueryDto
+import com.example.roamly.entity.DTO.ReviewReportDto
 import com.example.roamly.entity.DTO.order.CreateOrderRequest
 import com.example.roamly.entity.DTO.booking.BookingCreationDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
@@ -364,4 +365,23 @@ interface ApiService {
     // Updated ApiService.kt (добавьте этот метод в интерфейс)
     @POST("notifications/global")
     suspend fun sendGlobalNotification(@Body notification: GlobalNotificationDto): Response<Unit>
+
+    // Для пользователя: отправка жалобы
+    @POST("reviews/{reviewId}/report")
+    suspend fun reportReview(
+        @Path("reviewId") reviewId: Long,
+        @Body report: ReviewReportDto
+    ): Response<Unit>
+
+    // Для админа: получение всех жалоб
+    @GET("admin/reports/reviews")
+    suspend fun getReviewReports(): List<ReviewReportDto>
+
+    // Для админа: разрешение жалобы (mark as resolved)
+    @PUT("admin/reports/{reportId}/resolve")
+    suspend fun resolveReviewReport(@Path("reportId") reportId: Long): Response<Unit>
+
+    // Для админа: удаление жалобы
+    @DELETE("admin/reports/{reportId}")
+    suspend fun deleteReviewReport(@Path("reportId") reportId: Long): Response<Unit>
 }

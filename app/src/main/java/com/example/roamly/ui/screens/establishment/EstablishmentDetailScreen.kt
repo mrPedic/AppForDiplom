@@ -620,9 +620,9 @@ fun ReviewsSection(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = colors.MainContainer,
+                    containerColor = colors.SecondaryContainer,
                     contentColor = colors.MainText
                 ),
                 shape = RoundedCornerShape(16.dp),
@@ -689,12 +689,13 @@ fun ReviewsSection(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 8.dp)
             ) {
                 reviews.forEach { review ->
                     ReviewCard(
                         review = review,
-                        modifier = Modifier.padding(vertical = 8.dp)
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        establishmentId = establishmentId
                     )
                 }
             }

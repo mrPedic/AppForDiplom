@@ -38,7 +38,12 @@ fun AdminPanelScreen(
             title = "SQL Консоль",
             description = "Прямое управление базой данных (ОСТОРОЖНО!)",
             route = AdminScreens.SqlList.route
-        )
+        ),
+        AdminAction(
+            title = "Жалобы на отзывы",
+            description = "Просмотр и обработка жалоб на отзывы",
+            route = AdminScreens.Reports.route
+        ),
     )
 
     LazyColumn(

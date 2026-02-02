@@ -26,6 +26,7 @@ import com.example.roamly.ui.screens.sealed.ProfileScreens
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.ui.screens.BookingDetailScreen
 import com.example.roamly.ui.screens.UserBookingsScreen
+import com.example.roamly.ui.screens.admin.AdminReportsScreen
 import com.example.roamly.ui.screens.admin.NotificationsScreen
 import com.example.roamly.ui.screens.admin.PendingListScreen
 import com.example.roamly.ui.screens.admin.SqlDetailScreen
@@ -433,6 +434,10 @@ fun NavGraph(
 
         composable(AdminScreens.Notifications.route) {
             NotificationsScreen()
+        }
+
+        composable(AdminScreens.Reports.route) {
+            AdminReportsScreen(navController)
         }
 
     }

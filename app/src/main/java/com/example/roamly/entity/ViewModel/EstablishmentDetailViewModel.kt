@@ -1,11 +1,14 @@
 package com.example.roamly.entity.ViewModel
 
+import android.content.Context
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.roamly.ApiService
 import com.example.roamly.classes.cl_menu.MenuOfEstablishment
+import com.example.roamly.entity.DTO.ReviewReportDto
 import com.example.roamly.entity.DTO.establishment.EstablishmentDisplayDto
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.DescriptionDTO
 import com.example.roamly.entity.DTO.forDispalyEstablishmentDetails.MapDTO
@@ -189,7 +192,49 @@ class EstablishmentDetailViewModel @Inject constructor(
         }
     }
 
+    fun reportReview(
+        context: Context, // Передаем контекст для Toast
+        reviewId: Long,
+        userId: Long,
+        establishmentId: Long,
+        reason: String,
+        description: String?,
+        onSuccess: () -> Unit // Callback для закрытия диалога
+    ) {
+        viewModelScope.launch {
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    apiService.reportReview(
+                        reviewId,
+                        ReviewReportDto(
+                            reviewId = reviewId,
+                            userId = userId,
+                            establishmentId = establishmentId,
+                            reason = reason,
+                            description = description
+                        )
+                    )
+                }
 
+                if (response.isSuccessful) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Жалоба успешно отправлена", Toast.LENGTH_SHORT).show()
+                        onSuccess()
+                    }
+                    Log.d("EstablishmentDetailViewModel", "Review reported successfully")
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Ошибка при отправке: ${response.code()}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Ошибка сети: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                Log.e("EstablishmentDetailViewModel", "Error reporting review: ${e.message}", e)
+            }
+        }
+    }
 
     fun removeFavoriteEstablishment(userId: Long, establishmentId: Long) {
         viewModelScope.launch {

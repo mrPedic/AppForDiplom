@@ -1,9 +1,9 @@
-// UIForMenuItems.kt
 package com.example.roamly.ui.screens.establishment
 
 import android.os.Build
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -15,12 +15,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -32,11 +29,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.roamly.classes.cl_menu.Drink
 import com.example.roamly.classes.cl_menu.Food
+import com.example.roamly.entity.DTO.ReviewReportDto
+import com.example.roamly.entity.ViewModel.EstablishmentDetailViewModel
+import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.ui.theme.AppTheme
 import java.time.format.DateTimeFormatter
@@ -171,12 +172,15 @@ fun SimpleDrinkCard(drink: Drink) { // Замените Drink на ваш реа
 @Composable
 fun ReviewCard(
     review: ReviewEntity,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    establishmentId: Long
 ) {
     val colors = AppTheme.colors
     val context = LocalContext.current
+    val viewModel: EstablishmentDetailViewModel = hiltViewModel()
+    val userViewModel: UserViewModel = hiltViewModel()
+    val user by userViewModel.user.collectAsState()
 
-    // Создаем состояние для хранения декодированного изображения
     val imageBytes by produceState<ByteArray?>(initialValue = null, key1 = review.photoBase64) {
         review.photoBase64?.let { photo ->
             if (photo.isNotBlank() && !photo.startsWith("PLACEHOLDER") && !photo.startsWith("ERROR")) {
@@ -186,10 +190,8 @@ fun ReviewCard(
                     } else {
                         photo
                     }
-
                     value = Base64.decode(cleanPhoto, Base64.DEFAULT)
                 } catch (e: Exception) {
-                    // Игнорируем ошибки декодирования
                     Log.e("ReviewCard", "Error decoding photo: ${e.message}")
                     value = null
                 }
@@ -199,6 +201,10 @@ fun ReviewCard(
         }
     }
 
+    var showReportDialog by remember { mutableStateOf(false) }
+    var selectedReason by remember { mutableStateOf("") }
+    var otherDescription by remember { mutableStateOf("") }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -206,20 +212,16 @@ fun ReviewCard(
             contentColor = colors.MainText
         ),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(1.dp),
-        border = BorderStroke(1.dp, colors.SecondaryBorder.copy(alpha = 0.3f))
+        elevation = CardDefaults.cardElevation(2.dp),
+        border = BorderStroke(1.dp, colors.SecondaryBorder.copy(alpha = 0.5f)) // Сделал границу чуть заметнее для консистентности
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Заголовок с рейтингом и датой
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Рейтинг
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.Star,
                         contentDescription = null,
@@ -234,14 +236,13 @@ fun ReviewCard(
                         color = colors.MainText
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    // Дополнительные звезды для визуализации
                     Row {
                         repeat(5) { index ->
                             Icon(
                                 Icons.Default.Star,
                                 contentDescription = null,
                                 tint = if (index < review.rating.toInt())
-                                    colors.MainSuccess.copy(alpha = 0.5f)
+                                    colors.MainSuccess.copy(alpha = 0.6f)
                                 else
                                     colors.SecondaryBorder.copy(alpha = 0.3f),
                                 modifier = Modifier.size(12.dp)
@@ -250,19 +251,31 @@ fun ReviewCard(
                     }
                 }
 
-                // Дата
-                review.dateOfCreation?.let {
-                    Text(
-                        it.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.SecondaryText
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    review.dateOfCreation?.let {
+                        Text(
+                            it.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.SecondaryText
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = { showReportDialog = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Пожаловаться",
+                            tint = colors.SecondaryFailure.copy(alpha = 0.8f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Текст отзыва
             Text(
                 review.reviewText,
                 style = MaterialTheme.typography.bodyMedium,
@@ -270,7 +283,6 @@ fun ReviewCard(
                 lineHeight = 20.sp
             )
 
-            // Фото отзыва (если есть)
             if (imageBytes != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 AsyncImage(
@@ -287,25 +299,21 @@ fun ReviewCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Футер с информацией о пользователе
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Аватар пользователя
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
-                        .background(colors.MainSuccess.copy(alpha = 0.2f)),
+                        .background(colors.MainSuccess.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Person,
                         contentDescription = null,
                         tint = colors.MainSuccess,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
@@ -316,5 +324,96 @@ fun ReviewCard(
                 )
             }
         }
+    }
+
+    if (showReportDialog) {
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            containerColor = colors.MainContainer, // Установка фона диалога
+            title = {
+                Text(
+                    "Пожаловаться на отзыв",
+                    color = colors.MainText,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Column {
+                    val reasons = listOf("Spam", "Offensive Content", "Fake Review", "Other")
+                    val russianReasons = listOf("Спам", "Оскорбительный контент", "Ложный отзыв", "Другое" )
+                    russianReasons.forEach { reason ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { selectedReason = reason },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedReason == reason,
+                                onClick = { selectedReason = reason },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = colors.MainSuccess,
+                                    unselectedColor = colors.SecondaryBorder
+                                )
+                            )
+                            Text(reason, color = colors.MainText)
+                        }
+                    }
+                    if (selectedReason == "Other") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = otherDescription,
+                            onValueChange = { otherDescription = it },
+                            placeholder = { Text("Опишите проблему...", color = colors.SecondaryText) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = colors.MainSuccess,
+                                unfocusedBorderColor = colors.SecondaryBorder,
+                                focusedTextColor = colors.MainText,
+                                unfocusedTextColor = colors.MainText,
+                                cursorColor = colors.MainSuccess
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (selectedReason.isNotEmpty()) {
+                            // ИЗМЕНЕНИЕ: Передаем context и callback
+                            viewModel.reportReview(
+                                context = context,
+                                reviewId = review.id,
+                                userId = user.id ?: 0L,
+                                establishmentId = establishmentId,
+                                reason = selectedReason,
+                                description = if (selectedReason == "Другое") otherDescription else null,
+                                onSuccess = {
+                                    showReportDialog = false
+                                    selectedReason = ""
+                                    otherDescription = ""
+                                }
+                            )
+                        } else {
+                            Toast.makeText(context, "Выберите причину", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.MainSuccess, contentColor = colors.MainContainer),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Отправить")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showReportDialog = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = colors.SecondaryText // Делаем кнопку "Отмена" менее акцентной
+                    )
+                ) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 }
