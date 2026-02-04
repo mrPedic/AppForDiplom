@@ -6,13 +6,13 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
@@ -30,15 +30,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.roamly.classes.cl_menu.Drink
 import com.example.roamly.classes.cl_menu.Food
-import com.example.roamly.entity.DTO.ReviewReportDto
 import com.example.roamly.entity.ViewModel.EstablishmentDetailViewModel
 import com.example.roamly.entity.ViewModel.UserViewModel
 import com.example.roamly.entity.classes.ReviewEntity
+import com.example.roamly.ui.screens.sealed.EstablishmentScreens
 import com.example.roamly.ui.theme.AppTheme
 import java.time.format.DateTimeFormatter
 
@@ -173,13 +173,18 @@ fun SimpleDrinkCard(drink: Drink) { // Замените Drink на ваш реа
 fun ReviewCard(
     review: ReviewEntity,
     modifier: Modifier = Modifier,
-    establishmentId: Long
+    establishmentId: Long,
+    navController: NavController // 1. Добавили параметр
 ) {
     val colors = AppTheme.colors
     val context = LocalContext.current
-    val viewModel: EstablishmentDetailViewModel = hiltViewModel()
-    val userViewModel: UserViewModel = hiltViewModel()
+    val userViewModel: UserViewModel = hiltViewModel() // viewModel можно не объявлять тут, если не используется, но userViewModel нужен
     val user by userViewModel.user.collectAsState()
+
+    // Проверка на авторство
+    val isAuthor = user.id == review.createdUserId
+
+    val viewModel: EstablishmentDetailViewModel = hiltViewModel()
 
     val imageBytes by produceState<ByteArray?>(initialValue = null, key1 = review.photoBase64) {
         review.photoBase64?.let { photo ->
@@ -213,7 +218,7 @@ fun ReviewCard(
         ),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(2.dp),
-        border = BorderStroke(1.dp, colors.SecondaryBorder.copy(alpha = 0.5f)) // Сделал границу чуть заметнее для консистентности
+        border = BorderStroke(1.dp, colors.SecondaryBorder.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -221,6 +226,7 @@ fun ReviewCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Рейтинг (звезды)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.Star,
@@ -251,6 +257,7 @@ fun ReviewCard(
                     }
                 }
 
+                // Дата и Кнопки действий
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     review.dateOfCreation?.let {
                         Text(
@@ -260,6 +267,8 @@ fun ReviewCard(
                         )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
+
+                    // Кнопка жалобы
                     IconButton(
                         onClick = { showReportDialog = true },
                         modifier = Modifier.size(32.dp)
@@ -271,11 +280,36 @@ fun ReviewCard(
                             modifier = Modifier.size(18.dp)
                         )
                     }
+
+                    // 2. Кнопка редактирования (ВИДНА ТОЛЬКО АВТОРУ)
+                    if (isAuthor) {
+                        IconButton(
+                            onClick = {
+                                navController.navigate(
+                                    EstablishmentScreens.ReviewEditing.createRoute(
+                                        establishmentId = establishmentId,
+                                        reviewId = review.id,
+                                        rating = review.rating,
+                                        comment = review.reviewText
+                                    )
+                                )
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Редактировать",
+                                tint = colors.MainSuccess, // Зеленый цвет для редактирования
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Текст отзыва
             Text(
                 review.reviewText,
                 style = MaterialTheme.typography.bodyMedium,
@@ -283,6 +317,7 @@ fun ReviewCard(
                 lineHeight = 20.sp
             )
 
+            // Фото
             if (imageBytes != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 AsyncImage(
@@ -301,6 +336,7 @@ fun ReviewCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Информация о пользователе
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -326,10 +362,11 @@ fun ReviewCard(
         }
     }
 
+    // Диалог жалобы (оставляем без изменений)
     if (showReportDialog) {
         AlertDialog(
             onDismissRequest = { showReportDialog = false },
-            containerColor = colors.MainContainer, // Установка фона диалога
+            containerColor = colors.MainContainer,
             title = {
                 Text(
                     "Пожаловаться на отзыв",
@@ -339,7 +376,6 @@ fun ReviewCard(
             },
             text = {
                 Column {
-                    val reasons = listOf("Spam", "Offensive Content", "Fake Review", "Other")
                     val russianReasons = listOf("Спам", "Оскорбительный контент", "Ложный отзыв", "Другое" )
                     russianReasons.forEach { reason ->
                         Row(
@@ -357,7 +393,7 @@ fun ReviewCard(
                             Text(reason, color = colors.MainText)
                         }
                     }
-                    if (selectedReason == "Other") {
+                    if (selectedReason == "Другое") {
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = otherDescription,
@@ -380,7 +416,6 @@ fun ReviewCard(
                 Button(
                     onClick = {
                         if (selectedReason.isNotEmpty()) {
-                            // ИЗМЕНЕНИЕ: Передаем context и callback
                             viewModel.reportReview(
                                 context = context,
                                 reviewId = review.id,
@@ -407,9 +442,7 @@ fun ReviewCard(
             dismissButton = {
                 TextButton(
                     onClick = { showReportDialog = false },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = colors.SecondaryText // Делаем кнопку "Отмена" менее акцентной
-                    )
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.SecondaryText)
                 ) {
                     Text("Отмена")
                 }

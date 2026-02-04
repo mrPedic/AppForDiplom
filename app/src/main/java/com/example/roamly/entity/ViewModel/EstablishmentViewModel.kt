@@ -27,6 +27,7 @@ import com.example.roamly.entity.DTO.establishment.EstablishmentWithCountsDto
 import com.example.roamly.entity.classes.EstablishmentEntity
 import com.example.roamly.entity.EstablishmentLoadState
 import com.example.roamly.entity.classes.EstablishmentStatus
+import com.example.roamly.entity.classes.ReviewDisplayDto
 import com.example.roamly.entity.classes.ReviewEntity
 import com.example.roamly.entity.classes.TableEntity
 import com.example.roamly.entity.classes.TypeOfEstablishment
@@ -130,6 +131,9 @@ class EstablishmentViewModel @Inject constructor(
     // Поток для индикатора загрузки поиска
     private val _isSearchLoading = MutableStateFlow(false)
     val isSearchLoading: StateFlow<Boolean> = _isSearchLoading.asStateFlow()
+
+    private val _selectedReview = MutableStateFlow<ReviewEntity?>(null)
+    val selectedReview: StateFlow<ReviewEntity?> = _selectedReview.asStateFlow()
 
 
     // =========================================== //
@@ -534,6 +538,7 @@ class EstablishmentViewModel @Inject constructor(
             try {
                 // Предполагаем, что apiService.getReviewsByEstablishmentId реализован
                 val list = apiService.getReviewsByEstablishmentId(establishmentId)
+                    .sortedBy { it.dateOfCreation }
 
                 withContext(Dispatchers.Main) {
                     _reviews.value = list
@@ -558,10 +563,8 @@ class EstablishmentViewModel @Inject constructor(
         tables: List<TableCreationDto>
     ): Result<List<TableEntity>> {
         return try {
-            // ⭐ Шаг 1: Вызов API
             val response = apiService.createTables(establishmentId, tables)
 
-            // ⭐ Шаг 2: Проверка успеха
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body != null) {
@@ -578,13 +581,11 @@ class EstablishmentViewModel @Inject constructor(
                 val errorBody = response.errorBody()?.string() ?: "Неизвестная ошибка тела"
                 val errorMsg = "HTTP ${response.code()}: $errorBody"
 
-                // ⭐ ЭТО ВАЖНО: Выводим полный ответ сервера в лог
                 Log.e("TableVM", "Ошибка сервера при создании столиков: $errorMsg")
 
                 Result.failure(Exception(errorMsg))
             }
         } catch (e: Exception) {
-            // ⭐ Ловим IOException, SocketTimeoutException и ошибки парсинга JSON
             Log.e("TableVM", "Критическая ошибка корутины/сети/JSON при сохранении столиков: ${e.message}", e)
             Result.failure(e)
         }
@@ -1077,4 +1078,58 @@ class EstablishmentViewModel @Inject constructor(
         }
     }
 
+
+    fun loadReview(reviewId: Long) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val review = apiService.getReviewById(reviewId)
+                _selectedReview.value = review
+            } catch (e: Exception) {
+                Log.e("EstablishmentViewModel", "Error loading review", e)
+                _errorMessage.value = "Ошибка загрузки отзыва"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+
+    fun updateReview(
+        reviewId: Long,
+        establishmentId: Long,
+        userId: Long,
+        rating: Float,
+        reviewText: String,
+        photoBase64: String?,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val reviewEntity = ReviewEntity(
+                    id = reviewId, // Важно передать ID
+                    establishmentId = establishmentId,
+                    createdUserId = userId,
+                    rating = rating,
+                    reviewText = reviewText,
+                    photoBase64 = photoBase64
+                )
+
+                val response = withContext(Dispatchers.IO) {
+                    apiService.updateReview(reviewId, reviewEntity)
+                }
+
+                if (response.isSuccessful) {
+                    onResult(true, null)
+                } else {
+                    onResult(false, "Ошибка сервера: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                onResult(false, e.message)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
 }

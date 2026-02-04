@@ -24,4 +24,18 @@ sealed class EstablishmentScreens(val route: String) {
     }
 
     object ApproveBookings : EstablishmentScreens("establishment/approve_bookings")
+
+    object ReviewEditing : EstablishmentScreens(
+        "establishment/review/{establishmentId}/edit?reviewId={reviewId}&rating={rating}&comment={comment}"
+    ) {
+        fun createRoute(
+            establishmentId: Long,
+            reviewId: Long,
+            rating: Float,
+            comment: String
+        ): String {
+            val encodedComment = android.net.Uri.encode(comment)
+            return "establishment/review/$establishmentId/edit?reviewId=$reviewId&rating=$rating&comment=$encodedComment"
+        }
+    }
 }

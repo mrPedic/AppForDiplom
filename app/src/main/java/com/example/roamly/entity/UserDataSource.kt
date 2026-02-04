@@ -36,13 +36,9 @@ class UserDataSource @Inject constructor(
 
     private val TAG = "UserDataSource"
 
-    // ⭐ Состояние сессии: Хранит текущего пользователя
     private val _currentUser = MutableStateFlow(loadUserFromPrefs())
     val currentUser: StateFlow<User> = _currentUser.asStateFlow()
 
-    // ------------------------------------------------------------------
-    // ⭐ Public API для ViewModels
-    // ------------------------------------------------------------------
 
     /**
      * Возвращает текущий ID пользователя, если он авторизован (ID != -1L).

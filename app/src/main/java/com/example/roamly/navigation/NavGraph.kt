@@ -440,5 +440,43 @@ fun NavGraph(
             AdminReportsScreen(navController)
         }
 
+
+        // 1. Существующий маршрут создания (оставляем как есть, аргументы по дефолту null/empty)
+        composable(
+            route = EstablishmentScreens.ReviewCreation.route,
+            arguments = listOf(navArgument("establishmentId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
+            ReviewCreationScreen(
+                navController = navController,
+                establishmentId = establishmentId
+                // reviewId, initialRating, initialComment остаются дефолтными
+            )
+        }
+
+        composable(
+            route = EstablishmentScreens.ReviewEditing.route,
+            arguments = listOf(
+                navArgument("establishmentId") { type = NavType.LongType },
+                navArgument("reviewId") { type = NavType.LongType },
+                navArgument("rating") { type = NavType.FloatType },
+                navArgument("comment") { type = NavType.StringType } // Изменено с "text" на "comment" и удален "photo"
+            )
+        ) { backStackEntry ->
+            val establishmentId = backStackEntry.arguments?.getLong("establishmentId") ?: 0L
+            val reviewId = backStackEntry.arguments?.getLong("reviewId") ?: 0L
+            val rating = backStackEntry.arguments?.getFloat("rating") ?: 0f
+            val encodedComment = backStackEntry.arguments?.getString("comment") ?: ""
+            val comment = android.net.Uri.decode(encodedComment) // Декодируем, так как в createRoute кодировали
+
+            ReviewCreationScreen(
+                navController = navController,
+                establishmentId = establishmentId,
+                reviewId = reviewId,           // Передаем ID для режима редактирования
+                initialRating = rating,        // Начальный рейтинг
+                initialText = comment          // Начальный текст (декодированный)
+            )
+        }
+
     }
 }

@@ -1,9 +1,11 @@
+// Updated ReviewCreationScreen.kt (ensure delete button is present, no changes needed as it's already there)
 package com.example.roamly.ui.screens.establishment
 
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,6 +13,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -21,6 +25,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -82,24 +89,31 @@ fun validateReviewData(rating: Float, reviewText: String): Pair<Boolean, String?
 fun ReviewCreationScreen(
     navController: NavController,
     establishmentId: Long,
+    reviewId: Long? = null,
+    initialRating: Float = 3f,
+    initialText: String = "",
     viewModel: EstablishmentViewModel = hiltViewModel(),
     userViewModel: UserViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val colors = AppTheme.colors
 
     // В Production-приложении getId() обычно возвращает Optional или nullable Long,
     // но мы предполагаем, что он возвращает Long? для безопасности.
     val userId by remember { derivedStateOf { userViewModel.getId() } }
 
-    var rating by remember { mutableFloatStateOf(3f) }
-    var reviewText by remember { mutableStateOf("") }
+    var rating by remember { mutableFloatStateOf(initialRating) }
+    var reviewText by remember { mutableStateOf(initialText) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var existingPhotoBase64 by remember { mutableStateOf<String?>(null) }
+    var isPhotoRemoved by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     var isEncodingImage by remember { mutableStateOf(false) }
 
     val isLoading by viewModel.isLoading.collectAsState()
+    val selectedReview by viewModel.selectedReview.collectAsState()
 
     // Лаунчер для выбора изображения из галереи
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -107,13 +121,32 @@ fun ReviewCreationScreen(
     ) { uri: Uri? ->
         uri?.let {
             selectedImageUri = it
+            isPhotoRemoved = false
             validationError = null // Сбрасываем ошибку при выборе нового изображения
         }
     }
 
     // Функция для сброса выбранного изображения
     val clearSelectedImage = {
-        selectedImageUri = null
+        if (selectedImageUri != null) {
+            selectedImageUri = null
+        } else {
+            isPhotoRemoved = true
+        }
+    }
+
+    LaunchedEffect(reviewId) {
+        if (reviewId != null) {
+            viewModel.loadReview(reviewId)
+        }
+    }
+
+    LaunchedEffect(selectedReview) {
+        selectedReview?.let { review ->
+            rating = review.rating
+            reviewText = review.reviewText
+            existingPhotoBase64 = review.photoBase64
+        }
     }
 
     // --- Функция отправки ---
@@ -136,25 +169,48 @@ fun ReviewCreationScreen(
         coroutineScope.launch {
             isEncodingImage = true
             val base64String = withContext(Dispatchers.IO) {
-                selectedImageUri?.let { uriToBase64(context, it) }
+                when {
+                    selectedImageUri != null -> uriToBase64(context, selectedImageUri!!)
+                    isPhotoRemoved -> null
+                    else -> existingPhotoBase64
+                }
             }
             isEncodingImage = false
 
-            viewModel.submitReview(
-                establishmentId = establishmentId,
-                userId = userId!!,
-                rating = rating,
-                reviewText = reviewText.trim(),
-                photoBase64 = base64String,
-                onResult = { success, errorMsg ->
-                    if (success) {
-                        Toast.makeText(context, "Отзыв успешно отправлен!", Toast.LENGTH_SHORT).show()
-                        navController.popBackStack() // Возвращаемся на предыдущий экран
-                    } else {
-                        Toast.makeText(context, errorMsg ?: "Ошибка отправки отзыва.", Toast.LENGTH_LONG).show()
+            if (reviewId != null) {
+                viewModel.updateReview(
+                    reviewId = reviewId,
+                    establishmentId = establishmentId,
+                    userId = userId!!,
+                    rating = rating,
+                    reviewText = reviewText.trim(),
+                    photoBase64 = base64String,
+                    onResult = { success, errorMsg ->
+                        if (success) {
+                            Toast.makeText(context, "Отзыв успешно обновлен!", Toast.LENGTH_SHORT).show()
+                            navController.popBackStack() // Возвращаемся на предыдущий экран
+                        } else {
+                            Toast.makeText(context, errorMsg ?: "Ошибка обновления отзыва.", Toast.LENGTH_LONG).show()
+                        }
                     }
-                }
-            )
+                )
+            } else {
+                viewModel.submitReview(
+                    establishmentId = establishmentId,
+                    userId = userId!!,
+                    rating = rating,
+                    reviewText = reviewText.trim(),
+                    photoBase64 = base64String,
+                    onResult = { success, errorMsg ->
+                        if (success) {
+                            Toast.makeText(context, "Отзыв успешно отправлен!", Toast.LENGTH_SHORT).show()
+                            navController.popBackStack() // Возвращаемся на предыдущий экран
+                        } else {
+                            Toast.makeText(context, errorMsg ?: "Ошибка отправки отзыва.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -163,9 +219,9 @@ fun ReviewCreationScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "Новый отзыв",
+                        text = if (reviewId != null) "Редактировать отзыв" else "Новый отзыв",
                         style = MaterialTheme.typography.titleMedium,
-                        color = AppTheme.colors.MainText
+                        color = colors.MainText
                     )
                 },
                 navigationIcon = {
@@ -173,12 +229,12 @@ fun ReviewCreationScreen(
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "Назад",
-                            tint = AppTheme.colors.MainText
+                            tint = colors.MainText
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = AppTheme.colors.MainContainer
+                    containerColor = colors.MainContainer
                 )
             )
         }
@@ -186,7 +242,7 @@ fun ReviewCreationScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AppTheme.colors.MainContainer)
+                .background(colors.MainContainer)
                 .padding(paddingValues)
         ) {
             Column(
@@ -208,13 +264,13 @@ fun ReviewCreationScreen(
                         Icon(
                             Icons.Default.Star,
                             contentDescription = null,
-                            tint = AppTheme.colors.MainSuccess,
+                            tint = colors.MainSuccess,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
                             text = "Ваша оценка: ${"%.1f".format(rating)}",
                             style = MaterialTheme.typography.titleMedium,
-                            color = AppTheme.colors.MainText
+                            color = colors.MainText
                         )
                     }
 
@@ -227,23 +283,24 @@ fun ReviewCreationScreen(
                             validationError = null // Сбрасываем ошибку при изменении
                         },
                         valueRange = 1f..5f,
-                        steps = 7, // 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5
+                        steps = 7, // Исправлено на 7 для точного шага 0.5
                         modifier = Modifier.fillMaxWidth(),
                         colors = SliderDefaults.colors(
-                            thumbColor = AppTheme.colors.SelectedItem,
-                            activeTrackColor = AppTheme.colors.MainSuccess,
-                            inactiveTrackColor = AppTheme.colors.SecondaryContainer,
-                            activeTickColor = AppTheme.colors.MainSuccess,
-                            inactiveTickColor = AppTheme.colors.SecondaryContainer
+                            activeTrackColor = colors.MainSuccess,
+                            inactiveTrackColor = colors.SecondaryBorder,
+                            activeTickColor = colors.MainSuccess,
+                            inactiveTickColor = colors.SecondaryBorder,
+                            thumbColor = colors.MainSuccess
                         )
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("1", color = AppTheme.colors.SecondaryText)
-                        Text("5", color = AppTheme.colors.SecondaryText)
+                    validationError?.takeIf { rating < 1f }?.let { error ->
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.MainFailure,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
                 }
 
@@ -257,54 +314,58 @@ fun ReviewCreationScreen(
                     Text(
                         text = "Текст отзыва *",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = AppTheme.colors.SecondaryText,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        color = colors.SecondaryText,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
 
                     OutlinedTextField(
                         value = reviewText,
                         onValueChange = {
-                            reviewText = it
-                            validationError = null // Сбрасываем ошибку при изменении
+                            if (it.length <= 2000) {
+                                reviewText = it
+                                validationError = null
+                            }
                         },
                         placeholder = {
                             Text(
-                                text = "Опишите свои впечатления...",
-                                color = AppTheme.colors.SecondaryText.copy(alpha = 0.6f)
+                                text = "Напишите отзыв (минимум 10 символов)...",
+                                color = colors.SecondaryText
                             )
                         },
-                        minLines = 5,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp),
                         maxLines = 10,
-                        modifier = Modifier.fillMaxWidth(),
-                        isError = validationError != null,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AppTheme.colors.MainBorder,
-                            unfocusedBorderColor = AppTheme.colors.SecondaryBorder,
-                            errorBorderColor = AppTheme.colors.MainFailure,
-                            focusedTextColor = AppTheme.colors.MainText,
-                            unfocusedTextColor = AppTheme.colors.MainText,
-                            cursorColor = AppTheme.colors.MainText,
-                            focusedContainerColor = AppTheme.colors.SecondaryContainer,
-                            unfocusedContainerColor = AppTheme.colors.SecondaryContainer,
-                            errorContainerColor = AppTheme.colors.MainContainer,
-                            focusedPlaceholderColor = AppTheme.colors.SecondaryText.copy(alpha = 0.6f),
-                            unfocusedPlaceholderColor = AppTheme.colors.SecondaryText.copy(alpha = 0.6f)
+                            focusedBorderColor = colors.MainSuccess,
+                            unfocusedBorderColor = colors.SecondaryBorder,
+                            focusedTextColor = colors.MainText,
+                            unfocusedTextColor = colors.MainText,
+                            cursorColor = colors.MainSuccess,
+                            focusedContainerColor = colors.SecondaryContainer,
+                            unfocusedContainerColor = colors.SecondaryContainer
                         ),
-//                        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions.Default.copy(
-//                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
-//                        )
+                        shape = MaterialTheme.shapes.medium,
+                        // ── Современный способ ────────────────────────────────
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { /* можно добавить скрытие клавиатуры или submit */ }
+                        )
                     )
 
                     // Счетчик символов
                     Text(
                         text = "${reviewText.length}/2000",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (reviewText.length > 2000) AppTheme.colors.MainFailure
-                        else AppTheme.colors.SecondaryText,
+                        color = if (reviewText.length > 2000) colors.MainFailure
+                        else colors.SecondaryText,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End
+                        textAlign = TextAlign.End
                     )
 
                     // Сообщение об ошибке
@@ -312,7 +373,7 @@ fun ReviewCreationScreen(
                         Text(
                             text = error,
                             style = MaterialTheme.typography.labelSmall,
-                            color = AppTheme.colors.MainFailure,
+                            color = colors.MainFailure,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
@@ -328,7 +389,7 @@ fun ReviewCreationScreen(
                     Text(
                         text = "Фотография (опционально)",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = AppTheme.colors.SecondaryText,
+                        color = colors.SecondaryText,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
@@ -338,32 +399,33 @@ fun ReviewCreationScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isLoading && !isEncodingImage,
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = AppTheme.colors.SecondaryContainer,
-                            contentColor = AppTheme.colors.MainText,
-                            disabledContainerColor = AppTheme.colors.SecondaryContainer.copy(alpha = 0.5f),
-                            disabledContentColor = AppTheme.colors.MainText.copy(alpha = 0.5f)
+                            containerColor = colors.SecondaryContainer,
+                            contentColor = colors.MainText,
+                            disabledContainerColor = colors.SecondaryContainer.copy(alpha = 0.5f),
+                            disabledContentColor = colors.MainText.copy(alpha = 0.5f)
                         ),
                         border = ButtonDefaults.outlinedButtonBorder.copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
+                            brush = androidx.compose.ui.graphics.SolidColor(colors.MainBorder)
                         )
                     ) {
                         Text(
                             text = "Выбрать фото из галереи",
-                            color = AppTheme.colors.MainText
+                            color = colors.MainText
                         )
                     }
 
                     Spacer(Modifier.height(12.dp))
 
-                    // Отображение выбранного фото
-                    selectedImageUri?.let { uri ->
+                    // Отображение выбранного или существующего фото
+                    val showPhoto = selectedImageUri != null || (existingPhotoBase64 != null && !isPhotoRemoved)
+                    if (showPhoto) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = AppTheme.colors.SecondaryContainer
+                                containerColor = colors.SecondaryContainer
                             ),
                             border = CardDefaults.outlinedCardBorder().copy(
-                                brush = androidx.compose.ui.graphics.SolidColor(AppTheme.colors.MainBorder)
+                                brush = androidx.compose.ui.graphics.SolidColor(colors.MainBorder)
                             )
                         ) {
                             Box(
@@ -376,28 +438,45 @@ fun ReviewCreationScreen(
                                     modifier = Modifier
                                         .padding(4.dp)
                                         .background(
-                                            AppTheme.colors.MainContainer.copy(alpha = 0.8f),
+                                            colors.MainContainer.copy(alpha = 0.8f),
                                             androidx.compose.foundation.shape.CircleShape
                                         )
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "Удалить фото",
-                                        tint = AppTheme.colors.MainText,
+                                        tint = colors.MainText,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
 
                                 // Изображение
-                                Image(
-                                    painter = rememberAsyncImagePainter(uri),
-                                    contentDescription = "Выбранное фото",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(200.dp)
-                                        .padding(8.dp),
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                )
+                                val imageData: Any? = if (selectedImageUri != null) {
+                                    selectedImageUri
+                                } else {
+                                    try {
+                                        val clean = if (existingPhotoBase64!!.contains(",")) {
+                                            existingPhotoBase64!!.split(",")[1]
+                                        } else {
+                                            existingPhotoBase64!!
+                                        }
+                                        Base64.decode(clean, Base64.DEFAULT)
+                                    } catch (e: Exception) {
+                                        Log.e("ReviewCreationScreen", "Error decoding base64", e)
+                                        null
+                                    }
+                                }
+                                if (imageData != null) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(imageData),
+                                        contentDescription = "Фото отзыва",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp)
+                                            .padding(8.dp),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                }
                             }
                         }
                     }
@@ -413,10 +492,10 @@ fun ReviewCreationScreen(
                         .fillMaxWidth()
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AppTheme.colors.MainSuccess,
-                        contentColor = AppTheme.colors.MainText,
-                        disabledContainerColor = AppTheme.colors.MainSuccess.copy(alpha = 0.5f),
-                        disabledContentColor = AppTheme.colors.MainText.copy(alpha = 0.5f)
+                        containerColor = colors.MainSuccess,
+                        contentColor = colors.MainText,
+                        disabledContainerColor = colors.MainSuccess.copy(alpha = 0.5f),
+                        disabledContentColor = colors.MainText.copy(alpha = 0.5f)
                     ),
                     shape = MaterialTheme.shapes.medium
                 ) {
@@ -426,20 +505,20 @@ fun ReviewCreationScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             CircularProgressIndicator(
-                                color = AppTheme.colors.MainText,
+                                color = colors.MainText,
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp
                             )
                             Text(
                                 text = if (isEncodingImage) "Обработка изображения..." else "Отправка...",
-                                color = AppTheme.colors.MainText
+                                color = colors.MainText
                             )
                         }
                     } else {
                         Text(
-                            text = "Отправить отзыв",
+                            text = if (reviewId != null) "Сохранить изменения" else "Отправить отзыв",
                             style = MaterialTheme.typography.labelLarge,
-                            color = AppTheme.colors.MainText
+                            color = colors.MainText
                         )
                     }
                 }
@@ -448,7 +527,7 @@ fun ReviewCreationScreen(
                 Text(
                     text = "* - обязательные поля",
                     style = MaterialTheme.typography.bodySmall,
-                    color = AppTheme.colors.SecondaryText,
+                    color = colors.SecondaryText,
                     modifier = Modifier.padding(top = 16.dp)
                 )
             }
@@ -458,7 +537,7 @@ fun ReviewCreationScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(AppTheme.colors.MainContainer.copy(alpha = 0.7f)),
+                        .background(colors.MainContainer.copy(alpha = 0.7f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -466,13 +545,13 @@ fun ReviewCreationScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         CircularProgressIndicator(
-                            color = AppTheme.colors.MainSuccess,
+                            color = colors.MainSuccess,
                             strokeWidth = 3.dp,
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
                             text = if (isEncodingImage) "Обработка изображения..." else "Отправка отзыва...",
-                            color = AppTheme.colors.MainText,
+                            color = colors.MainText,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }

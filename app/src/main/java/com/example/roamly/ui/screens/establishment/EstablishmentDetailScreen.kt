@@ -2,7 +2,10 @@
 
 package com.example.roamly.ui.screens.establishment
 
+import android.content.Context
 import android.os.Build
+import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.*
@@ -444,6 +447,8 @@ fun DescriptionSection(
     navController: NavController // Добавлено
 ) {
     val colors = AppTheme.colors
+    val currentUser: UserViewModel = hiltViewModel()
+    val context: Context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -497,7 +502,13 @@ fun DescriptionSection(
         // Кнопка для создания бронирования
         Button(
             onClick = {
-                navController.navigate(BookingScreens.CreateBooking.createRoute(establishmentId))
+                if (currentUser.user.value.id == null){
+                    Toast.makeText(context, "Для начала авторизуйтесь", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                else{
+                    navController.navigate(BookingScreens.CreateBooking.createRoute(establishmentId))
+                }
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
@@ -518,9 +529,19 @@ fun DescriptionSection(
         // В DescriptionSection добавьте кнопку рядом с кнопкой бронирования
 
         Button(
-                onClick = {
-                    navController.navigate(OrderScreens.OrderCreation.createRoute(establishmentId))
-                },
+            onClick = {
+                if (currentUser.user.value.id == null){
+                    Toast.makeText(context, "Для начала авторизуйтесь", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                else {
+                    navController.navigate(
+                        OrderScreens.OrderCreation.createRoute(
+                            establishmentId
+                        )
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = colors.SecondaryContainer,
@@ -548,13 +569,24 @@ fun ReviewsSection(
 ) {
     val colors = AppTheme.colors
     val context = LocalContext.current
+    val currentUser: UserViewModel = hiltViewModel()
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Показываем кнопку создания отзыва только если пользователь не владелец
         if (!isCreator) {
             OutlinedButton(
                 onClick = {
-                    navController.navigate(EstablishmentScreens.ReviewCreation.createRoute(establishmentId))
+                    if (currentUser.user.value.id == null){
+                        Toast.makeText(context, "Для начала авторизуйтесь", Toast.LENGTH_SHORT).show()
+                        return@OutlinedButton
+                    }
+                    else {
+                        navController.navigate(
+                            EstablishmentScreens.ReviewCreation.createRoute(
+                                establishmentId
+                            )
+                        )
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -695,7 +727,8 @@ fun ReviewsSection(
                     ReviewCard(
                         review = review,
                         modifier = Modifier.padding(vertical = 8.dp),
-                        establishmentId = establishmentId
+                        establishmentId = establishmentId,
+                        navController = navController,
                     )
                 }
             }

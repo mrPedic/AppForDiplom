@@ -384,4 +384,14 @@ interface ApiService {
     // Для админа: удаление жалобы
     @DELETE("admin/reports/{reportId}")
     suspend fun deleteReviewReport(@Path("reportId") reportId: Long): Response<Unit>
+
+    // В раздел "Все точки для отзывов"
+    @PUT("reviews/{reviewId}")
+    suspend fun updateReview(
+        @Path("reviewId") reviewId: Long,
+        @Body review: ReviewEntity
+    ): Response<Unit>
+
+    @GET("reviews/{reviewId}")
+    suspend fun getReviewById(@Path("reviewId") reviewId: Long): ReviewEntity
 }
