@@ -117,7 +117,8 @@ class SockJSManager private constructor() {
                         _connectionState.emit(ConnectionState.Connected)
 
                         // 🔥 ОТПРАВЛЯЕМ ТЕСТОВОЕ СООБЩЕНИЕ ПРИ ПОДКЛЮЧЕНИИ
-                        sendTestMessage("connection_established")
+                        // UPDATE: Закомментировано, чтобы не триггерить лишние уведомления при старте
+                        // sendTestMessage("connection_established")
 
                         // Подписываемся на канал пользователя
                         val subscribeMsg = JSONObject().apply {
@@ -182,17 +183,28 @@ class SockJSManager private constructor() {
                                 val title = json.optString("title", "Roamly")
                                 val message = json.optString("message", "")
 
-                            Log.d(TAG, "🌍 Global Notification: $title - $message")
+                                Log.d(TAG, "🌍 Global Notification: $title - $message")
 
-                                    // ВЫЗОВ СИСТЕМНОГО УВЕДОМЛЕНИЯ
+                                // UPDATE: Фильтр тестовых сообщений.
+                                // Если заголовок или текст содержат "test" или "тест" - не показываем пуш, только логи.
+                                val isTest = title.contains("test", ignoreCase = true) ||
+                                        message.contains("test", ignoreCase = true) ||
+                                        title.contains("тест", ignoreCase = true) ||
+                                        message.contains("тест", ignoreCase = true)
+
+                                if (isTest) {
+                                    Log.d(TAG, "🔇 Тестовое уведомление подавлено (показано только в логах)")
+                                } else {
+                                    // ВЫЗОВ СИСТЕМНОГО УВЕДОМЛЕНИЯ ТОЛЬКО ДЛЯ РЕАЛЬНЫХ СООБЩЕНИЙ
                                     notificationHelper?.showNotification(
                                         title = title,
-                                        message =  message,
-                                        notificationId = "GLOBAL_${System.currentTimeMillis()}"  // Добавьте это
+                                        message = message,
+                                        notificationId = "GLOBAL_${System.currentTimeMillis()}"
                                     )
+                                }
 
                                 scope.launch { _messages.emit(text) }
-                        }
+                            }
 
 
                             "ping" -> {
@@ -206,7 +218,7 @@ class SockJSManager private constructor() {
                                 Log.d(TAG, "📤 Sent pong response")
                             }
 
-
+                            // Этот блок уже работает правильно - просто логирует и ничего не показывает
                             "TEST_NOTIFICATION", "TEST_CHANNEL_NOTIFICATION" -> {
                                 Log.d(TAG, "🎯 RECEIVED TEST NOTIFICATION! Full message:")
                                 Log.d(TAG, "📋 ${json.toString(2)}")
